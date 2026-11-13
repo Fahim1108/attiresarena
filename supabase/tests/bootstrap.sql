@@ -2,6 +2,8 @@
 -- Mirrors published Supabase Auth SQL helpers (see docs/AUTH_SECURITY.md).
 create role anon nologin;
 create role authenticated nologin;
+-- Supabase always provides service_role; the trusted checkout server uses it (test mirror only).
+create role service_role nologin;
 create schema auth;
 create table auth.users (
  id uuid primary key,

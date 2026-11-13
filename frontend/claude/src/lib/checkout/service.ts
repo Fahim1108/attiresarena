@@ -4,7 +4,9 @@ import { parseCheckoutOrder, parseCheckoutProgress, type CheckoutProgressInput }
 /**
  * Checkout orchestration, independent of Next.js so it can be tested directly.
  * Browser -> server action -> HttpOnly cookie (raw token) -> database function (hashes it).
- * The raw token is never returned to the browser and never logged.
+ * The raw token is never returned to the browser and never logged. Every rule that matters
+ * (rate limits, idempotency, eligibility, stock) is enforced in the database; this layer only
+ * shapes requests and maps refusals to guest-facing messages.
  */
 export type RpcResult<T> = { ok: true; data: T } | { ok: false; code: string };
 export type CheckoutRpc = <T>(name: string, args: Record<string, unknown>) => Promise<RpcResult<T>>;
@@ -25,23 +27,33 @@ type OrderRow = {
 type Failure = Extract<ActionResult<never>, { ok: false }>;
 
 const TOKEN = /^[0-9a-f]{64}$/;
-const unavailable: Failure = { ok: false, reason: "not_connected", message: "Ordering is not available right now. No order was placed." };
+const CLIENT_KEY = /^[0-9a-f]{64}$/;
+const notConnected: Failure = { ok: false, reason: "not_connected", message: "Ordering is not available right now. No order was placed." };
+
+/** Guest-facing copy. None of it refers to order tracking or order status pages. */
+const messages: Record<string, string> = {
+  CK001: "An item in your cart is no longer available. Remove it and try again.",
+  CK002: "There is not enough stock for an item in your cart. Reduce the quantity or remove the item.",
+  CK003: "Your cart is empty. Add an item to place an order.",
+  CK005: "Too many attempts from this connection. Please wait a few minutes and try again.",
+  CK006: "This mobile number has reached today's order limit. Please try again tomorrow.",
+  CK007: "Please choose a district that belongs to the division you selected.",
+  CK008: "Ordering is not available right now. No order was placed.",
+  CK010: "This order has too many items. Please reduce your cart and try again.",
+  CK011: "Only one of each item can be ordered.",
+  "22023": "Please check your name, mobile number, delivery address and cart, then try again.",
+};
+const generic = "We could not place your order. Your cart has been kept. Please try again.";
 
 function failure(code: string): Failure {
-  if (code === "CK001") return { ok: false, reason: "validation", message: "An item in your cart is no longer available. Remove it and try again." };
-  if (code === "CK002") return { ok: false, reason: "validation", message: "There is not enough stock for an item in your cart. Reduce the quantity or remove it." };
-  if (code === "CK003") return { ok: false, reason: "validation", message: "Your cart is empty." };
-  if (code === "22023") return { ok: false, reason: "validation", message: "Check your name, mobile number, delivery address and cart, then try again." };
-  return unavailable;
+  const message = messages[code];
+  if (message) return { ok: false, reason: "validation", message };
+  return { ok: false, reason: "not_connected", message: generic };
 }
 
-function sameItems(placed: OrderRow["items"], submitted: CheckoutProgressInput["items"]): boolean {
-  const key = (list: { id: string; quantity: number }[]) => list.map((i) => `${i.id.toLowerCase()}x${i.quantity}`).sort().join(",");
-  return key((placed ?? []).map((i) => ({ id: i.variant_id, quantity: i.quantity }))) === key(submitted.map((i) => ({ id: i.variantId, quantity: i.quantity })));
-}
-
-export function createCheckoutService(rpc: CheckoutRpc, jar: CheckoutCookieJar, options: { duplicateWindowMs: number; now?: () => number }) {
-  const now = options.now ?? Date.now;
+export function createCheckoutService(rpc: CheckoutRpc, jar: CheckoutCookieJar, options: { clientKey: string }) {
+  if (!CLIENT_KEY.test(options.clientKey)) throw new Error("A hashed client key is required");
+  const clientKey = options.clientKey;
   const currentToken = () => {
     const token = jar.get();
     return token && TOKEN.test(token) ? token : undefined;
@@ -50,7 +62,8 @@ export function createCheckoutService(rpc: CheckoutRpc, jar: CheckoutCookieJar, 
     const status = await rpc<{ lifecycle_status: string }>("checkout_session_status", { raw_token: token });
     return status.ok ? status.data.lifecycle_status === "completed" : null;
   };
-  const contactArgs = (c: CheckoutProgressInput["customer"]) => ({ customer_name: c.fullName, phone: c.phone, email: c.email ?? null });
+  const contactArgs = (c: CheckoutProgressInput["customer"]) => ({ customer_name: c.fullName, phone: c.phone, email: c.email ?? null, client_key: clientKey });
+  const itemArgs = (items: CheckoutProgressInput["items"]) => items.map((i) => ({ variant_id: i.variantId, quantity: i.quantity }));
 
   /** Returns a usable token with contact and items stored, or says the session is completed. */
   async function prepare(input: CheckoutProgressInput): Promise<{ token: string } | { completed: string } | Failure> {
@@ -69,16 +82,16 @@ export function createCheckoutService(rpc: CheckoutRpc, jar: CheckoutCookieJar, 
     } else {
       const started = await rpc<{ token: string; expires_at: string }>("start_checkout_session", contactArgs(input.customer));
       if (!started.ok) return failure(started.code);
-      if (!TOKEN.test(started.data.token)) return unavailable;
+      if (!TOKEN.test(started.data.token)) return failure("unknown");
       token = started.data.token;
       jar.set(token, new Date(started.data.expires_at));
     }
-    const saved = await rpc("set_checkout_items", { raw_token: token, items: input.items.map((i) => ({ variant_id: i.variantId, quantity: i.quantity })) });
+    const saved = await rpc("set_checkout_items", { raw_token: token, items: itemArgs(input.items), client_key: clientKey });
     if (!saved.ok) return (await isCompleted(token)) ? { completed: token } : failure(saved.code);
     return { token };
   }
 
-  /** Records contact details and cart contents once the customer shows checkout intent. */
+  /** Records contact details and cart contents once the customer has entered contact details. */
   async function saveProgress(raw: unknown): Promise<ActionResult<{ saved: true }>> {
     const input = parseCheckoutProgress(raw);
     if (!input) return failure("22023");
@@ -89,7 +102,7 @@ export function createCheckoutService(rpc: CheckoutRpc, jar: CheckoutCookieJar, 
       prepared = await prepare(input);
     }
     if ("token" in prepared) return { ok: true, data: { saved: true } };
-    return "completed" in prepared ? unavailable : prepared;
+    return "completed" in prepared ? notConnected : prepared;
   }
 
   async function placeOrder(raw: unknown): Promise<ActionResult<PlacedOrder>> {
@@ -101,6 +114,8 @@ export function createCheckoutService(rpc: CheckoutRpc, jar: CheckoutCookieJar, 
         delivery: { division: input.address.division, district: input.address.district, area: input.address.area, address_line: input.address.addressLine },
         payment_method: input.paymentMethod,
         order_note: input.note ?? null,
+        client_key: clientKey,
+        expected_items: itemArgs(input.items),
       });
     const done = (row: OrderRow): ActionResult<PlacedOrder> => {
       jar.clear();
@@ -109,18 +124,21 @@ export function createCheckoutService(rpc: CheckoutRpc, jar: CheckoutCookieJar, 
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const prepared = await prepare(input);
       if ("ok" in prepared) return prepared;
-      if ("completed" in prepared) {
-        // Already an order. Placing again has no effect and returns that order.
-        const prior = await place(prepared.completed);
-        if (prior.ok && sameItems(prior.data.items, input.items) && now() - Date.parse(prior.data.placed_at) < options.duplicateWindowMs) return done(prior.data);
-        jar.clear(); // stale credential from an earlier purchase: start a new checkout
+      const token = "completed" in prepared ? prepared.completed : prepared.token;
+      // Same checkout + same items: the database returns the original order, at any time.
+      const placed = await place(token);
+      if (placed.ok) return done(placed.data);
+      if (placed.code === "CK004") {
+        // The credential belongs to a different, already-placed cart. Start a fresh checkout.
+        jar.clear();
         continue;
       }
-      const placed = await place(prepared.token);
-      return placed.ok ? done(placed.data) : failure(placed.code);
+      return failure(placed.code);
     }
-    return unavailable;
+    return failure("unknown");
   }
 
   return { saveProgress, placeOrder };
 }
+
+export const checkoutMessagesForTests = { ...messages, generic };

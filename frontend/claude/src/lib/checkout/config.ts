@@ -1,7 +1,6 @@
 import "server-only";
 import projects from "@/config/supabase-projects.json";
 import { isProductionStorefront } from "@/lib/storefront-policy";
-import { publicSupabaseConfiguration } from "@/lib/supabase-public";
 
 /** HttpOnly cookie that holds the raw checkout credential. The database stores only its hash. */
 export const CHECKOUT_COOKIE = "aa-checkout";
@@ -9,21 +8,31 @@ export const CHECKOUT_COOKIE = "aa-checkout";
 /** Fallback lifetime; the expiry returned by the database (7 days) takes precedence. */
 export const CHECKOUT_COOKIE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 
-/**
- * A completed checkout answers a repeat submission with its existing order only when the
- * same items are resubmitted within this window. Otherwise the credential is treated as
- * stale and a new checkout starts, so a later purchase is never mistaken for a retry.
- */
-export const DUPLICATE_SUBMISSION_WINDOW_MS = 15 * 60 * 1000;
+export interface CheckoutOrdersConfiguration {
+  url: string;
+  /**
+   * Server-only trusted credential. The database refuses anonymous callers for every checkout
+   * RPC, so guests can only act through this server. It is read from a server-only variable and
+   * is never returned to the browser.
+   */
+  serviceKey: string;
+}
 
 /**
- * Real ordering is available only on verified Staging, never Production, and only when the
- * order migrations have been applied and STAGING_CHECKOUT_ORDERS=1 is set.
+ * Ordering runs only when ALL of these hold:
+ *  - not a production storefront (VERCEL_ENV / NODE_ENV);
+ *  - STAGING_CHECKOUT_ORDERS=1 is set explicitly;
+ *  - the Supabase URL is the verified Staging project;
+ *  - SUPABASE_SERVICE_ROLE_KEY is present (server-only, never NEXT_PUBLIC_).
+ * The database also keeps ordering disabled until its own settings flag is switched on.
  */
-export function checkoutOrdersConfiguration() {
+export function checkoutOrdersConfiguration(): CheckoutOrdersConfiguration | null {
   if (isProductionStorefront() || process.env.STAGING_CHECKOUT_ORDERS !== "1") return null;
-  const config = publicSupabaseConfiguration();
-  return config && config.url === `https://${projects.staging}.supabase.co` ? config : null;
+  const url = (process.env.SUPABASE_URL ?? "").replace(/\/$/, "");
+  if (url !== `https://${projects.staging}.supabase.co`) return null;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  if (serviceKey.length < 20 || serviceKey === process.env.SUPABASE_PUBLISHABLE_KEY) return null;
+  return { url, serviceKey };
 }
 
 export function checkoutOrdersEnabled(): boolean {

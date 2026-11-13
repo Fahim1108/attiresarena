@@ -17,6 +17,7 @@ for migration in supabase/migrations/*.sql; do run_sql "$migration"; done
 { sed '/^rollback;$/,$d' supabase/tests/foundation.sql; cat supabase/tests/auth-security.sql; sed '1d;$d' scripts/inventory/thrift-drafts.sql; cat supabase/tests/thrift-reviews.sql; cat supabase/tests/order-number.sql; cat supabase/tests/admin-catalogue.sql; cat supabase/tests/draft-storage.sql; cat supabase/tests/generic-draft.sql; cat supabase/tests/product-gallery.sql; cat supabase/tests/variant-management.sql; cat supabase/tests/catalogue-taxonomy.sql; printf '\nrollback;\n'; } | docker exec -i "$container_id" psql -X -U postgres -v ON_ERROR_STOP=1
 run_sql supabase/tests/abandoned-checkout-recovery.sql
 run_sql supabase/tests/order-domain-atomic-checkout.sql
+run_sql supabase/tests/checkout-security-remediation.sql
 python3 scripts/test-db-concurrency.py "$container_id"
 python3 scripts/test-generic-draft-concurrency.py "$container_id"
 printf 'Database migration and RLS tests passed. Container will be removed.\n'

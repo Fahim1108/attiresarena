@@ -1,18 +1,26 @@
 import "server-only";
-import { cookies } from "next/headers";
-import { CHECKOUT_COOKIE, DUPLICATE_SUBMISSION_WINDOW_MS, checkoutCookieOptions, checkoutOrdersConfiguration } from "@/lib/checkout/config";
+import { createHash } from "node:crypto";
+import { cookies, headers } from "next/headers";
+import { CHECKOUT_COOKIE, type CheckoutOrdersConfiguration, checkoutCookieOptions, checkoutOrdersConfiguration } from "@/lib/checkout/config";
 import { createCheckoutService, type CheckoutRpc, type PlacedOrder, type RpcResult } from "@/lib/checkout/service";
 import type { ActionResult } from "@/types";
 
 const notConnected = { ok: false as const, reason: "not_connected" as const, message: "This service is not connected. No data was saved." };
 
-/** Public (anon) credentials only. Authorisation is the checkout token, checked in the database. */
-function rpcFor(config: { url: string; key: string }): CheckoutRpc {
+/**
+ * Calls the checkout RPCs with the trusted server credential. The browser never sees it, and the
+ * database grants these RPCs to the trusted server and signed-in customers only.
+ */
+function rpcFor(config: CheckoutOrdersConfiguration): CheckoutRpc {
   return async <T,>(name: string, args: Record<string, unknown>): Promise<RpcResult<T>> => {
     try {
       const response = await fetch(`${config.url}/rest/v1/rpc/${name}`, {
         method: "POST",
-        headers: { apikey: config.key, ...(config.key.startsWith("eyJ") ? { Authorization: `Bearer ${config.key}` } : {}), "Content-Type": "application/json" },
+        headers: {
+          apikey: config.serviceKey,
+          ...(config.serviceKey.startsWith("eyJ") ? { Authorization: `Bearer ${config.serviceKey}` } : {}),
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(args),
         cache: "no-store",
         signal: AbortSignal.timeout(15000),
@@ -25,6 +33,20 @@ function rpcFor(config: { url: string; key: string }): CheckoutRpc {
       return { ok: false, code: "network" };
     }
   };
+}
+
+/**
+ * Best-effort client identity for rate limiting: a hash of the connecting address, never the
+ * address itself. Platform-set headers are preferred over client-supplied forwarding headers.
+ * Requests without an address share one bucket, which is strict rather than permissive.
+ */
+async function clientKeyFromRequest(): Promise<string> {
+  const h = await headers();
+  const platform = h.get("x-vercel-forwarded-for")?.split(",")[0]?.trim();
+  const real = h.get("x-real-ip")?.trim();
+  const forwarded = h.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const address = platform || real || forwarded || "unknown";
+  return createHash("sha256").update(`aa-checkout-client:${address}`).digest("hex");
 }
 
 async function service() {
@@ -45,7 +67,7 @@ async function service() {
         store.set(CHECKOUT_COOKIE, "", { ...checkoutCookieOptions(), maxAge: 0 });
       },
     },
-    { duplicateWindowMs: DUPLICATE_SUBMISSION_WINDOW_MS },
+    { clientKey: await clientKeyFromRequest() },
   );
 }
 

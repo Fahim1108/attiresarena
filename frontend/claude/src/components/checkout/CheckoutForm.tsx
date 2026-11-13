@@ -9,6 +9,7 @@ import { Button, ButtonLink, Checkbox, DemoNotice, EmptyState, Input, Modal, Sel
 import { commerce } from "@/config";
 import { useCart } from "@/context/CartContext";
 import { areasOf, districtsOf, divisionNames, isInsideDhaka } from "@/data/bangladesh";
+import { canPlaceOrder } from "@/lib/checkout/gate";
 import { formatPrice } from "@/lib/format";
 import { isValidBdPhone, isValidEmail, normalizePhone, type FieldErrors } from "@/lib/validation";
 import { placeOrderAction, saveCheckoutProgressAction } from "@/services/actions";
@@ -35,6 +36,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
   const [placed, setPlaced] = useState<{ orderNumber: string; total?: number; phone: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
+  const orderable = canPlaceOrder(orderingEnabled, manualPaymentConfiguration.available);
   const summary = getSummary(form.district || undefined);
   const advance = payment === "cod" ? advanceBreakdown(summary.total * 100, form.division, form.district, manualPaymentConfiguration.policy) : null;
   const districts = useMemo(() => districtsOf(form.division), [form.division]);
@@ -65,21 +67,27 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
     return !first;
   };
 
+  // Records contact details and cart contents as soon as a valid name and mobile number exist, so a
+  // customer who leaves on the delivery step can still be recovered. The server validates everything.
+  // Failure never blocks the customer.
+  const captureContact = () => {
+    if (!orderingEnabled || items.length === 0) return;
+    if (form.fullName.trim().length < 3 || !isValidBdPhone(form.phone)) return;
+    void saveCheckoutProgressAction({
+      customer: { fullName: form.fullName.trim(), phone: normalizePhone(form.phone), email: form.email.trim() || undefined },
+      items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
+    }).catch(() => undefined);
+  };
+
   const next = () => {
     if (step === 0 && !validate()) return;
-    // Meaningful checkout intent: contact details are complete. Stored server-side so an
-    // unfinished checkout can be followed up. Failure here never blocks the customer.
-    if (step === 0 && orderingEnabled)
-      void saveCheckoutProgressAction({
-        customer: { fullName: form.fullName.trim(), phone: normalizePhone(form.phone), email: form.email.trim() || undefined },
-        items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
-      }).catch(() => undefined);
+    if (step === 0) captureContact();
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
     window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
   };
 
   const placeOrder = () => {
-    if (pending || !manualPaymentConfiguration.available) return;
+    if (pending || !orderable) return;
     if (!validate()) return setStep(0);
     const payload: CheckoutPayload = {
       customer: { fullName: form.fullName.trim(), phone: normalizePhone(form.phone), email: form.email.trim() || undefined },
@@ -100,7 +108,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
       }
       setResult({ title: res.reason === "not_connected" ? "Order not placed" : "Could not place order", message: res.message, payload });
       } catch {
-        setResult({ title: "Order not confirmed", message: "The request could not be completed. Check your order status before trying again.", payload });
+        setResult({ title: "Order not confirmed", message: "We could not confirm your order. Your cart has been kept. Please try again.", payload });
       }
     });
   };
@@ -147,7 +155,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
               <h2 className="font-serif text-2xl text-ink">Delivery Information</h2>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Input id="checkout-fullName" label="Full Name" required autoComplete="name" placeholder="Enter your full name" value={form.fullName} onChange={(e) => set("fullName", e.target.value)} error={errors.fullName} wrapperClassName="sm:col-span-2" />
-                <Input id="checkout-phone" label="Phone Number" required type="tel" inputMode="tel" autoComplete="tel" placeholder="01XXXXXXXXX" value={form.phone} onChange={(e) => set("phone", e.target.value)} error={errors.phone} hint="We'll call to confirm your order." />
+                <Input id="checkout-phone" label="Phone Number" required type="tel" inputMode="tel" autoComplete="tel" placeholder="01XXXXXXXXX" value={form.phone} onChange={(e) => set("phone", e.target.value)} onBlur={captureContact} error={errors.phone} hint="We'll call to confirm your order." />
                 <Input id="checkout-email" label="Email (optional)" type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(e) => set("email", e.target.value)} error={errors.email} />
                 <Select id="checkout-division" label="Division" required placeholder="Select division" options={divisionNames.map((d) => ({ value: d, label: d }))} value={form.division} onChange={(e) => set("division", e.target.value)} error={errors.division} />
                 <Select
@@ -246,7 +254,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
                 <Button variant="ghost" onClick={() => setStep(1)} leftIcon={<ArrowLeft className="h-4 w-4" />}>
                   Back
                 </Button>
-                <Button variant="burgundy" size="lg" onClick={placeOrder} loading={pending} disabled={!manualPaymentConfiguration.available} leftIcon={<Lock className="h-4 w-4" />}>
+                <Button variant="burgundy" size="lg" onClick={placeOrder} loading={pending} disabled={!orderable} leftIcon={<Lock className="h-4 w-4" />}>
                   Place Order ({payment === "cod" ? "COD" : "Online"}) · {formatPrice(summary.total)}
                 </Button>
               </div>
