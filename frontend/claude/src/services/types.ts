@@ -8,6 +8,7 @@ import type {
   CatalogFacets,
   Category,
   CheckoutPayload,
+  Money,
   Customer,
   Order,
   Paginated,
@@ -74,7 +75,8 @@ export interface StorefrontDataSource {
   getOrderByNumber(orderNumber: string, phone?: string): Promise<Order | null>;
 
   // ---- Mutations (all require backend) ----
-  placeOrder(payload: CheckoutPayload): Promise<ActionResult<{ orderNumber: string }>>;
+  /** `total` is the server-calculated order total in BDT. Browser totals are never trusted. */
+  placeOrder(payload: CheckoutPayload): Promise<ActionResult<{ orderNumber: string; total?: Money }>>;
   signIn(input: { identifier: string; password: string }): Promise<ActionResult>;
   register(input: { fullName: string; email: string; phone: string; password: string }): Promise<ActionResult>;
   requestPasswordReset(input: { identifier: string }): Promise<ActionResult>;

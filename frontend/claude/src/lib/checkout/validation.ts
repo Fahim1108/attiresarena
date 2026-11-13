@@ -1,0 +1,61 @@
+import { z } from "zod";
+import { DIVISIONS } from "@/data/bangladesh";
+import { BD_PHONE_REGEX, normalizePhone } from "@/lib/validation";
+
+/**
+ * Everything arriving from the browser is untrusted. These schemas keep only what the
+ * server needs: who, where, and WHICH variants in what quantity. Prices, totals, product
+ * ids, coupon codes and delivery charges sent by the browser are never read.
+ */
+const contact = z.object({
+  fullName: z.string().trim().min(3).max(120),
+  phone: z.string().max(40).transform(normalizePhone).pipe(z.string().regex(BD_PHONE_REGEX)),
+  email: z
+    .string()
+    .trim()
+    .max(254)
+    .optional()
+    .transform((value) => (value ? value : undefined))
+    .pipe(z.email().optional()),
+});
+
+const items = z
+  .array(z.object({ variantId: z.uuid(), quantity: z.number().int().min(1).max(99) }))
+  .max(50)
+  .refine((list) => new Set(list.map((i) => i.variantId.toLowerCase())).size === list.length);
+
+const address = z
+  .object({
+    division: z.string(),
+    district: z.string(),
+    area: z.string().trim().min(1).max(120),
+    addressLine: z.string().trim().min(8).max(500),
+  })
+  .refine((a) => (DIVISIONS[a.division] ?? []).includes(a.district));
+
+const progress = z.object({ customer: contact, items });
+const order = z.object({
+  customer: contact,
+  items: items.min(1),
+  address,
+  paymentMethod: z.literal("cod"),
+  note: z
+    .string()
+    .trim()
+    .max(500)
+    .optional()
+    .transform((value) => (value ? value : undefined)),
+});
+
+export type CheckoutProgressInput = z.infer<typeof progress>;
+export type CheckoutOrderInput = z.infer<typeof order>;
+
+export function parseCheckoutProgress(input: unknown): CheckoutProgressInput | null {
+  const parsed = progress.safeParse(input);
+  return parsed.success ? parsed.data : null;
+}
+
+export function parseCheckoutOrder(input: unknown): CheckoutOrderInput | null {
+  const parsed = order.safeParse(input);
+  return parsed.success ? parsed.data : null;
+}

@@ -1,16 +1,16 @@
--- Included within the disposable foundation test transaction. This orders table
--- is an isolated test double, never a deployment migration or a real order claim.
+-- Included within the disposable foundation test transaction.
+-- public.orders is now the real order table (migration 20261113000200); these rows are
+-- test fixtures removed by the outer rollback. order_number is left empty here because
+-- this test exercises the private allocator ledger directly.
 reset role;
 select test.denied($q$select private.assign_customer_order_number(null)$q$,'22023','numeric reference requires an order UUID');
-select test.denied($q$select private.assign_customer_order_number('70000000-0000-0000-0000-000000000001')$q$,'55000','missing real order service cannot mint references');
-select test.assert_true((select count(*)=0 from private.customer_order_numbers),'missing order service leaves reference ledger empty');
-create table public.orders(id uuid primary key);
-alter table public.orders enable row level security;
-insert into public.orders(id) values
- ('70000000-0000-0000-0000-000000000001'),
- ('70000000-0000-0000-0000-000000000002'),
- ('70000000-0000-0000-0000-000000000003'),
- ('70000000-0000-0000-0000-000000000004');
+select test.assert_true(to_regclass('public.orders') is not null,'real order table exists for the reference allocator');
+select test.assert_true((select count(*)=0 from private.customer_order_numbers),'reference ledger starts empty');
+insert into public.orders(id,customer_name,phone,division,district,area,address_line,payment_method,subtotal_minor,delivery_charge_minor,total_minor) values
+ ('70000000-0000-0000-0000-000000000001','Test Order','01700000000','Dhaka','Dhaka','Test','House 1, Road 2','cod',100,0,100),
+ ('70000000-0000-0000-0000-000000000002','Test Order','01700000000','Dhaka','Dhaka','Test','House 1, Road 2','cod',100,0,100),
+ ('70000000-0000-0000-0000-000000000003','Test Order','01700000000','Dhaka','Dhaka','Test','House 1, Road 2','cod',100,0,100),
+ ('70000000-0000-0000-0000-000000000004','Test Order','01700000000','Dhaka','Dhaka','Test','House 1, Road 2','cod',100,0,100);
 select test.denied($q$select private.assign_customer_order_number('70000000-0000-0000-0000-000000000099')$q$,'22023','nonexistent order cannot mint references');
 select test.assert_true(private.assign_customer_order_number('70000000-0000-0000-0000-000000000001')=10000,'server assigns first five-digit reference');
 select test.assert_true(private.assign_customer_order_number('70000000-0000-0000-0000-000000000001')=10000,'reference remains identical on retries');

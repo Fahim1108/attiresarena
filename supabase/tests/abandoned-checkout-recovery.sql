@@ -1,7 +1,6 @@
 -- LOCAL TEST ONLY for supabase/migrations/20261113000100_abandoned_checkout_recovery.sql.
--- Run after bootstrap.sql and all repository migrations. Rolls back everything.
--- The temporary public.orders table below is a TEST STUB inside this transaction only;
--- it is not part of the migration.
+-- Run after bootstrap.sql and all repository migrations (including the order domain,
+-- 20261113000200). Rolls back everything. Order rows below are test fixtures.
 \set ON_ERROR_STOP on
 begin;
 create schema test;
@@ -32,10 +31,18 @@ insert into public.products(id,category_id,name,slug,description,status) values
 insert into public.product_variants(id,product_id,sku,size,color,price_minor,sale_price_minor,active) values
  ('e1000000-0000-4000-8000-000000000001','b1000000-0000-4000-8000-000000000001','OX-M-WHT','M','White',150000,120000,true),
  ('e1000000-0000-4000-8000-000000000002','b1000000-0000-4000-8000-000000000002','DR-M-BLU','M','Blue',100000,null,true);
+insert into public.orders(id,order_number,customer_name,phone,division,district,area,address_line,payment_method,subtotal_minor,delivery_charge_minor,total_minor) values
+ ('f1000000-0000-4000-8000-000000000001',10001,'Test Order','01700000000','Dhaka','Dhaka','Test','House 1, Road 2','cod',100,0,100),
+ ('f1000000-0000-4000-8000-000000000002',10002,'Test Order','01700000000','Dhaka','Dhaka','Test','House 1, Road 2','cod',100,0,100),
+ ('f1000000-0000-4000-8000-000000000003',10003,'Test Order','01700000000','Dhaka','Dhaka','Test','House 1, Road 2','cod',100,0,100);
 insert into public.checkout_sessions(id,token_hash,customer_name,phone,lifecycle_status,started_at,last_activity_at,expires_at,order_id) values
  ('d1000000-0000-4000-8000-000000000001',repeat('1',64),'Stale Guest','01711111111','active',now()-interval '3 hours',now()-interval '3 hours',now()+interval '7 days',null),
  ('d1000000-0000-4000-8000-000000000002',repeat('2',64),'Recent Guest','01722222222','active',now()-interval '10 minutes',now()-interval '10 minutes',now()+interval '7 days',null),
  ('d1000000-0000-4000-8000-000000000003',repeat('3',64),'Done Guest','01733333333','completed',now()-interval '5 hours',now()-interval '5 hours',now()+interval '7 days','f1000000-0000-4000-8000-000000000002');
+
+-- The stale session holds an item: only checkouts with purchase intent can be abandoned.
+insert into public.checkout_items(checkout_session_id,product_id,variant_id,quantity,regular_price_minor,unit_price_minor,price_snapshot_at)
+ values('d1000000-0000-4000-8000-000000000001','b1000000-0000-4000-8000-000000000001','e1000000-0000-4000-8000-000000000001',1,150000,120000,now());
 
 -- ---------------------------------------------------------------- schema and security facts
 select test.assert_true((select bool_and(relrowsecurity) from pg_class where relname in ('checkout_sessions','checkout_items','abandoned_recovery_log')),'RLS enabled on all three tables');
@@ -128,11 +135,8 @@ select test.denied($q$select public.admin_set_checkout_recovery_status('d1000000
 select set_config('request.jwt.claims','{"sub":"a1000000-0000-4000-8000-000000000003","role":"authenticated","aal":"aal2"}',true);
 select test.assert_true((select count(*)=0 from public.checkout_sessions),'customer with no staff role sees no checkout sessions');
 
--- ---------------------------------------------------------------- purchase linkage (needs an orders table)
+-- ---------------------------------------------------------------- purchase linkage
 reset role;
-select test.denied($q$select private.complete_checkout_session('d1000000-0000-4000-8000-000000000001','f1000000-0000-4000-8000-000000000001')$q$,'55000','purchase linkage refused while no orders table exists');
-create table public.orders(id uuid primary key);
-insert into public.orders(id) values ('f1000000-0000-4000-8000-000000000001'),('f1000000-0000-4000-8000-000000000002'),('f1000000-0000-4000-8000-000000000003');
 select test.denied($q$select private.complete_checkout_session('d1000000-0000-4000-8000-000000000001','f1000000-0000-4000-8000-000000000009')$q$,'22023','unknown order refused');
 select private.complete_checkout_session('d1000000-0000-4000-8000-000000000001','f1000000-0000-4000-8000-000000000001');
 select test.assert_true((select lifecycle_status='completed' and recovery_status='recovered' and order_id='f1000000-0000-4000-8000-000000000001' and recovered_at is not null and abandoned_at is not null from public.checkout_sessions where id='d1000000-0000-4000-8000-000000000001'),'lost to recovered via linked purchase; abandoned_at preserved');
@@ -142,7 +146,6 @@ select test.denied($q$select private.complete_checkout_session('d1000000-0000-40
 select private.complete_checkout_session('d1000000-0000-4000-8000-000000000002','f1000000-0000-4000-8000-000000000003');
 select test.assert_true((select lifecycle_status='completed' and recovery_status='pending' and abandoned_at is null from public.checkout_sessions where id='d1000000-0000-4000-8000-000000000002'),'active to completed keeps recovery pending and writes no recovery log');
 select test.assert_true((select count(*)=0 from public.abandoned_recovery_log where checkout_session_id='d1000000-0000-4000-8000-000000000002'),'no recovery log for a non-abandoned purchase');
-drop table public.orders;
 
 -- ---------------------------------------------------------------- append-only recovery history
 select test.denied($q$update public.abandoned_recovery_log set note='rewritten'$q$,'42501','recovery log cannot be updated');

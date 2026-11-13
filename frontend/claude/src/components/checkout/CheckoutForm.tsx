@@ -11,7 +11,7 @@ import { useCart } from "@/context/CartContext";
 import { areasOf, districtsOf, divisionNames, isInsideDhaka } from "@/data/bangladesh";
 import { formatPrice } from "@/lib/format";
 import { isValidBdPhone, isValidEmail, normalizePhone, type FieldErrors } from "@/lib/validation";
-import { placeOrderAction } from "@/services/actions";
+import { placeOrderAction, saveCheckoutProgressAction } from "@/services/actions";
 import type { CheckoutPayload, PaymentMethod } from "@/types";
 import { CheckoutSteps } from "./CheckoutSteps";
 import { PaymentMethodSelector } from "./PaymentMethodSelector";
@@ -23,8 +23,8 @@ type Field = "fullName" | "phone" | "email" | "division" | "district" | "area" |
 
 const STEPS = ["Delivery", "Payment", "Review"];
 
-export function CheckoutForm({ manualPaymentConfiguration }: { manualPaymentConfiguration: ManualPaymentConfiguration }) {
-  const { items, hydrated, getSummary } = useCart();
+export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = false }: { manualPaymentConfiguration: ManualPaymentConfiguration; orderingEnabled?: boolean }) {
+  const { items, hydrated, getSummary, clear } = useCart();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<Record<Field, string>>({ fullName: "", phone: "", email: "", division: "", district: "", area: "", addressLine: "" });
   const [note, setNote] = useState("");
@@ -32,6 +32,7 @@ export function CheckoutForm({ manualPaymentConfiguration }: { manualPaymentConf
   const [payment, setPayment] = useState<PaymentMethod>("cod");
   const [errors, setErrors] = useState<FieldErrors<Field>>({});
   const [result, setResult] = useState<{ title: string; message: string; payload: CheckoutPayload } | null>(null);
+  const [placed, setPlaced] = useState<{ orderNumber: string; total?: number; phone: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
   const summary = getSummary(form.district || undefined);
@@ -66,6 +67,13 @@ export function CheckoutForm({ manualPaymentConfiguration }: { manualPaymentConf
 
   const next = () => {
     if (step === 0 && !validate()) return;
+    // Meaningful checkout intent: contact details are complete. Stored server-side so an
+    // unfinished checkout can be followed up. Failure here never blocks the customer.
+    if (step === 0 && orderingEnabled)
+      void saveCheckoutProgressAction({
+        customer: { fullName: form.fullName.trim(), phone: normalizePhone(form.phone), email: form.email.trim() || undefined },
+        items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
+      }).catch(() => undefined);
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
     window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
   };
@@ -86,7 +94,8 @@ export function CheckoutForm({ manualPaymentConfiguration }: { manualPaymentConf
       try {
       const res = await placeOrderAction(payload);
       if (res.ok) {
-        setResult({ title: "Order not confirmed", message: "Your payment must be verified before an order can be confirmed. Contact support using your pending-order reference.", payload });
+        setPlaced({ orderNumber: res.data.orderNumber, total: res.data.total, phone: payload.customer.phone });
+        clear();
         return;
       }
       setResult({ title: res.reason === "not_connected" ? "Order not placed" : "Could not place order", message: res.message, payload });
@@ -98,6 +107,18 @@ export function CheckoutForm({ manualPaymentConfiguration }: { manualPaymentConf
 
   if (!hydrated) return <CheckoutSkeleton/>;
 
+  if (placed)
+    return (
+      <div data-order-placed>
+        <EmptyState
+          icon={<PackageCheck className="h-7 w-7" />}
+          title={`Order #${placed.orderNumber} received`}
+          description={`Your order is pending${placed.total !== undefined ? ` · Total ${formatPrice(placed.total)}` : ""} · Cash on Delivery. No payment has been recorded. We will contact you on ${placed.phone} to confirm it. Please keep your order number.`}
+          action={<ButtonLink href="/shop">Continue Shopping</ButtonLink>}
+        />
+      </div>
+    );
+
   if (!items.length)
     return <EmptyState icon={<ShoppingBag className="h-7 w-7" />} title="Your cart is empty" description="Add products to your cart before checking out." action={<ButtonLink href="/shop">Browse Products</ButtonLink>} />;
 
@@ -107,7 +128,9 @@ export function CheckoutForm({ manualPaymentConfiguration }: { manualPaymentConf
     <div className="grid gap-8 lg:grid-cols-[1fr_400px] lg:gap-12 [&>*]:min-w-0" data-checkout-content>
       <div className="min-w-0">
         <DemoNotice force className="mb-5">
-          Ordering and payment collection are currently unavailable. Totals are estimates; do not send money or enter real payment details in this Preview.
+          {orderingEnabled
+            ? "This is a Staging test store. Orders placed here are test orders and the final total is calculated by the server. Payment collection is not connected; do not send money."
+            : "Ordering and payment collection are currently unavailable. Totals are estimates; do not send money or enter real payment details in this Preview."}
         </DemoNotice>
         <CheckoutSteps steps={STEPS} current={step} onStepClick={setStep} />
 

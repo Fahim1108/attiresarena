@@ -10,6 +10,7 @@
  */
 import type { Address, CheckoutPayload, Customer, StorefrontSettings } from "@/types";
 import { dataSource } from "./adapters";
+import { saveCheckoutProgress } from "./checkout";
 
 export async function searchSuggestionsAction(term: string) {
   return dataSource.searchSuggestions(term.slice(0, 80), 6);
@@ -21,6 +22,11 @@ export async function getProductsByIdsAction(ids: string[]) {
 
 export async function getOrderByNumberAction(orderNumber: string, phone?: string) {
   return dataSource.getOrderByNumber(orderNumber, phone);
+}
+
+/** Stores contact details and cart contents once the delivery step is completed. */
+export async function saveCheckoutProgressAction(input: unknown) {
+  return saveCheckoutProgress(input);
 }
 
 export async function placeOrderAction(payload: CheckoutPayload) {
