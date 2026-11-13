@@ -113,7 +113,7 @@ export async function readProductTerms(id:string){
  const session=await librarySession();
  if(process.env.STAGING_CATALOGUE_TAXONOMY!=='1')return null;
  const result=await session.client.from('product_catalogue_terms').select('catalogue_terms(name,kind)').eq('product_id',id).limit(41);
- if(result.error)throw new Error('Product taxonomy could not be read.');
+ if(result.error)throw new Error('Product categories and collections could not be read.');
  return z.array(z.object({catalogue_terms:toOne(z.object({name:z.string(),kind:z.enum(['brand','collection','tag'])}))})).parse(result.data).flatMap(r=>r.catalogue_terms?[r.catalogue_terms]:[]);
 }
 /** Count only; private gallery paths and signed URLs are not exposed here. */

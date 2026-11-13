@@ -22,11 +22,11 @@ export function AdminShell({
   const canManage=roles.some(r=>r==='owner'||r==='product_manager');
   const groups=[
     {title:'Main',links:[['/admin','Dashboard']]},
-    ...(canRead?[{title:'Catalog',links:[...(stagingTools?[['/admin/products/library','All products']]:[]),...(canManage?[['/admin/products/new','Add product']]:[]),['/admin/products','Garment intake'],...(stagingTools&&taxonomyTools?[['/admin/taxonomy','Categories & discovery']]:[])]}]:[]),
+    ...(canRead?[{title:'Catalog',links:[...(stagingTools?[['/admin/products/library','All products']]:[]),...(canManage?[['/admin/products/new','Add product']]:[]),['/admin/products','Garment intake'],...(stagingTools&&taxonomyTools?[['/admin/catalogue','Categories & Collections']]:[])]}]:[]),
     ...(canManage?[{title:'System',links:[['/admin/audit','Activity log'],...(stagingTools?[['/admin/media','Private media']]:[])]}]:[]),
   ];
   const current=(href:string)=>path===href||(href==='/admin/products/library'&&/^\/admin\/products\/[0-9a-f-]{36}$/.test(path));
-  const navIcon=(href:string)=>href==='/admin'?LayoutDashboard:href.endsWith('/new')?Plus:href.endsWith('/taxonomy')?Tags:href.endsWith('/audit')?History:href.endsWith('/media')?ImageIcon:href==='/admin/products'?ClipboardList:Package;
+  const navIcon=(href:string)=>href==='/admin'?LayoutDashboard:href.endsWith('/new')?Plus:href.endsWith('/catalogue')?Tags:href.endsWith('/audit')?History:href.endsWith('/media')?ImageIcon:href==='/admin/products'?ClipboardList:Package;
   const navigation = (
     <>
       <nav aria-label="Admin navigation">
@@ -94,7 +94,7 @@ export function AdminShell({
           <Link href="/admin" aria-current={path==='/admin'?'page':undefined}><LayoutDashboard size={20} aria-hidden="true"/>Home</Link>
           {canRead&&<Link href="/admin/products/library" aria-current={current('/admin/products/library')?'page':undefined}><Package size={20} aria-hidden="true"/>Products</Link>}
           {canManage&&<Link href="/admin/products/new" aria-current={path==='/admin/products/new'?'page':undefined}><Plus size={20} aria-hidden="true"/>Add</Link>}
-          {canRead&&taxonomyTools&&<Link href="/admin/taxonomy" aria-current={path==='/admin/taxonomy'?'page':undefined}><Tags size={20} aria-hidden="true"/>Categories</Link>}
+          {canRead&&taxonomyTools&&<Link href="/admin/catalogue" aria-current={path==='/admin/catalogue'?'page':undefined}><Tags size={20} aria-hidden="true"/>Categories</Link>}
           <button type="button" onClick={()=>drawer.current?.showModal()} aria-haspopup="dialog"><Menu size={20} aria-hidden="true"/>More</button>
         </nav>}
       </div>

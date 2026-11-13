@@ -48,7 +48,7 @@ export function standardReadiness(product: {name: string}, facts: StandardFacts)
   return [
     {key: 'name', label: 'Product name', short: 'Name', ok: text(product.name), hint: 'Name the product as customers should see it.'},
     {key: 'description', label: 'Description', short: 'Description', ok: text(facts.description), hint: 'Add a description in Basic information.'},
-    {key: 'category', label: 'Category assigned', short: 'Category', ok: facts.categoryAssigned, hint: 'Choose a category in Category & taxonomy.'},
+    {key: 'category', label: 'Category assigned', short: 'Category', ok: facts.categoryAssigned, hint: 'Choose a category in Category, brand & collections.'},
     {key: 'images', label: 'At least one product image', short: 'Images', ok: facts.imageCount === null ? null : facts.imageCount > 0, hint: 'Upload photographs in Media.'},
     {key: 'sku', label: 'Active SKU with a price', short: 'SKU', ok: facts.variants.some(v => v.active && v.price_minor > 0), hint: 'Add an active SKU with its real size, colour and price.'},
     {key: 'stock', label: 'Stock available', short: 'Stock', ok: facts.available === null ? null : facts.available > 0, hint: 'Record physical stock with a reason.'},

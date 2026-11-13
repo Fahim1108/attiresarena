@@ -28,7 +28,7 @@ export default async function ProductRecord({params}:{params:Promise<{id:string}
  const why=!canManage?'Your role can view products but not edit them.':!draft?'Only draft products can be edited. Published and archived products are locked until a publication workflow exists.':'This step is not activated in this environment.';
  // Shared steps backed by existing RPCs: private gallery, taxonomy assignments, stock adjustments.
  const media=editable&&flag('STAGING_PRODUCT_GALLERY')?<PrivateProductGallery id={product.id} updated_at={product.updated_at}/>:<Unavailable title="Private gallery">{why}</Unavailable>;
- const taxonomy=editable&&flag('STAGING_CATALOGUE_TAXONOMY')?<PrivateProductTaxonomy product={product}/>:<section className="aa-panel"><h2>Category &amp; taxonomy</h2><dl className="aa-fact-grid"><div><dt>Category</dt><dd>{categoryName||'Not assigned'}</dd></div>
+ const taxonomy=editable&&flag('STAGING_CATALOGUE_TAXONOMY')?<PrivateProductTaxonomy product={product}/>:<section className="aa-panel"><h2>Category, brand &amp; collections</h2><dl className="aa-fact-grid"><div><dt>Category</dt><dd>{categoryName||'Not assigned'}</dd></div>
   {(['brand','collection','tag'] as const).map(kind=><div key={kind}><dt>{kind==='brand'?'Brand':kind==='collection'?'Collections':'Tags'}</dt><dd>{terms===null?'Not readable here':terms.filter(t=>t.kind===kind).map(t=>t.name).join(', ')||'None'}</dd></div>)}</dl><p>{why}</p></section>;
  const stockCards=variants.map(v=>{const stock=stockOf(v.id);return <article className="aa-variant-card" key={v.id}><div className="aa-section-heading"><h3>{v.sku}</h3><span className="aa-status">{v.active?'Active':'Inactive'}</span></div><p>{v.size} · {v.color} · {minorPrice(v.sale_price_minor??v.price_minor)}{v.sale_price_minor!==null&&<> (regular {minorPrice(v.price_minor)})</>}</p>
   {stock?<div className="aa-stock-counts"><div><span>On hand</span><strong>{stock.on_hand}</strong></div><div><span>Reserved</span><strong>{stock.reserved}</strong></div><div><span>Available</span><strong>{stock.available}</strong></div></div>:<p>No inventory record</p>}
@@ -67,7 +67,7 @@ export default async function ProductRecord({params}:{params:Promise<{id:string}
     {hasMoreVariants&&<p>Showing the first 100 SKUs.</p>}</section>
     {editable&&flag('STAGING_VARIANT_MANAGEMENT')&&<details className="aa-panel aa-add-variant"><summary>Add SKU variant</summary><VariantEditor target={product} newId={randomUUID()}/></details>}
    </>},
-   {id:'attributes',label:'6. Attributes & SEO',content:<Unavailable title="Attributes & SEO">Standard products have no attribute or SEO storage in the database yet. Use Category &amp; taxonomy for brand, collections and tags. The URL slug is {product.slug}.</Unavailable>},
+   {id:'attributes',label:'6. Attributes & SEO',content:<Unavailable title="Attributes & SEO">Standard products have no attribute or SEO storage in the database yet. Use Category, brand &amp; collections for brand, collections and tags. The URL slug is {product.slug}.</Unavailable>},
    {id:'review',label:'7. Review',content:review},
   ];
   body=<ProductWorkspace sections={sections}/>;

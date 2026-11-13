@@ -49,7 +49,7 @@ export async function verifyGenericDraftBrowser({baseURL,accessURL,proxy,email,p
   await capture('details');
   if(process.argv.includes('--taxonomy')){
    const name='Hosted QA brand '+product.slice(0,8);
-   await page.goto('/admin/taxonomy?kind=brand');
+   await page.goto('/admin/catalogue?kind=brand');
    const creation=page.locator('details').filter({has:page.getByText('Create brand',{exact:true})});
    await creation.locator('summary').click();
    await creation.getByLabel('Name',{exact:true}).fill(name);await creation.getByLabel('URL slug',{exact:true}).fill('qa-hosted-brand-'+product);
@@ -69,7 +69,7 @@ export async function verifyGenericDraftBrowser({baseURL,accessURL,proxy,email,p
    await tab('Organization');
    const brand=page.getByLabel('Brand',{exact:true});await brand.selectOption({label:name+' updated'});
    const selected=await brand.inputValue();
-   await page.getByRole('button',{name:'Save product taxonomy',exact:true}).click();
+   await page.getByRole('button',{name:'Save categories & collections',exact:true}).click();
    await page.getByText('Product category and terms saved.',{exact:true}).waitFor();
    await tab('Details');assert.equal(await page.getByLabel('Product name',{exact:true}).inputValue(),'Unsaved cross-tab edit');
    assert.equal(await page.locator('input[name=updated_at]').first().inputValue(),originalVersion);
