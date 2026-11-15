@@ -83,7 +83,7 @@ function MobileEditorialSlide({ banner, active, priority, logoSrc, intro }: { ba
           </p>
         )}
         {banner.cta && (
-          <Link href={banner.cta.href} tabIndex={active ? 0 : -1} style={enter(intro, 2).style} className={`${enter(intro, 2).className} aa-press group/cta mt-[4%] inline-flex h-[min(7.4vw,36px)] w-fit items-center gap-1 rounded-full bg-primary px-[min(4vw,20px)] text-[min(3.2vw,14px)] sm:h-[clamp(38px,3.4vw,50px)] sm:gap-2 sm:px-7 sm:text-[clamp(14px,1.25vw,18px)] font-medium text-white shadow-lift transition-colors duration-300 hover:bg-primary-dark`}>
+          <Link href={banner.cta.href} tabIndex={active ? 0 : -1} style={enter(intro, 2).style} className={`${enter(intro, 2).className} aa-press group/cta mt-[4%] inline-flex h-11 w-fit items-center gap-1 rounded-full bg-primary px-[min(4vw,20px)] text-[min(3.2vw,14px)] sm:h-[clamp(44px,3.4vw,50px)] sm:gap-2 sm:px-7 sm:text-[clamp(14px,1.25vw,18px)] font-medium text-white shadow-lift transition-colors duration-300 hover:bg-primary-dark`}>
             {banner.cta.label} <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 ease-out group-hover/cta:translate-x-[5px]" aria-hidden />
           </Link>
         )}
@@ -173,7 +173,7 @@ function EditorialHero({ hero, uppercase = true, logoSrc = "/brand/logo-maroon.p
           {slides.length > 1 && (
             <div className="absolute bottom-0.5 left-1/2 flex -translate-x-1/2 gap-1 sm:bottom-2" role="group" aria-label="Choose slide">
               {slides.map((s, i) => (
-                <button key={s.id} type="button" aria-current={i === index ? "true" : undefined} aria-label={`Slide ${i + 1}: ${s.title}`} onClick={() => go(i)} className="flex h-6 w-6 items-center justify-center">
+                <button key={s.id} type="button" aria-current={i === index ? "true" : undefined} aria-label={`Slide ${i + 1}: ${s.title}`} onClick={() => go(i)} className="flex h-11 w-11 items-center justify-center">
                   <span className={cn("block h-2 w-2 rounded-full transition-colors", i === index ? "bg-primary" : slides[index]?.mobileImage ? "bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.08)]" : "bg-white/60")} />
                 </button>
               ))}
@@ -202,7 +202,7 @@ function EditorialHero({ hero, uppercase = true, logoSrc = "/brand/logo-maroon.p
                 <ChevronRight className="h-5 w-5" aria-hidden />
               </button>
               {hero.autoplayMs > 0 && (
-                <button type="button" onClick={() => setPaused((p) => !p)} className="aa-press absolute bottom-3 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-ink/70 shadow-sm hover:text-primary sm:flex lg:right-7" aria-label={paused ? "Play slideshow" : "Pause slideshow"}>
+                <button type="button" onClick={() => setPaused((p) => !p)} className="aa-press absolute bottom-3 right-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/80 text-ink/70 shadow-sm hover:text-primary sm:flex lg:right-7" aria-label={paused ? "Play slideshow" : "Pause slideshow"}>
                   {paused ? <Play className="h-3 w-3" aria-hidden /> : <Pause className="h-3 w-3" aria-hidden />}
                 </button>
               )}

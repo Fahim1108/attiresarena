@@ -3,7 +3,7 @@ import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const controlBase =
-  "w-full rounded-control border bg-surface px-3.5 text-base text-ink placeholder:text-ink-muted transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:bg-ink/[0.03] disabled:text-ink-muted sm:text-sm";
+  "w-full rounded-control border bg-surface px-3.5 text-base text-ink placeholder:text-ink-muted transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/70 disabled:bg-ink/[0.03] disabled:text-ink-muted md:text-sm";
 
 interface FieldShellProps {
   label?: string;

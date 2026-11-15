@@ -308,8 +308,8 @@ export interface BestSellerAggregate {
   revenueMinor: number;
 }
 
-/** Group order items by product, sorted by revenue, then units, then name. */
-export function aggregateBestSellers(
+/** Group order items by product, summing units and revenue. Unsorted. */
+function groupItemsByProduct(
   items: readonly BestSellerItemRow[],
 ): BestSellerAggregate[] {
   const byProduct = new Map<string, BestSellerAggregate>();
@@ -327,10 +327,40 @@ export function aggregateBestSellers(
       });
     }
   }
-  return [...byProduct.values()].sort(
+  return [...byProduct.values()];
+}
+
+/** Group order items by product, sorted by revenue, then units, then name. */
+export function aggregateBestSellers(
+  items: readonly BestSellerItemRow[],
+): BestSellerAggregate[] {
+  return groupItemsByProduct(items).sort(
     (a, b) =>
       b.revenueMinor - a.revenueMinor ||
       b.units - a.units ||
+      a.productName.localeCompare(b.productName),
+  );
+}
+
+/**
+ * Least-selling products: the same grouping as the best sellers, sorted
+ * by fewest units sold, then lowest revenue, then name.
+ *
+ * Definition: only products with at least one sale in the period appear
+ * (the input rows are already filtered upstream to the selected window
+ * and exclude cancelled and returned orders). Products that never sold
+ * are NOT included — "least sold" here honestly means "sold the least
+ * among products that sold", never "never sold". When few products sold,
+ * the same product can appear in both the best- and least-selling
+ * panels; that overlap is real and is not hidden.
+ */
+export function aggregateLeastSellers(
+  items: readonly BestSellerItemRow[],
+): BestSellerAggregate[] {
+  return groupItemsByProduct(items).sort(
+    (a, b) =>
+      a.units - b.units ||
+      a.revenueMinor - b.revenueMinor ||
       a.productName.localeCompare(b.productName),
   );
 }
@@ -548,6 +578,8 @@ export interface DashboardData {
   revenueBuckets: RevenueBucket[];
   revenueBucketsPrevious: RevenueBucket[];
   bestSellers: BestSeller[];
+  /** Fewest units sold in the period, among products with at least one sale. */
+  leastSellers: BestSeller[];
   recentOrders: DashboardOrderRow[];
   lowStock: LowStockRow[];
   incompleteCount: number;
@@ -731,26 +763,31 @@ export async function loadDashboard(
       }, { count: 0, truncated: false }),
     ]);
 
-    // Cover images for best sellers: short-lived signed URLs from the
-    // private gallery bucket, exactly like the product library. One
-    // batched media query for all best sellers (ordered by position, so
-    // the first row per product is its cover), then signed URLs in
-    // parallel. A missing image stays missing — no placeholder artwork
-    // is ever invented. If the batched query fails, every best seller
-    // renders without an image rather than failing the section: the
-    // query either works for the whole table or not at all, so
+    // Cover images for best and least sellers: short-lived signed URLs
+    // from the private gallery bucket, exactly like the product
+    // library. One batched media query for both panels (ordered by
+    // position, so the first row per product is its cover), then signed
+    // URLs in parallel. A missing image stays missing — no placeholder
+    // artwork is ever invented. If the batched query fails, every
+    // product renders without an image rather than failing the section:
+    // the query either works for the whole table or not at all, so
     // per-product retries would buy nothing.
-    const aggregates = aggregateBestSellers(orderItems).slice(0, 5);
+    const bestAggregates = aggregateBestSellers(orderItems).slice(0, 5);
+    const leastAggregates = aggregateLeastSellers(orderItems).slice(0, 5);
+    const coverProductIds = [
+      ...new Set(
+        [...bestAggregates, ...leastAggregates].map(
+          (aggregate) => aggregate.productId,
+        ),
+      ),
+    ];
     let covers = new Map<string, CoverMediaRow>();
-    if (aggregates.length > 0) {
+    if (coverProductIds.length > 0) {
       try {
         const media = await client
           .from("product_media")
           .select("product_id,storage_path,alt_text")
-          .in(
-            "product_id",
-            aggregates.map((aggregate) => aggregate.productId),
-          )
+          .in("product_id", coverProductIds)
           .order("position", { ascending: true })
           .limit(200);
         if (!media.error) {
@@ -762,25 +799,32 @@ export async function loadDashboard(
         covers = new Map();
       }
     }
-    const bestSellers: BestSeller[] = await Promise.all(
-      aggregates.map(async (aggregate) => {
-        let imageUrl: string | null = null;
-        let imageAlt = aggregate.productName;
-        const cover = covers.get(aggregate.productId);
-        if (cover) {
-          imageAlt = cover.alt_text || aggregate.productName;
-          try {
-            const signed = await client.storage
-              .from(PRODUCT_MEDIA_BUCKET)
-              .createSignedUrl(cover.storage_path, 120);
-            if (!signed.error) imageUrl = signed.data.signedUrl;
-          } catch {
-            imageUrl = null;
+    const attachCovers = (
+      aggregates: readonly BestSellerAggregate[],
+    ): Promise<BestSeller[]> =>
+      Promise.all(
+        aggregates.map(async (aggregate) => {
+          let imageUrl: string | null = null;
+          let imageAlt = aggregate.productName;
+          const cover = covers.get(aggregate.productId);
+          if (cover) {
+            imageAlt = cover.alt_text || aggregate.productName;
+            try {
+              const signed = await client.storage
+                .from(PRODUCT_MEDIA_BUCKET)
+                .createSignedUrl(cover.storage_path, 120);
+              if (!signed.error) imageUrl = signed.data.signedUrl;
+            } catch {
+              imageUrl = null;
+            }
           }
-        }
-        return { ...aggregate, imageUrl, imageAlt };
-      }),
-    );
+          return { ...aggregate, imageUrl, imageAlt };
+        }),
+      );
+    const [bestSellers, leastSellers] = await Promise.all([
+      attachCovers(bestAggregates),
+      attachCovers(leastAggregates),
+    ]);
 
     return {
       ok: true,
@@ -806,6 +850,7 @@ export async function loadDashboard(
           previousRange,
         ),
         bestSellers,
+        leastSellers,
         recentOrders,
         lowStock: inventoryRows,
         incompleteCount: abandonedSessions.count,

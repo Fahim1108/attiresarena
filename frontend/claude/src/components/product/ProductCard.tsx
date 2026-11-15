@@ -90,7 +90,7 @@ export function ProductCard({ product, brandName, priority, sizes = "(min-width:
             onClick={addToCart}
             disabled={soldOut}
             aria-label={soldOut ? `${product.name} is sold out` : `Add ${product.name} to cart`}
-            className="aa-press group/btn mt-1 flex h-9 w-full items-center justify-center gap-2 rounded-control bg-primary text-xs font-medium text-white transition-colors duration-300 hover:bg-primary-dark disabled:cursor-not-allowed disabled:bg-ink/30"
+            className="aa-press group/btn mt-1 flex h-9 w-full items-center justify-center gap-2 rounded-control bg-primary text-xs font-medium text-white transition-colors duration-300 hover:bg-primary-dark disabled:cursor-not-allowed disabled:bg-ink/30 [@media(pointer:coarse)]:h-11"
           >
             <ShoppingCart className="h-3.5 w-3.5" aria-hidden /> {soldOut ? "Sold Out" : "Add to Cart"}
           </button>

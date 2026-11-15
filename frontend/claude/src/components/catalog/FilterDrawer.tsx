@@ -16,7 +16,7 @@ export function FilterDrawer({ facets, total }: { facets: CatalogFacets; total: 
   const activeCount = countActiveFilters({ ...query, categorySlugs: locked.category ? undefined : query.categorySlugs, brandSlugs: locked.brand ? undefined : query.brandSlugs });
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-control border border-line px-3.5 text-xs text-ink hover:border-ink/40 sm:text-sm lg:hidden">
+      <button type="button" onClick={() => setOpen(true)} className="inline-flex h-11 items-center gap-2 rounded-control border border-line px-3.5 text-xs text-ink hover:border-ink/40 sm:text-sm lg:hidden">
         <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
         Filter
         {activeCount > 0 && <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] text-white">{activeCount}</span>}

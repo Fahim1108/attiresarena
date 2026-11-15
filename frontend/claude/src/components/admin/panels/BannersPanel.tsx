@@ -23,7 +23,7 @@ function BannerEditor({ banner, onChange, showOverlay }: { banner: Banner; onCha
         <div className="flex-1">
           <TextField label="Image URL" value={banner.image.src} onChange={(v) => set("image", { ...banner.image, src: v })} />
         </div>
-        <label className="flex h-9 cursor-pointer items-center gap-1.5 rounded-control border border-line px-2.5 text-xs text-ink hover:border-ink/40">
+        <label className="flex h-9 cursor-pointer items-center gap-1.5 rounded-control border border-[#8f8985] px-2.5 text-xs font-medium text-ink hover:border-primary">
           <ImageUp className="h-3.5 w-3.5" aria-hidden /> Upload
           <input
             type="file"
@@ -73,7 +73,7 @@ export function BannersPanel({ settings, update }: PanelProps) {
         title="Hero slides"
         description="Main homepage slider. First slide loads with priority."
         actions={
-          <button type="button" onClick={() => update((d) => void d.hero.slides.push(newSlide()))} className="flex items-center gap-1 text-xs font-medium text-primary">
+          <button type="button" onClick={() => update((d) => void d.hero.slides.push(newSlide()))} className="aa-row-action">
             <Plus className="h-3.5 w-3.5" /> Add
           </button>
         }
@@ -83,7 +83,7 @@ export function BannersPanel({ settings, update }: PanelProps) {
           {slides.map((s, i) => (
             <li key={s.id} className="rounded-control border border-line">
               <div className="flex items-center justify-between gap-2 px-3 py-2">
-                <button type="button" onClick={() => setOpen(open === s.id ? null : s.id)} className="flex-1 truncate text-left text-sm text-ink" aria-expanded={open === s.id}>
+                <button type="button" onClick={() => setOpen(open === s.id ? null : s.id)} className="aa-disclosure min-w-0 flex-1 truncate" aria-expanded={open === s.id}>
                   {i + 1}. {s.title || "Untitled"}
                 </button>
                 <ItemControls index={i} count={slides.length} label={s.title} onMove={(a, b) => update((d) => void (d.hero.slides = move(d.hero.slides, a, b)))} onRemove={slides.length > 1 ? () => update((d) => void d.hero.slides.splice(i, 1)) : undefined} />

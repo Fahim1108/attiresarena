@@ -149,12 +149,12 @@ export function Modal({ open, onClose, title, hideTitle, description, children, 
           </div>
           {/* hideTitle hides only the title block: the close button stays visible,
               floating over the panel corner, instead of vanishing with the header. */}
-          <button type="button" onClick={onClose} className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-ink/5 hover:text-ink", hideTitle ? "absolute right-3 top-3 z-10 bg-surface/90 shadow-sm" : "-mr-2")} aria-label="Close">
+          <button type="button" onClick={onClose} className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#8f8985] bg-surface text-ink transition-colors hover:border-primary hover:bg-selected hover:text-primary", hideTitle ? "absolute right-3 top-3 z-10 shadow-sm" : "-mr-2")} aria-label="Close">
             <X className="h-5 w-5" aria-hidden />
           </button>
         </div>
         <div className="overflow-y-auto overscroll-contain px-5 py-5">{children}</div>
-        {footer && <div className="border-t border-line px-5 py-4">{footer}</div>}
+        {footer && <div className="border-t border-line px-5 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4">{footer}</div>}
       </div>
     </div>,
     document.body,
@@ -177,7 +177,7 @@ export function Drawer({ open, onClose, title, hideTitle, children, footer, side
         aria-labelledby={titleId}
         tabIndex={-1}
         className={cn(
-          "absolute top-0 flex h-full w-[88vw] max-w-md flex-col bg-surface shadow-lift aa-panel",
+          "absolute top-0 flex h-full w-[88vw] max-w-md flex-col bg-surface shadow-lift aa-panel pt-[env(safe-area-inset-top)]",
           side === "right" ? "right-0" : "left-0",
           shown ? "translate-x-0" : side === "right" ? "translate-x-full" : "-translate-x-full",
           className,
@@ -187,12 +187,12 @@ export function Drawer({ open, onClose, title, hideTitle, children, footer, side
           <h2 id={titleId} className={cn("font-serif text-2xl text-ink", hideTitle && "sr-only")}>
             {title}
           </h2>
-          <button type="button" onClick={onClose} className="-mr-2 ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-ink/5 hover:text-ink" aria-label="Close">
+          <button type="button" onClick={onClose} className="-mr-2 ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#8f8985] bg-surface text-ink transition-colors hover:border-primary hover:bg-selected hover:text-primary" aria-label="Close">
             <X className="h-5 w-5" aria-hidden />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto overscroll-contain">{children}</div>
-        {footer && <div className="border-t border-line p-5">{footer}</div>}
+        {footer && <div className="border-t border-line p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">{footer}</div>}
       </div>
     </div>,
     document.body,

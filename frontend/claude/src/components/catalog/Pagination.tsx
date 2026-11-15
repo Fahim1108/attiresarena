@@ -24,20 +24,20 @@ export function Pagination({ page, totalPages }: { page: number; totalPages: num
   };
   const btn = "flex h-11 min-w-11 items-center justify-center rounded-control border px-3 text-sm transition-colors";
   return (
-    <nav aria-label="Pagination" className="mt-12 flex items-center justify-center gap-1.5">
-      <button type="button" onClick={() => go(page - 1)} disabled={page <= 1} className={cn(btn, "border-line disabled:opacity-40")} aria-label="Previous page">
+    <nav aria-label="Pagination" className="mt-12 flex flex-wrap items-center justify-center gap-1.5">
+      <button type="button" onClick={() => go(page - 1)} disabled={page <= 1} className={cn(btn, "border-[#8f8985] disabled:cursor-not-allowed disabled:opacity-70")} aria-label="Previous page">
         <ChevronLeft className="h-4 w-4" aria-hidden />
       </button>
       {pages(page, totalPages).map((p, i) =>
         p === "…" ? (
           <span key={`e${i}`} className="px-1 text-ink-muted">…</span>
         ) : (
-          <button key={p} type="button" onClick={() => go(p)} aria-current={p === page ? "page" : undefined} className={cn(btn, p === page ? "border-primary bg-primary text-white" : "border-line text-ink hover:border-ink/50")}>
+          <button key={p} type="button" onClick={() => go(p)} aria-current={p === page ? "page" : undefined} className={cn(btn, p === page ? "border-primary bg-primary text-white" : "border-[#8f8985] text-ink hover:border-primary")}>
             {p}
           </button>
         ),
       )}
-      <button type="button" onClick={() => go(page + 1)} disabled={page >= totalPages} className={cn(btn, "border-line disabled:opacity-40")} aria-label="Next page">
+      <button type="button" onClick={() => go(page + 1)} disabled={page >= totalPages} className={cn(btn, "border-[#8f8985] disabled:cursor-not-allowed disabled:opacity-70")} aria-label="Next page">
         <ChevronRight className="h-4 w-4" aria-hidden />
       </button>
     </nav>

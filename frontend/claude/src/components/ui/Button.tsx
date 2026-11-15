@@ -12,19 +12,19 @@ export type ButtonVariant = "primary" | "burgundy" | "secondary" | "outline" | "
 export type ButtonSize = "sm" | "md" | "lg";
 
 const base =
-  "aa-button aa-press group/btn inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+  "aa-button aa-press group/btn inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70";
 
 const variants: Record<ButtonVariant, string> = {
   primary: "bg-primary text-white hover:bg-primary-dark shadow-sm",
   burgundy: "bg-[#400000] text-white hover:bg-[#560000] shadow-sm",
   secondary: "bg-selected text-primary hover:bg-primary/10 border border-primary/20",
   outline: "border border-ink/80 text-ink hover:bg-ink hover:text-white",
-  ghost: "text-ink hover:bg-ink/5",
+  ghost: "bg-ink/[0.05] text-ink hover:bg-ink/10",
   link: "text-primary underline-offset-4 hover:underline px-0 h-auto",
 };
 
 const sizes: Record<ButtonSize, string> = {
-  sm: "h-9 px-3.5 text-xs rounded-control",
+  sm: "h-9 px-3.5 text-xs rounded-control [@media(pointer:coarse)]:h-11",
   md: "h-11 px-5 text-sm rounded-control",
   lg: "h-12 px-7 text-sm tracking-wide rounded-control",
 };

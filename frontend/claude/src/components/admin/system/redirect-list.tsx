@@ -39,14 +39,14 @@ export function RedirectList({
               <th scope="row">
                 <span className="aa-cell-main">{redirect.source_path}</span>
               </th>
-              <td>{redirect.target_path}</td>
-              <td>{redirect.code}</td>
-              <td>
+              <td data-label="Target">{redirect.target_path}</td>
+              <td data-label="Code">{redirect.code}</td>
+              <td data-label="Status">
                 <StatusBadge tone={redirect.active ? "success" : "neutral"}>
                   {redirect.active ? "Active" : "Disabled"}
                 </StatusBadge>
               </td>
-              <td className="aa-cell-actions">
+              <td data-label="Actions" className="aa-cell-actions">
                 <Link
                   className="aa-row-action"
                   href={editHref(redirect.id)}

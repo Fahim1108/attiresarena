@@ -9,7 +9,7 @@ export function ShirtStyles({products=[],query}:{products?:Product[];query?:Prod
  const types=availableShirtTypes(verified);
  const winter=verified.some(p=>p.collectionSlugs?.includes('winter'));
  if(!types.length&&!winter)return null;
- const style='rounded-full border border-line bg-white px-4 py-2 text-sm text-ink transition-colors hover:border-primary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary';
+ const style='inline-flex min-h-11 items-center rounded-full border border-line bg-white px-4 py-2 text-sm text-ink transition-colors hover:border-primary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary';
  // Shirt links compose onto the current filters/sort/search instead of dropping them.
  const hrefFor=(slug:string)=>catalogHref('/shop',applyCatalogPatch(query??{},{shirtType:slug}));
  return <nav aria-label="Shirt styles" className="my-5 flex flex-wrap gap-2">

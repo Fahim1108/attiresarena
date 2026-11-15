@@ -159,7 +159,21 @@
   .grid {
     gap: 28px 12px;
   }
+  /* 44px targets on phones: social circles grow 42px to 44px, and
+     footer links become full 44px rows with 8px between targets. */
+  .social a,
+  .social span {
+    width: 44px;
+    height: 44px;
+  }
+  .links {
+    gap: 8px;
+  }
   .links a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
     font-size: 12px;
     padding: 8px 0;
   }

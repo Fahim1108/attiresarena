@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   addDaysToKey,
   aggregateBestSellers,
+  aggregateLeastSellers,
   bucketKeyFor,
   bucketKeysInRange,
   bucketLabel,
@@ -263,6 +264,44 @@ describe("best sellers", () => {
   });
   it("returns an empty list for empty input", () => {
     expect(aggregateBestSellers([])).toEqual([]);
+  });
+});
+
+describe("least sellers", () => {
+  it("groups by product and sorts by fewest units, revenue, then name", () => {
+    expect(
+      aggregateLeastSellers([
+        { product_id: "a", product_name: "Shirt A", quantity: 1, line_total_minor: 1000 },
+        { product_id: "b", product_name: "Shirt B", quantity: 3, line_total_minor: 900 },
+        { product_id: "a", product_name: "Shirt A", quantity: 2, line_total_minor: 2000 },
+        { product_id: "c", product_name: "Shirt C", quantity: 5, line_total_minor: 900 },
+        { product_id: "d", product_name: "Shirt D", quantity: 3, line_total_minor: 500 },
+      ]),
+    ).toEqual([
+      { productId: "d", productName: "Shirt D", units: 3, revenueMinor: 500 },
+      { productId: "b", productName: "Shirt B", units: 3, revenueMinor: 900 },
+      { productId: "a", productName: "Shirt A", units: 3, revenueMinor: 3000 },
+      { productId: "c", productName: "Shirt C", units: 5, revenueMinor: 900 },
+    ]);
+  });
+  it("breaks unit and revenue ties by product name", () => {
+    expect(
+      aggregateLeastSellers([
+        { product_id: "b", product_name: "Shirt B", quantity: 1, line_total_minor: 100 },
+        { product_id: "a", product_name: "Shirt A", quantity: 1, line_total_minor: 100 },
+      ]).map((item) => item.productId),
+    ).toEqual(["a", "b"]);
+  });
+  it("returns an empty list for empty input", () => {
+    expect(aggregateLeastSellers([])).toEqual([]);
+  });
+  it("only ever lists products present in the input rows", () => {
+    // Never-sold products have no rows, so they can never appear here.
+    expect(
+      aggregateLeastSellers([
+        { product_id: "a", product_name: "Shirt A", quantity: 1, line_total_minor: 100 },
+      ]),
+    ).toHaveLength(1);
   });
 });
 

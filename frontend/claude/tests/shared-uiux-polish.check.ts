@@ -47,7 +47,9 @@ describe('shared ui/ux polish regressions', () => {
       expect(read(p)).not.toContain('ring-primary/40');
     }
     const field = read('src/components/ui/Field.tsx');
-    expect(field).toContain('focus:ring-primary/30');
+    // Visibility pass: /30 composites to ~2.0:1 (below the 3:1 focus floor);
+    // /70 matches the Button/IconButton pins above at 5.97:1.
+    expect(field).toContain('focus:ring-primary/70');
     expect(field).toContain('placeholder:text-ink-muted ');
     expect(field).not.toContain('placeholder:text-ink-muted/');
     expect(field).toContain('text-base');

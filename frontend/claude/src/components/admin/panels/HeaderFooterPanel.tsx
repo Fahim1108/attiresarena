@@ -18,7 +18,7 @@ export function HeaderPanel({ settings, update }: PanelProps) {
             <ItemControls index={i} count={h.announcement.items.length} label={`message ${i + 1}`} onMove={(a, b) => update((d) => void (d.header.announcement.items = move(d.header.announcement.items, a, b)))} onRemove={() => update((d) => void d.header.announcement.items.splice(i, 1))} />
           </div>
         ))}
-        <button type="button" onClick={() => update((d) => void d.header.announcement.items.push("New announcement"))} className="flex items-center gap-1 text-xs font-medium text-primary">
+        <button type="button" onClick={() => update((d) => void d.header.announcement.items.push("New announcement"))} className="aa-row-action">
           <Plus className="h-3.5 w-3.5" /> Add message
         </button>
       </Group>
@@ -30,7 +30,7 @@ export function HeaderPanel({ settings, update }: PanelProps) {
             <ItemControls index={i} count={h.navigation.length} label={n.label} onMove={(a, b) => update((d) => void (d.header.navigation = move(d.header.navigation, a, b)))} onRemove={() => update((d) => void d.header.navigation.splice(i, 1))} />
           </div>
         ))}
-        <button type="button" onClick={() => update((d) => void d.header.navigation.push({ label: "New link", href: "/shop" }))} className="flex items-center gap-1 text-xs font-medium text-primary">
+        <button type="button" onClick={() => update((d) => void d.header.navigation.push({ label: "New link", href: "/shop" }))} className="aa-row-action">
           <Plus className="h-3.5 w-3.5" /> Add menu item
         </button>
       </Group>
@@ -85,7 +85,7 @@ export function FooterPanel({ settings, update }: PanelProps) {
                   <ItemControls index={li} count={col.links.length} label={l.label} onMove={(a, b) => update((d) => void (d.footer.columns[ci]!.links = move(d.footer.columns[ci]!.links, a, b)))} onRemove={() => update((d) => void d.footer.columns[ci]!.links.splice(li, 1))} />
                 </div>
               ))}
-              <button type="button" onClick={() => update((d) => void d.footer.columns[ci]!.links.push({ label: "New link", href: "/" }))} className="flex items-center gap-1 text-xs font-medium text-primary">
+              <button type="button" onClick={() => update((d) => void d.footer.columns[ci]!.links.push({ label: "New link", href: "/" }))} className="aa-row-action">
                 <Plus className="h-3.5 w-3.5" /> Add link
               </button>
             </div>

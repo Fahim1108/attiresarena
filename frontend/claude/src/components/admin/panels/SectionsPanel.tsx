@@ -37,13 +37,13 @@ export function SectionsPanel({ settings, update }: PanelProps) {
                 <button
                   type="button"
                   onClick={() => update((d) => void (d.homepage[i]!.enabled = !d.homepage[i]!.enabled))}
-                  className={cn("flex h-7 w-7 items-center justify-center rounded", s.enabled ? "text-primary" : "text-ink-muted")}
+                  className="aa-icon-button"
                   aria-label={s.enabled ? `Hide ${s.adminLabel}` : `Show ${s.adminLabel}`}
                   aria-pressed={s.enabled}
                 >
                   {s.enabled ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                 </button>
-                <button type="button" onClick={() => setOpen(open === s.id ? null : s.id)} className={cn("flex-1 truncate text-left text-sm", s.enabled ? "text-ink" : "text-ink-muted line-through")} aria-expanded={open === s.id}>
+                <button type="button" onClick={() => setOpen(open === s.id ? null : s.id)} className="aa-disclosure min-w-0 flex-1 truncate" data-enabled={s.enabled} aria-expanded={open === s.id}>
                   {s.adminLabel}
                 </button>
                 <ItemControls index={i} count={sections.length} label={s.adminLabel} onMove={(a, b) => update((d) => void (d.homepage = move(d.homepage, a, b)))} />

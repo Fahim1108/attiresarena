@@ -22,7 +22,7 @@ export function WishlistButton({ productId, productName, className, variant = "f
       }}
       className={cn(
         "aa-press inline-flex items-center justify-center transition-colors",
-        variant === "floating" ? "h-9 w-9 rounded-full bg-surface/90 shadow-sm backdrop-blur transition-colors duration-200 hover:bg-surface" : "h-11 w-11 rounded-full border border-line hover:border-primary/40",
+        variant === "floating" ? "h-9 w-9 rounded-full bg-surface/90 shadow-sm backdrop-blur transition-colors duration-200 hover:bg-surface [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" : "h-11 w-11 rounded-full border border-line hover:border-primary/40",
         className,
       )}
     >

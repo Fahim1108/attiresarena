@@ -37,11 +37,12 @@ import {
  * every merge below then returns the static config unchanged (same
  * reference), so the storefront renders exactly as before.
  *
- * Wiring status (see the build report): only the policy pages call this
- * reader today. The announcement bar, hero slides and footer flow through
- * the services adapter and the root layout, which this module must not
- * touch; their pure merge functions are provided and tested here so the
- * wiring can land without changing this reader.
+ * Wiring status: the policy pages call this reader, and the root layout
+ * calls it for marketing/metadata and applies the footer override below
+ * to the storefront settings. The announcement bar and hero slides still
+ * flow through the services adapter, which this module must not touch;
+ * their pure merge functions are provided and tested here so the wiring
+ * can land without changing this reader.
  */
 
 export interface ContentBlockRow {
@@ -305,7 +306,7 @@ export function applyAnnouncementOverride(
 }
 
 /**
- * Footer override (NOT YET WIRED — see module header). Stored contact
+ * Footer override (wired in the root layout). Stored contact
  * details, social links and footer text replace the static values field
  * by field; anything not stored keeps the static value. Social links only
  * replace when they are valid http(s) URLs. Returns the static footer

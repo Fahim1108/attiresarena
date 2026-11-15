@@ -59,7 +59,7 @@ function PriceFilterSection({ facets }: { facets: CatalogFacets }) {
             defaultValue={query.minPrice ?? ""}
             placeholder={String(facets.priceRange.min)}
             aria-label="Minimum price in taka"
-            className="h-11 w-full rounded-control border border-line bg-white px-2.5 text-sm text-ink"
+            className="h-11 w-full rounded-control border border-line bg-white px-2.5 text-base text-ink md:text-sm"
           />
         </label>
         <span aria-hidden className="pb-3 text-ink-muted">–</span>
@@ -73,7 +73,7 @@ function PriceFilterSection({ facets }: { facets: CatalogFacets }) {
             defaultValue={query.maxPrice ?? ""}
             placeholder={String(facets.priceRange.max)}
             aria-label="Maximum price in taka"
-            className="h-11 w-full rounded-control border border-line bg-white px-2.5 text-sm text-ink"
+            className="h-11 w-full rounded-control border border-line bg-white px-2.5 text-base text-ink md:text-sm"
           />
         </label>
       </div>

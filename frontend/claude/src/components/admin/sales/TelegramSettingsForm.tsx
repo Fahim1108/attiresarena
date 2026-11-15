@@ -147,7 +147,8 @@ export function TelegramSettingsForm({
           <div className={styles.actionRow}>
             <button
               type="button"
-              className={styles.dangerButton}
+              className={`${styles.dangerButton} aa-button`}
+              data-danger
               onClick={() => {
                 setDialogOpen(true);
                 dialog.current?.showModal();

@@ -93,7 +93,7 @@ export function SearchBar({ className, autoFocus, onNavigate, initialValue = "",
           autoComplete="off" autoFocus={autoFocus} value={term}
           onChange={e => { if (e.target.value.trim() !== query) sequence.current++; setTerm(e.target.value); setActive(-1); setOpen(true); }}
           onFocus={() => setOpen(true)} onKeyDown={onKeyDown} placeholder={header.searchPlaceholder}
-          className={cn("w-full text-base text-ink placeholder:text-ink-muted focus:outline-none sm:text-sm [&::-webkit-search-cancel-button]:hidden", boxed ? "h-[46px] min-w-0 flex-1 bg-transparent pl-11 pr-12" : "h-11 rounded-full border border-line bg-surface pl-10 pr-12 focus:border-primary")}
+          className={cn("w-full text-base text-ink placeholder:text-ink-muted focus:outline-none md:text-sm [&::-webkit-search-cancel-button]:hidden", boxed ? "h-[46px] min-w-0 flex-1 bg-transparent pl-11 pr-12" : "h-11 rounded-full border border-line bg-surface pl-10 pr-12 focus:border-primary")}
         />
         {term && <button type="button" onClick={() => { sequence.current++; setTerm(""); setActive(-1); }} className={cn("aa-press absolute top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-ink-muted hover:text-ink", boxed ? "right-12" : "right-0")} aria-label="Clear search"><X className="h-4 w-4" aria-hidden /></button>}
         {boxed && <button type="submit" disabled={navigating} aria-busy={navigating || undefined} className="aa-press flex w-[48px] shrink-0 items-center justify-center bg-primary text-white hover:bg-primary-dark disabled:cursor-not-allowed" aria-label="Search">

@@ -16,7 +16,7 @@ export function SortSelect({ className }: { className?: string }) {
           aria-label="Sort by"
           value={query.sort ?? "featured"}
           onChange={(e) => update({ sort: e.target.value as SortOption })}
-          className="h-10 appearance-none rounded-control border border-line bg-surface pl-8 pr-8 text-xs text-ink focus:border-primary sm:text-sm"
+          className="h-11 appearance-none rounded-control border border-line bg-surface pl-8 pr-8 text-base text-ink focus:border-primary md:text-sm"
         >
           {SORT_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>

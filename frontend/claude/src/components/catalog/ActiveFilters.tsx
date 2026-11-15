@@ -30,11 +30,11 @@ export function ActiveFilters({ facets }: { facets: CatalogFacets }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       {chips.map((c) => (
-        <button key={c.label} type="button" onClick={c.remove} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-selected px-3 text-xs text-primary hover:bg-primary/10" aria-label={`Remove filter ${c.label}`}>
+        <button key={c.label} type="button" onClick={c.remove} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-selected px-3 text-xs text-primary hover:bg-primary/10 [@media(pointer:coarse)]:h-11" aria-label={`Remove filter ${c.label}`}>
           {c.label} <X className="h-3 w-3" aria-hidden />
         </button>
       ))}
-      <button type="button" onClick={reset} className="px-1 text-xs text-ink-muted underline underline-offset-4 hover:text-ink">
+      <button type="button" onClick={reset} className="inline-flex min-h-11 items-center px-1 text-xs text-ink-muted underline underline-offset-4 hover:text-ink">
         Clear all
       </button>
     </div>

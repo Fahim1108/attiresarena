@@ -57,7 +57,7 @@
 }
 
 .noticeMeta {
-  color: #74706c;
+  color: #5f5a57;
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
 }
@@ -126,9 +126,9 @@
   align-items: center;
   min-height: 44px;
   padding: 0.5rem 0.875rem;
-  border: 1px solid #eaeaea;
+  border: 1px solid #7a1010;
   border-radius: 6px;
-  background: #ffffff;
+  background: #fdf6f6;
   color: #7a1010;
   font: inherit;
   font-weight: 600;
@@ -139,7 +139,7 @@
 
 .dangerButton:hover {
   border-color: #7a1010;
-  background: #f6eaea;
+  background: #fbe9e9;
 }
 
 .dangerButton:focus-visible {
@@ -148,8 +148,12 @@
 }
 
 .dangerButton:disabled {
-  opacity: 0.5;
-  cursor: default;
+  background: #efe3e3;
+  border-color: #b98f8f;
+  color: #6b0202;
+  box-shadow: none;
+  opacity: 1;
+  cursor: not-allowed;
 }
 
 .dangerZone {
@@ -160,7 +164,7 @@
 
 .sectionNote {
   margin: 0;
-  color: #74706c;
+  color: #5f5a57;
   font-size: 0.9rem;
   line-height: 1.5;
 }

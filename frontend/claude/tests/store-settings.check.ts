@@ -126,6 +126,26 @@ describe("footer merge", () => {
     });
     expect(merged).toBe(footer);
   });
+
+  it("applies a social-only override without touching contact or tagline", () => {
+    const merged = applyFooterOverride(footer, {
+      social_instagram: "https://instagram.com/attiresarena",
+    });
+    expect(
+      merged.social.find((link) => link.network === "instagram")?.href,
+    ).toBe("https://instagram.com/attiresarena");
+    expect(
+      merged.social.find((link) => link.network === "facebook")?.href,
+    ).toBe("#");
+    expect(merged.contact).toEqual(footer.contact);
+    expect(merged.tagline).toBe(footer.tagline);
+  });
+
+  it("ignores empty-string social links", () => {
+    expect(applyFooterOverride(footer, { social_facebook: "  " })).toBe(
+      footer,
+    );
+  });
 });
 
 describe("hero slide merge", () => {

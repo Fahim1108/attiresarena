@@ -219,7 +219,7 @@ export function OrdersTable({
                   <span className={styles.cardTotal}>{formatMoney(row.total_minor)}</span>
                   <button
                     type="button"
-                    className={styles.expandButton}
+                    className={`${styles.expandButton} aa-secondary`}
                     aria-expanded={expanded}
                     aria-controls={`order-card-${row.id}`}
                     onClick={() => setExpandedId(expanded ? null : row.id)}
