@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Button, DemoNotice, Input } from "@/components/ui";
+import { Button } from "@/components/ui/Button";
+import { DemoNotice } from "@/components/ui/DemoNotice";
+import { Input } from "@/components/ui/Field";
 import { isValidBdPhone, isValidEmail, type FieldErrors } from "@/lib/validation";
 import { updateProfileAction } from "@/services/actions";
 import type { Customer } from "@/types";
@@ -12,6 +14,7 @@ export function ProfileForm({ customer }: { customer: Customer }) {
   const [message, setMessage] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const focusFirstError = (id: string) => requestAnimationFrame(() => document.getElementById(id)?.focus());
   return (
     <form
       noValidate
@@ -24,7 +27,9 @@ export function ProfileForm({ customer }: { customer: Customer }) {
         if (!isValidEmail(form.email)) errs.email = "Enter a valid email";
         if (!isValidBdPhone(form.phone)) errs.phone = "Enter a valid mobile number";
         setErrors(errs);
-        if (Object.keys(errs).length) return;
+        if (errs.fullName) return focusFirstError("profile-fullName");
+        if (errs.email) return focusFirstError("profile-email");
+        if (errs.phone) return focusFirstError("profile-phone");
         start(async () => {
           try {
             const r = await updateProfileAction(form);
@@ -36,9 +41,9 @@ export function ProfileForm({ customer }: { customer: Customer }) {
       }}
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <Input label="Full Name" value={form.fullName} onChange={set("fullName")} error={errors.fullName} wrapperClassName="sm:col-span-2" />
-        <Input label="Email" type="email" value={form.email} onChange={set("email")} error={errors.email} />
-        <Input label="Mobile Number" type="tel" value={form.phone} onChange={set("phone")} error={errors.phone} />
+        <Input id="profile-fullName" name="name" label="Full Name" autoComplete="name" value={form.fullName} onChange={set("fullName")} error={errors.fullName} wrapperClassName="sm:col-span-2" />
+        <Input id="profile-email" name="email" label="Email" type="email" autoComplete="email" spellCheck={false} value={form.email} onChange={set("email")} error={errors.email} />
+        <Input id="profile-phone" name="tel" label="Mobile Number" type="tel" autoComplete="tel" value={form.phone} onChange={set("phone")} error={errors.phone} />
       </div>
       {message && <DemoNotice force>{message}</DemoNotice>}
       <Button type="submit" loading={pending}>

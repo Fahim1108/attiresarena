@@ -7,6 +7,7 @@
  * These fallbacks only apply if the injection is missing.
  */
 :root {
+  color-scheme: light;
   --aa-primary: 107 2 2;
   --aa-primary-dark: 70 1 1;
   --aa-background: 255 255 255;
@@ -23,7 +24,25 @@
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: rgb(var(--aa-primary) / 0.08);
     scroll-behavior: smooth;
+    /* Sticky header is ~138px tall on phones (row + search row) and ~96px on desktop;
+       keep fragment targets and focused controls from sliding underneath it. */
+    scroll-padding-top: 148px;
+  }
+  @media (min-width: 1024px) {
+    html {
+      scroll-padding-top: 112px;
+    }
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  a,
+  button {
+    touch-action: manipulation;
   }
   body {
     @apply bg-page font-sans text-ink antialiased;
@@ -95,6 +114,6 @@
 }
 
 :root{--font-cormorant:"Cormorant Garamond Variable";--font-inter:"Inter Variable";--font-display:"Playfair Display Variable";--font-script:"Allura"}
-.design-preview-notice{background:#fff;color:#6b0202;border-bottom:1px solid #eaeaea;padding:8px 16px;text-align:center;font:11px/1.5 Arial,sans-serif;position:relative;z-index:90}
+.design-preview-notice{background:#fff;color:#6b0202;border-bottom:1px solid #eaeaea;padding:8px 16px;text-align:center;font:12px/1.5 Arial,sans-serif;position:relative;z-index:90}
 
 @media(prefers-reduced-motion:reduce){.aa-skeleton::before{animation:none!important}}

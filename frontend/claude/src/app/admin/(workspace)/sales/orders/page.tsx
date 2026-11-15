@@ -17,7 +17,7 @@ export default async function OrdersPage({
   const totalPages = Math.max(1, Math.ceil(count / filters.pageSize));
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Sales"
         title="Orders"

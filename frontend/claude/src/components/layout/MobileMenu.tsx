@@ -3,7 +3,7 @@
 import { ChevronDown, Heart, Package, User } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { Drawer } from "@/components/ui";
+import { Drawer } from "@/components/ui/Modal";
 import { useStorefront } from "@/context/StorefrontContext";
 import { cn } from "@/lib/cn";
 
@@ -31,7 +31,7 @@ export function MobileMenu({ open, onClose }: { open: boolean; onClose: () => vo
                     <ul className="animate-dropdown-in grid grid-cols-2 gap-1 px-3 pb-4">
                       {item.children.map((c) => (
                         <li key={c.href}>
-                          <Link href={c.href} onClick={onClose} className="aa-press block rounded-control bg-[#F7F6F5] px-3 py-2.5 text-sm text-ink hover:bg-selected hover:text-primary">
+                          <Link href={c.href} onClick={onClose} className="aa-press block rounded-control bg-[#F7F6F5] px-3 py-3 text-sm text-ink hover:bg-selected hover:text-primary">
                             {c.label}
                           </Link>
                         </li>

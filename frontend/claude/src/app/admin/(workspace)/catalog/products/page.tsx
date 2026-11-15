@@ -35,7 +35,7 @@ export default async function CatalogProductsPage({
     typeof params[key] === "string" ? (params[key] as string) : "";
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Catalog"
         title="Products"
@@ -58,9 +58,10 @@ export default async function CatalogProductsPage({
           <input
             id="catalog-q"
             name="q"
+            type="search"
             defaultValue={filters.q}
             maxLength={120}
-            placeholder="Search by name or slug"
+            placeholder="Search by name or slug…"
           />
         </div>
         <div className="aa-field">
@@ -132,7 +133,7 @@ export default async function CatalogProductsPage({
         </Notice>
       ) : null}
 
-      <p className="aa-muted">
+      <p className="aa-muted" role="status">
         {result.total} matching product{result.total === 1 ? "" : "s"} · Page{" "}
         {result.page} of {result.totalPages}
       </p>

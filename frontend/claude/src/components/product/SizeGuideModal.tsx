@@ -7,7 +7,7 @@ export function SizeGuideModal({ guide, open, onClose }: { guide: SizeGuide; ope
   return (
     <Modal open={open} onClose={onClose} title={guide.title} description={`All measurements in ${guide.unit}.`}>
       <div className="-mx-1 overflow-x-auto">
-        <table className="w-full min-w-[320px] text-left text-sm">
+        <table className="w-full min-w-[320px] text-left text-sm tabular-nums">
           <thead>
             <tr className="border-b border-line">
               {guide.columns.map((c) => (

@@ -27,7 +27,7 @@ export function StaffSignIn() {
           type="email"
           value={email}
           onChange={event=>setTypedEmail(event.target.value)}
-          placeholder="Enter your email address"
+          placeholder="name@example.com…"
           autoCapitalize="none"
           spellCheck={false}
           required
@@ -41,7 +41,7 @@ export function StaffSignIn() {
           id={fieldId+'-password'}
           name="password"
           type={visible?'text':'password'}
-          placeholder="Enter your password"
+          placeholder="Enter your password…"
           required
           autoComplete="current-password"
           maxLength={256}

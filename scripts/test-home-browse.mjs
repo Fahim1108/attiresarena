@@ -50,7 +50,7 @@ try {
     assert.ok(Math.abs(l.x + l.width / 2 - w.x - w.width / 2) < 1, 'Original logo and artwork wordmark centered');
     assert.ok(w.y >= l.y + l.height + 6 && w.y <= l.y + l.height + 10, 'Compact wordmark gap');
     assert.ok(social.y > w.y + w.height, 'Social icons below complete branding');
-    await expect(footer.getByText('Created by Firoj Ahamed Fahim', { exact: true })).toBeVisible();
+    await expect(footer.getByText('Developed by Firoj Ahamed Fahim', { exact: true })).toBeVisible();
     await footer.screenshot({ path: `artifacts/browse-refinement/footer-${width}.png` });
     assert.deepEqual(errors, []);
     console.log(`PASS ${width}px: visible ordered sections, compact cards, images, routes, focus, original wordmark alignment, footer, no overflow/errors`);

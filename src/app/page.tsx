@@ -87,6 +87,14 @@ export default async function Home({
         detail: "Explore the collection",
       }))
     : editorialCategories;
+  const categoryHref = (slug: string) => {
+    // Category links keep the current search and sort instead of dropping them.
+    const params = new URLSearchParams();
+    params.set("category", slug);
+    if (q) params.set("q", q);
+    if (sort !== "newest") params.set("sort", sort);
+    return `/?${params.toString()}#arrivals`;
+  };
   return (
     <>
       <StoreHeader query={q} />
@@ -94,25 +102,25 @@ export default async function Home({
         <Campaign />
         <div className="principles">
           <div>
-            <PackageCheck />
+            <PackageCheck aria-hidden="true" />
             <span>
               Premium edit<small>Considered everyday style</small>
             </span>
           </div>
           <div>
-            <Truck />
+            <Truck aria-hidden="true" />
             <span>
               For Bangladesh<small>Our home, your style</small>
             </span>
           </div>
           <div>
-            <Heart />
+            <Heart aria-hidden="true" />
             <span>
               Customer care<small>Here to help</small>
             </span>
           </div>
           <div>
-            <ShieldCheck />
+            <ShieldCheck aria-hidden="true" />
             <span>
               Your account<small>Secure sign-in</small>
             </span>
@@ -124,14 +132,14 @@ export default async function Home({
               <h2>Shop by Category</h2>
             </div>
             <Link href="#arrivals">
-              View All <ArrowRight size={16} />
+              View All <ArrowRight size={16} aria-hidden="true" />
             </Link>
           </div>
           <div className="category-grid">
             {categories.map(({ name, slug, icon: Icon }) => (
               <Link
                 key={slug}
-                href={`/?category=${encodeURIComponent(slug)}#arrivals`}
+                href={categoryHref(slug)}
                 className="category-card"
               >
                 <div
@@ -154,10 +162,10 @@ export default async function Home({
             {!catalogue.categories.length && (
               <Link
                 className="category-card category-mobile-extra"
-                href="/?category=accessories#arrivals"
+                href={categoryHref("accessories")}
               >
                 <div className="category-art">
-                  <Watch size={28} strokeWidth={1} />
+                  <Watch size={28} strokeWidth={1} aria-hidden="true" />
                 </div>
                 <h3>Accessories</h3>
               </Link>
@@ -167,9 +175,9 @@ export default async function Home({
               href="#arrivals"
             >
               <div className="category-art">
-                <Grid2X2 size={25} strokeWidth={1} />
+                <Grid2X2 size={25} strokeWidth={1} aria-hidden="true" />
               </div>
-              <h3>View All →</h3>
+              <h3>View All <ArrowRight size={16} aria-hidden="true" /></h3>
             </Link>
           </div>
           {!catalogue.categories.length && (
@@ -233,7 +241,7 @@ export default async function Home({
             </>
           ) : (
             <div className="catalogue-empty" role="status">
-              <Shirt size={36} strokeWidth={1} />
+              <Shirt size={36} strokeWidth={1} aria-hidden="true" />
               <h3>
                 {catalogue.state === "error"
                   ? "The collection is temporarily unavailable"
@@ -248,7 +256,7 @@ export default async function Home({
               </p>
               {(q || category) && (
                 <Link href="/#arrivals">
-                  View all arrivals <ArrowRight size={16} />
+                  View all arrivals <ArrowRight size={16} aria-hidden="true" />
                 </Link>
               )}
             </div>
@@ -275,23 +283,23 @@ export default async function Home({
       <StoreFooter />
       <nav className="mobile-bottom" aria-label="Quick navigation">
         <Link href="/" aria-current="page">
-          <HomeIcon size={20} />
+          <HomeIcon size={20} aria-hidden="true" />
           Home
         </Link>
         <Link href="#categories">
-          <Grid2X2 size={20} />
+          <Grid2X2 size={20} aria-hidden="true" />
           Categories
         </Link>
-        <button disabled title="Shopping bag is not available yet">
-          <ShoppingBag size={20} />
+        <button disabled title="Shopping bag is not available yet" aria-label="Cart, not available yet">
+          <ShoppingBag size={20} aria-hidden="true" />
           Cart
         </button>
-        <button disabled title="Wishlist is not available yet">
-          <Heart size={20} />
+        <button disabled title="Wishlist is not available yet" aria-label="Wishlist, not available yet">
+          <Heart size={20} aria-hidden="true" />
           Wishlist
         </button>
         <Link href="/account">
-          <UserRound size={20} />
+          <UserRound size={20} aria-hidden="true" />
           Account
         </Link>
       </nav>

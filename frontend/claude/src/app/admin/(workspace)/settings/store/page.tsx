@@ -6,7 +6,7 @@ export default async function StoreSettingsPage() {
   const settings = await getStoreSettingsMap();
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Settings"
         title="Store settings"

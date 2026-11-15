@@ -6,7 +6,7 @@ export default async function NotificationsPage() {
   await requireStaff();
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="System"
         title="Notifications"
@@ -19,14 +19,17 @@ export default async function NotificationsPage() {
       <Panel title="Where to look instead">
         <ul>
           <li>
-            <Link href="/admin/orders">Orders</Link> — new and changing
+            <Link href="/admin/sales/orders">Orders</Link> — new and changing
             orders, by status.
           </li>
           <li>
-            Incomplete orders (Sales module) — abandoned checkouts awaiting
-            recovery.
+            <Link href="/admin/sales/incomplete">Incomplete orders</Link> —
+            abandoned checkouts awaiting recovery.
           </li>
-          <li>Customers (Sales module) — customer activity and order history.</li>
+          <li>
+            <Link href="/admin/sales/customers">Customers</Link> — customer
+            activity and order history.
+          </li>
         </ul>
         <p className="aa-muted">
           The links above point at the sales and customer modules built by

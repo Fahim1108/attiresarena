@@ -4,6 +4,18 @@ import { useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { AdminActionResult } from "@/lib/admin/authorization";
 
+/**
+ * Move keyboard focus to the first invalid field in a form after a failed
+ * submit, so keyboard and screen-reader users land on the first problem
+ * instead of the top of the page. No-op when the form has no invalid
+ * field. Call from an effect that watches the action state.
+ */
+export function focusFirstInvalid(form: HTMLFormElement | null): void {
+  if (!form) return;
+  const invalid = form.querySelector<HTMLElement>("[aria-invalid='true']");
+  if (invalid) invalid.focus();
+}
+
 /** Submit button that disables itself while its form action runs. */
 export function SubmitButton({
   children,
@@ -54,6 +66,7 @@ export function ConfirmSubmit({
   action,
   fields,
   buttonLabel,
+  ariaLabel,
   confirmTitle,
   confirmBody,
   confirmLabel = "Confirm",
@@ -62,6 +75,7 @@ export function ConfirmSubmit({
   action: (formData: FormData) => void | Promise<void>;
   fields: Record<string, string>;
   buttonLabel: string;
+  ariaLabel?: string;
   confirmTitle: string;
   confirmBody: string;
   confirmLabel?: string;
@@ -74,6 +88,7 @@ export function ConfirmSubmit({
       <button
         type="button"
         className="aa-row-action aa-row-action--danger"
+        aria-label={ariaLabel}
         onClick={() => {
           setOpen(true);
           dialog.current?.showModal();

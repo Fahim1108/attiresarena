@@ -20,13 +20,13 @@ export function Pagination({ page, totalPages }: { page: number; totalPages: num
   if (totalPages <= 1) return null;
   const go = (p: number) => {
     update({ page: p });
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   };
-  const btn = "flex h-10 min-w-10 items-center justify-center rounded-control border px-3 text-sm transition-colors";
+  const btn = "flex h-11 min-w-11 items-center justify-center rounded-control border px-3 text-sm transition-colors";
   return (
     <nav aria-label="Pagination" className="mt-12 flex items-center justify-center gap-1.5">
       <button type="button" onClick={() => go(page - 1)} disabled={page <= 1} className={cn(btn, "border-line disabled:opacity-40")} aria-label="Previous page">
-        <ChevronLeft className="h-4 w-4" />
+        <ChevronLeft className="h-4 w-4" aria-hidden />
       </button>
       {pages(page, totalPages).map((p, i) =>
         p === "…" ? (
@@ -38,7 +38,7 @@ export function Pagination({ page, totalPages }: { page: number; totalPages: num
         ),
       )}
       <button type="button" onClick={() => go(page + 1)} disabled={page >= totalPages} className={cn(btn, "border-line disabled:opacity-40")} aria-label="Next page">
-        <ChevronRight className="h-4 w-4" />
+        <ChevronRight className="h-4 w-4" aria-hidden />
       </button>
     </nav>
   );

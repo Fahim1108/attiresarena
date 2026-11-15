@@ -7,9 +7,9 @@ export function OrderSummary({ summary, className, children, deliveryNote, title
   return (
     <section aria-label={title ?? "Order summary"} className={cn("space-y-3 text-sm", className)}>
       {title && <h2 className="font-serif text-2xl text-ink">{title}</h2>}
-      <dl className="space-y-2.5">
+      <dl className="space-y-2.5 tabular-nums">
         <div className="flex justify-between">
-          <dt className="text-ink-muted">Subtotal ({summary.itemCount} items)</dt>
+          <dt className="text-ink-muted">Subtotal ({summary.itemCount} {summary.itemCount === 1 ? "item" : "items"})</dt>
           <dd className="text-ink">{formatPrice(summary.subtotal)}</dd>
         </div>
         {summary.discount > 0 && (
@@ -22,12 +22,12 @@ export function OrderSummary({ summary, className, children, deliveryNote, title
           <dt className="text-ink-muted">Delivery Charge</dt>
           <dd className="text-ink">{summary.deliveryCharge === 0 && summary.itemCount > 0 ? <span className="text-success">Free</span> : formatPrice(summary.deliveryCharge)}</dd>
         </div>
-        {deliveryNote && <p className="text-xs text-ink-muted">{deliveryNote}</p>}
         <div className="flex items-baseline justify-between border-t border-line pt-3">
           <dt className="text-base font-semibold text-ink">Total</dt>
           <dd className="text-xl font-semibold text-primary">{formatPrice(summary.total)}</dd>
         </div>
       </dl>
+      {deliveryNote && <p className="text-xs text-ink-muted">{deliveryNote}</p>}
       {children}
     </section>
   );

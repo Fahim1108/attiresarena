@@ -37,6 +37,7 @@ export function StoreSettingsForm({
           <input
             id="contact-phone"
             name="contact_phone"
+            type="tel"
             defaultValue={settingString(settings, "contact_phone")}
             maxLength={40}
           />
@@ -47,6 +48,7 @@ export function StoreSettingsForm({
             id="contact-email"
             name="contact_email"
             type="email"
+            spellCheck={false}
             defaultValue={settingString(settings, "contact_email")}
             maxLength={254}
           />
@@ -56,6 +58,7 @@ export function StoreSettingsForm({
           <input
             id="whatsapp-number"
             name="whatsapp_number"
+            type="tel"
             defaultValue={settingString(settings, "whatsapp_number")}
             maxLength={20}
             placeholder="01XXXXXXXXX"
@@ -76,6 +79,8 @@ export function StoreSettingsForm({
           <input
             id="social-facebook"
             name="social_facebook"
+            inputMode="url"
+            spellCheck={false}
             defaultValue={settingString(settings, "social_facebook")}
             maxLength={500}
             placeholder="https://facebook.com/…"
@@ -86,6 +91,8 @@ export function StoreSettingsForm({
           <input
             id="social-instagram"
             name="social_instagram"
+            inputMode="url"
+            spellCheck={false}
             defaultValue={settingString(settings, "social_instagram")}
             maxLength={500}
             placeholder="https://instagram.com/…"
@@ -96,6 +103,8 @@ export function StoreSettingsForm({
           <input
             id="social-youtube"
             name="social_youtube"
+            inputMode="url"
+            spellCheck={false}
             defaultValue={settingString(settings, "social_youtube")}
             maxLength={500}
             placeholder="https://youtube.com/…"
@@ -106,6 +115,8 @@ export function StoreSettingsForm({
           <input
             id="social-tiktok"
             name="social_tiktok"
+            inputMode="url"
+            spellCheck={false}
             defaultValue={settingString(settings, "social_tiktok")}
             maxLength={500}
             placeholder="https://tiktok.com/…"

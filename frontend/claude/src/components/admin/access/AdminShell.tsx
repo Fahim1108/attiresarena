@@ -279,6 +279,7 @@ export function AdminShell({
       <div className="aa-content">
         <header className="aa-top">
           <button
+            type="button"
             className="aa-mobile-toggle aa-secondary"
             onClick={() => drawer.current?.showModal()}
             aria-haspopup="dialog"
@@ -312,7 +313,7 @@ export function AdminShell({
           </span>
         </header>
         <dialog ref={drawer} className="aa-drawer" aria-label="Administration menu">
-          <button className="aa-secondary" onClick={() => drawer.current?.close()}>
+          <button type="button" className="aa-secondary" onClick={() => drawer.current?.close()}>
             Close menu
           </button>
           {navigation}

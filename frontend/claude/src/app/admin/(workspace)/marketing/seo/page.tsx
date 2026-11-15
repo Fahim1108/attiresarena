@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PageHeading, Panel, Notice } from "@/components/admin/ui";
 import { SeoSettingsForm } from "@/components/admin/marketing/forms";
 import { BrandImageForm } from "@/components/admin/settings/forms";
@@ -16,7 +17,7 @@ export default async function SeoPage() {
   const socialUrl = await signedStorageUrl(socialPath || null);
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Marketing"
         title="SEO settings"
@@ -56,7 +57,7 @@ export default async function SeoPage() {
           Google Analytics, tag manager or measurement ID, so there is no
           tracking field here — a field that did nothing would be
           misleading. Traffic and sales reporting lives under{" "}
-          <a href="/admin/analytics">Analytics</a>, built from order data.
+          <Link href="/admin/analytics">Analytics</Link>, built from order data.
         </p>
       </Panel>
     </main>

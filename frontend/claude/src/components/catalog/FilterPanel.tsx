@@ -30,7 +30,7 @@ export function FilterPanel({ facets }: { facets: CatalogFacets }) {
                     </span>
                   }
                   checked={query.categorySlugs?.includes(c.slug) ?? false}
-                  onChange={() => update({ categorySlugs: toggle(query.categorySlugs, c.slug) })}
+                  onChange={() => update((q) => ({ categorySlugs: toggle(q.categorySlugs, c.slug) }))}
                   className="[&>span]:flex-1"
                 />
               </li>
@@ -53,7 +53,7 @@ export function FilterPanel({ facets }: { facets: CatalogFacets }) {
                     </span>
                   }
                   checked={query.brandSlugs?.includes(b.slug) ?? false}
-                  onChange={() => update({ brandSlugs: toggle(query.brandSlugs, b.slug) })}
+                  onChange={() => update((q) => ({ brandSlugs: toggle(q.brandSlugs, b.slug) }))}
                   className="[&>span]:flex-1"
                 />
               </li>
@@ -73,8 +73,8 @@ export function FilterPanel({ facets }: { facets: CatalogFacets }) {
                 key={s}
                 type="button"
                 aria-pressed={active}
-                onClick={() => update({ sizes: toggle(query.sizes, s) })}
-                className={cn("h-9 min-w-[44px] rounded-control border px-2.5 text-sm transition-colors duration-200", active ? "border-primary bg-primary text-white" : "border-line text-ink hover:border-ink/50")}
+                onClick={() => update((q) => ({ sizes: toggle(q.sizes, s) }))}
+                className={cn("h-11 min-w-[44px] rounded-control border px-2.5 text-sm transition-colors duration-200", active ? "border-primary bg-primary text-white" : "border-line text-ink hover:border-ink/50")}
               >
                 {facets.sizeLabels?.[s] ?? s}
               </button>
@@ -83,7 +83,7 @@ export function FilterPanel({ facets }: { facets: CatalogFacets }) {
         </div>
       ),
     },
-    {id:'availability',title:'Availability',content:<Checkbox label="In stock" checked={query.inStock??false} onChange={()=>update({inStock:query.inStock?undefined:true})}/>},
+    {id:'availability',title:'Availability',content:<Checkbox label="In stock" checked={query.inStock??false} onChange={()=>update((q)=>({inStock:q.inStock?undefined:true}))}/>},
   ].filter(Boolean) as { id: string; title: string; content: React.ReactNode }[];
 
   return <Accordion items={items} defaultOpen={items.map((i) => i.id)} className="border-t-0" />;

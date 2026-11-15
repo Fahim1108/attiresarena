@@ -37,10 +37,10 @@ export function StoreFooter() {
         <h2>Customer care</h2>
         <Link href="/account">Your account</Link>
         <a href="mailto:attiresarena664@gmail.com">
-          <Mail size={13} /> attiresarena664@gmail.com
+          <Mail size={13} aria-hidden="true" /> attiresarena664@gmail.com
         </a>
         <a href="tel:+8801886456664">
-          <Phone size={13} /> 01886456664
+          <Phone size={13} aria-hidden="true" /> 01886456664
         </a>
       </div>
       <div className="footer-note">
@@ -50,7 +50,7 @@ export function StoreFooter() {
           after the collection and commerce services are ready.
         </p>
         <Link href="/account">
-          Explore your account <ArrowRight size={13} />
+          Explore your account <ArrowRight size={13} aria-hidden="true" />
         </Link>
       </div>
       <div className="footer-bottom">

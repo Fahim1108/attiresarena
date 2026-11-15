@@ -9,7 +9,7 @@ export default function StoreLayout({ children }: { children: React.ReactNode })
   return (
     <>
       <Header />
-      <main id="main" className="min-h-[60vh]">
+      <main id="main" tabIndex={-1} className="min-h-[60vh]">
         <RouteMotion>{children}</RouteMotion>
       </main>
       <Footer />

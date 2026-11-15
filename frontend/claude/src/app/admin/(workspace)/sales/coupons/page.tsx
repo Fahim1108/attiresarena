@@ -25,7 +25,7 @@ export default async function CouponsPage() {
   const { coupons, usageTruncated } = await readCoupons();
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Sales"
         title="Coupons"
@@ -73,11 +73,11 @@ export default async function CouponsPage() {
             <tbody>
               {coupons.map((coupon) => (
                 <tr key={coupon.id}>
-                  <td>
+                  <th scope="row">
                     <Link href={`/admin/sales/coupons/${coupon.id}`} className="aa-cell-main">
                       {coupon.code}
                     </Link>
-                  </td>
+                  </th>
                   <td>{couponValueLabel(coupon)}</td>
                   <td>{windowLabel(coupon)}</td>
                   <td>
@@ -94,7 +94,7 @@ export default async function CouponsPage() {
                     )}
                   </td>
                   <td className="aa-cell-actions">
-                    <Link className="aa-row-action" href={`/admin/sales/coupons/${coupon.id}`}>
+                    <Link className="aa-row-action" href={`/admin/sales/coupons/${coupon.id}`} aria-label={`Edit coupon ${coupon.code}`}>
                       Edit
                     </Link>{" "}
                     <CouponRowActions

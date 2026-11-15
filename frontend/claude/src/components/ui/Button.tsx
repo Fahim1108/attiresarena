@@ -1,18 +1,18 @@
 import Link from "next/link";
 import { PendingIndicator } from "@/components/ui/LoadingSkeleton";
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 import { cn } from "@/lib/cn";
 
 /** Trailing icons (arrows) slide 5px right on hover/focus. */
 function ArrowSlot({ children }: { children: ReactNode }) {
-  return <span className="aa-arrow">{children}</span>;
+  return <span aria-hidden="true" className="aa-arrow">{children}</span>;
 }
 
 export type ButtonVariant = "primary" | "burgundy" | "secondary" | "outline" | "ghost" | "link";
 export type ButtonSize = "sm" | "md" | "lg";
 
 const base =
-  "aa-button aa-press group/btn inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+  "aa-button aa-press group/btn inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
 const variants: Record<ButtonVariant, string> = {
   primary: "bg-primary text-white hover:bg-primary-dark shadow-sm",
@@ -40,21 +40,19 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean;
   leftIcon?: ReactNode;
   rightIcon?: ReactNode;
+  ref?: Ref<HTMLButtonElement>;
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant, size, fullWidth, loading, leftIcon, rightIcon, className, children, disabled, type = "button", ...props },
-  ref,
-) {
+export function Button({ variant, size, fullWidth, loading, leftIcon, rightIcon, className, children, disabled, type = "button", ref, ...props }: ButtonProps) {
   return (
     <button ref={ref} type={type} disabled={disabled || loading} aria-busy={loading || undefined} className={buttonClasses({ variant, size, fullWidth, className })} {...props}>
       <span className={cn("inline-flex items-center justify-center gap-2", loading && "opacity-0")}>
-        {leftIcon}{children}{rightIcon && <ArrowSlot>{rightIcon}</ArrowSlot>}
+        {leftIcon && <span aria-hidden="true" className="inline-flex shrink-0">{leftIcon}</span>}{children}{rightIcon && <ArrowSlot>{rightIcon}</ArrowSlot>}
       </span>
       {loading && <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center"><PendingIndicator label="Working" /></span>}
     </button>
   );
-});
+}
 
 interface ButtonLinkProps {
   href: string;
@@ -71,7 +69,7 @@ interface ButtonLinkProps {
 export function ButtonLink({ href, variant, size, fullWidth, className, children, leftIcon, rightIcon, onClick }: ButtonLinkProps) {
   return (
     <Link href={href} onClick={onClick} className={buttonClasses({ variant, size, fullWidth, className })}>
-      {leftIcon}
+      {leftIcon && <span aria-hidden="true" className="inline-flex shrink-0">{leftIcon}</span>}
       {children}
       {rightIcon && <ArrowSlot>{rightIcon}</ArrowSlot>}
     </Link>

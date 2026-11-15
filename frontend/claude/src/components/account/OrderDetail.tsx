@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { OrderSummary } from "@/components/cart/OrderSummary";
-import { SmartImage } from "@/components/ui";
+import { SmartImage } from "@/components/ui/SmartImage";
 import { formatDateTime, formatPrice } from "@/lib/format";
 import type { Order } from "@/types";
 import { OrderStatusBadge } from "./OrderStatusBadge";
@@ -11,7 +11,7 @@ export function OrderDetail({ order }: { order: Order }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-serif text-3xl text-ink">Order {order.orderNumber}</h2>
+          <h2 className="break-words font-serif text-3xl text-ink">Order {order.orderNumber}</h2>
           <p className="text-xs text-ink-muted">Placed {formatDateTime(order.placedAt)}</p>
         </div>
         <OrderStatusBadge status={order.status} />
@@ -21,7 +21,7 @@ export function OrderDetail({ order }: { order: Order }) {
           <h3 className="mb-5 text-sm font-semibold uppercase tracking-wider text-ink-muted">Tracking</h3>
           <OrderTimeline events={order.timeline} status={order.status} />
           {order.courier && (
-            <p className="mt-6 rounded-control bg-[#F9F8F7] p-3 text-xs text-ink-muted">
+            <p className="mt-6 break-words rounded-control bg-[#F9F8F7] p-3 text-xs text-ink-muted">
               Courier: <span className="text-ink">{order.courier.name}</span> · Tracking code <span className="text-ink">{order.courier.trackingCode}</span>
             </p>
           )}
@@ -29,7 +29,7 @@ export function OrderDetail({ order }: { order: Order }) {
         <div className="space-y-6">
           <section className="rounded-card border border-line p-5" aria-label="Delivery address">
             <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-ink-muted">Deliver to</h3>
-            <p className="text-sm leading-relaxed text-ink">
+            <p className="break-words text-sm leading-relaxed text-ink">
               {order.shippingAddress.fullName} · {order.shippingAddress.phone}
               <br />
               {order.shippingAddress.addressLine}, {order.shippingAddress.area}, {order.shippingAddress.district}
@@ -57,7 +57,7 @@ export function OrderDetail({ order }: { order: Order }) {
                   {l.colorName} · {l.size} · Qty {l.quantity}
                 </span>
               </span>
-              <span className="text-sm font-medium">{formatPrice(l.unitPrice * l.quantity)}</span>
+              <span className="shrink-0 text-sm font-medium tabular-nums">{formatPrice(l.unitPrice * l.quantity)}</span>
             </li>
           ))}
         </ul>

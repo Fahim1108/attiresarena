@@ -57,7 +57,7 @@ export function ColorField({ label, value, onChange }: { label: string; value: s
       <label htmlFor={`${id}-hex`} className="flex-1 text-xs text-ink">
         {label}
       </label>
-      <input id={`${id}-hex`} value={value} onChange={(e) => onChange(e.target.value)} className={cn("h-8 w-24 rounded border px-2 font-mono text-xs uppercase", valid ? "border-line" : "border-danger")} aria-label={`${label} hex value`} />
+      <input id={`${id}-hex`} value={value} onChange={(e) => onChange(e.target.value)} className={cn("h-8 w-24 rounded border px-2 font-mono text-xs uppercase", valid ? "border-line" : "border-danger")} aria-label={`${label} hex value`} aria-invalid={!valid} />
     </div>
   );
 }
@@ -73,6 +73,7 @@ export function Toggle({ label, checked, onChange, description }: { label: strin
         type="button"
         role="switch"
         aria-checked={checked}
+        aria-label={label}
         onClick={() => onChange(!checked)}
         className={cn("relative h-6 w-11 shrink-0 rounded-full transition-colors", checked ? "bg-primary" : "bg-ink/20")}
       >
@@ -89,7 +90,7 @@ export function SelectField<T extends string>({ label, value, onChange, options 
       <label htmlFor={id} className="block text-[11px] font-medium uppercase tracking-wide text-ink-muted">
         {label}
       </label>
-      <select id={id} value={value} onChange={(e) => onChange(e.target.value as T)} className="h-9 w-full rounded-control border border-line bg-surface px-2.5 text-sm text-ink focus:border-primary focus:outline-none">
+      <select id={id} value={value} onChange={(e) => onChange(e.target.value as T)} className="h-9 w-full rounded-control border border-line bg-surface px-2.5 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10">
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
@@ -101,9 +102,9 @@ export function SelectField<T extends string>({ label, value, onChange, options 
 }
 
 export function ItemControls({ index, count, onMove, onRemove, label }: { index: number; count: number; onMove: (from: number, to: number) => void; onRemove?: () => void; label: string }) {
-  const btn = "flex h-7 w-7 items-center justify-center rounded text-ink-muted hover:bg-ink/5 hover:text-ink disabled:opacity-30";
+  const btn = "flex h-8 w-8 items-center justify-center rounded text-ink-muted hover:bg-ink/5 hover:text-ink disabled:opacity-30";
   return (
-    <div className="flex items-center gap-0.5">
+    <div className="flex items-center gap-1">
       <button type="button" className={btn} disabled={index === 0} onClick={() => onMove(index, index - 1)} aria-label={`Move ${label} up`}>
         <ArrowUp className="h-3.5 w-3.5" />
       </button>

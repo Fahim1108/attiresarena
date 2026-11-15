@@ -18,7 +18,7 @@ export function CategoryCard({ category, variant = "tile", productCount }: { cat
   return (
     <Link href={`/category/${category.slug}`} className="aa-press group block">
       <div className={cn("relative overflow-hidden rounded-card bg-[#F4F2F0]", variant === "feature" ? "aspect-[4/5]" : "aspect-[8/9]")}>
-        <SmartImage src={category.image.src} alt={category.image.alt} fill sizes="(min-width:1024px) 16vw, 33vw" className="object-cover transition-transform duration-[var(--motion-slow)] ease-out group-hover:scale-[1.03]" />
+        <SmartImage src={category.image.src} alt="" fill sizes="(min-width:1024px) 16vw, 33vw" className="object-cover transition-transform duration-[var(--motion-slow)] ease-out group-hover:scale-[1.03]" />
         {variant === "feature" && <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-ink/40 to-transparent" />}
         {variant === "feature" && (
           <div className="absolute inset-x-0 bottom-0 p-4 text-white">
@@ -26,7 +26,7 @@ export function CategoryCard({ category, variant = "tile", productCount }: { cat
               {category.name}
               <ArrowUpRight className="h-5 w-5 transition-transform duration-300 ease-out group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden />
             </p>
-            {productCount !== undefined && <p className="text-xs opacity-80">{productCount} products</p>}
+            {productCount !== undefined && <p className="text-xs opacity-80">{productCount} {productCount === 1 ? "product" : "products"}</p>}
           </div>
         )}
       </div>

@@ -160,7 +160,7 @@
     gap: 28px 12px;
   }
   .links a {
-    font-size: 11px;
+    font-size: 12px;
     padding: 8px 0;
   }
   .grid h2 {
@@ -171,7 +171,7 @@
     flex-direction: column;
     text-align: center;
     gap: 10px;
-    font-size: 11px;
+    font-size: 12px;
   }
   .disclaimer {
     text-align: center;

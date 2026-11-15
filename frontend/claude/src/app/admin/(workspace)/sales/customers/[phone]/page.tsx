@@ -18,7 +18,7 @@ export default async function CustomerProfilePage({
     await readCustomerProfile(phone);
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Sales · Customers"
         title={summary.name}
@@ -118,11 +118,11 @@ export default async function CustomerProfilePage({
             <tbody>
               {orders.map((order) => (
                 <tr key={order.id}>
-                  <td>
+                  <th scope="row">
                     <Link href={`/admin/sales/orders/${order.id}`} className="aa-cell-main">
                       {order.order_number ? `#${order.order_number}` : "Order"}
                     </Link>
-                  </td>
+                  </th>
                   <td>{formatDateTime(order.placed_at)}</td>
                   <td>
                     <StatusBadge tone={ORDER_STATUS_TONES[order.status]}>
@@ -131,7 +131,7 @@ export default async function CustomerProfilePage({
                   </td>
                   <td>{formatMoney(order.total_minor)}</td>
                   <td className="aa-cell-actions">
-                    <Link className="aa-row-action" href={`/admin/sales/orders/${order.id}`}>
+                    <Link className="aa-row-action" href={`/admin/sales/orders/${order.id}`} aria-label={`View order ${order.order_number ? `#${order.order_number}` : order.id}`}>
                       View
                     </Link>
                   </td>

@@ -39,12 +39,12 @@ export function BannerList({
         <tbody>
           {banners.map((banner, index) => (
             <tr key={banner.id}>
-              <td>
+              <th scope="row">
                 <span className="aa-cell-main">{banner.title}</span>
                 {banner.subtitle ? (
                   <span className="aa-cell-sub">{banner.subtitle}</span>
                 ) : null}
-              </td>
+              </th>
               <td>{banner.placement === "hero" ? "Hero" : "Promotional"}</td>
               <td>{banner.link_url ?? "—"}</td>
               <td>{formatDateTime(banner.created_at)}</td>
@@ -54,12 +54,12 @@ export function BannerList({
                 </StatusBadge>
               </td>
               <td className="aa-cell-actions">
-                <Link className="aa-row-action" href={editHref(banner.id)}>
+                <Link className="aa-row-action" href={editHref(banner.id)} aria-label={`Edit banner ${banner.title}`}>
                   Edit
                 </Link>{" "}
                 <form action={toggleBannerVisibility} style={{ display: "inline" }}>
                   <input type="hidden" name="id" value={banner.id} />
-                  <button type="submit" className="aa-row-action">
+                  <button type="submit" className="aa-row-action" aria-label={`${banner.visible ? "Hide" : "Show"} banner ${banner.title}`}>
                     {banner.visible ? "Hide" : "Show"}
                   </button>
                 </form>{" "}
@@ -91,6 +91,7 @@ export function BannerList({
                   action={deleteBanner}
                   fields={{ id: banner.id, image_storage_path: banner.image_storage_path }}
                   buttonLabel="Delete"
+                  ariaLabel={`Delete banner ${banner.title}`}
                   confirmTitle="Delete banner?"
                   confirmBody={`“${banner.title}” will be removed. Its image file is also removed when possible.`}
                   confirmLabel="Delete banner"

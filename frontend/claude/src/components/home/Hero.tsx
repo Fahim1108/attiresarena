@@ -93,8 +93,9 @@ function MobileEditorialSlide({ banner, active, priority, logoSrc, intro }: { ba
 }
 
 function SideTile({ banner }: { banner: Banner }) {
-  return (
-    <Link href={banner.cta?.href ?? "#"} className="group relative block overflow-hidden rounded-card bg-[#EDE8E2]">
+  const href = banner.cta?.href;
+  const content = (
+    <>
       <SmartImage src={banner.image.src} alt={banner.image.alt} fill sizes="25vw" className="object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
       <div className="relative flex h-full flex-col justify-center p-6 xl:p-8">
         <h2 className="max-w-[8ch] font-serif text-[30px] leading-[1.05] text-ink xl:text-[36px]">{banner.title}</h2>
@@ -104,6 +105,14 @@ function SideTile({ banner }: { banner: Banner }) {
           </span>
         )}
       </div>
+    </>
+  );
+  if (!href) {
+    return <article className="relative block overflow-hidden rounded-card bg-[#EDE8E2]">{content}</article>;
+  }
+  return (
+    <Link href={href} className="group relative block overflow-hidden rounded-card bg-[#EDE8E2]">
+      {content}
     </Link>
   );
 }
@@ -162,9 +171,9 @@ function EditorialHero({ hero, uppercase = true, logoSrc = "/brand/logo-maroon.p
 
           {/* Phone dots (centred, maroon — as in the mobile mockup) */}
           {slides.length > 1 && (
-            <div className="absolute bottom-0.5 left-1/2 flex -translate-x-1/2 gap-1 sm:bottom-2" role="tablist" aria-label="Choose slide">
+            <div className="absolute bottom-0.5 left-1/2 flex -translate-x-1/2 gap-1 sm:bottom-2" role="group" aria-label="Choose slide">
               {slides.map((s, i) => (
-                <button key={s.id} type="button" role="tab" aria-selected={i === index} aria-label={`Slide ${i + 1}: ${s.title}`} onClick={() => go(i)} className="flex h-6 w-5 items-center justify-center">
+                <button key={s.id} type="button" aria-current={i === index ? "true" : undefined} aria-label={`Slide ${i + 1}: ${s.title}`} onClick={() => go(i)} className="flex h-6 w-6 items-center justify-center">
                   <span className={cn("block h-2 w-2 rounded-full transition-colors", i === index ? "bg-primary" : slides[index]?.mobileImage ? "bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.08)]" : "bg-white/60")} />
                 </button>
               ))}
@@ -187,14 +196,14 @@ function EditorialHero({ hero, uppercase = true, logoSrc = "/brand/logo-maroon.p
             <>
               {/* White circular arrows at the sides (desktop mockup) */}
               <button type="button" onClick={() => go(index - 1)} className="aa-press absolute left-4 top-1/2 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white text-ink shadow-soft transition-colors hover:text-primary sm:flex lg:left-7" aria-label="Previous slide">
-                <ChevronLeft className="h-5 w-5" />
+                <ChevronLeft className="h-5 w-5" aria-hidden />
               </button>
               <button type="button" onClick={() => go(index + 1)} className="aa-press absolute right-4 top-1/2 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white text-ink shadow-soft transition-colors hover:text-primary sm:flex lg:right-7" aria-label="Next slide">
-                <ChevronRight className="h-5 w-5" />
+                <ChevronRight className="h-5 w-5" aria-hidden />
               </button>
               {hero.autoplayMs > 0 && (
                 <button type="button" onClick={() => setPaused((p) => !p)} className="aa-press absolute bottom-3 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-ink/70 shadow-sm hover:text-primary sm:flex lg:right-7" aria-label={paused ? "Play slideshow" : "Pause slideshow"}>
-                  {paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+                  {paused ? <Play className="h-3 w-3" aria-hidden /> : <Pause className="h-3 w-3" aria-hidden />}
                 </button>
               )}
             </>

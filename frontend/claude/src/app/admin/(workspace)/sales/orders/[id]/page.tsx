@@ -25,7 +25,7 @@ export default async function OrderDetailPage({
   const orderLabel = order.order_number ? `#${order.order_number}` : "Order";
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <div className="aa-no-print">
         <PageHeading
           eyebrow="Sales · Orders"
@@ -57,7 +57,9 @@ export default async function OrderDetailPage({
           </div>
           <div>
             <dt>Placed</dt>
-            <dd>{formatDateTime(order.placed_at)}</dd>
+            <dd>
+              <time dateTime={order.placed_at}>{formatDateTime(order.placed_at)}</time>
+            </dd>
           </div>
           <div>
             <dt>Customer</dt>
@@ -106,12 +108,12 @@ export default async function OrderDetailPage({
             <tbody>
               {items.map((item) => (
                 <tr key={item.id}>
-                  <td>
+                  <th scope="row">
                     <span style={{ display: "inline-flex", gap: "0.6rem", alignItems: "center" }}>
                       <ProductThumbnail url={item.imageUrl} alt={item.imageAlt} />
                       <span className="aa-cell-main">{item.product_name}</span>
                     </span>
-                  </td>
+                  </th>
                   <td>
                     {item.size} · {item.color}
                   </td>

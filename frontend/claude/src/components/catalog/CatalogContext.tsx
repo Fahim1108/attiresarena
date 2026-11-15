@@ -1,17 +1,17 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { createContext, useCallback, useContext, useTransition, type ReactNode } from "react";
-import { toSearchParams } from "@/lib/catalog-query";
+import { createContext, useCallback, useContext, useState, useTransition, type ReactNode } from "react";
 import { ProductGridSkeleton } from "@/components/ui/LoadingSkeleton";
 import type { ProductQueryInput } from "@/services";
+import { applyCatalogPatch, catalogHref, EMPTY_CATALOG_QUERY, type CatalogLocked, type CatalogPatch } from "./catalog-url";
 
 interface CatalogContextValue {
   query: ProductQueryInput;
   /** Filters fixed by the page (e.g. category on a category page). Not shown as removable. */
-  locked: { category?: string; brand?: string };
+  locked: CatalogLocked;
   pending: boolean;
-  update: (patch: Partial<ProductQueryInput>) => void;
+  update: (patch: CatalogPatch) => void;
   reset: () => void;
 }
 
@@ -23,19 +23,36 @@ export function CatalogProvider({ query, locked = {}, children }: { query: Produ
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
 
+  // Latest intended query, updated synchronously on every interaction. The
+  // server-rendered `query` prop only refreshes when a navigation commits, so
+  // merging onto it drops any change made while a navigation is still pending
+  // (filter controls stay interactive during the pending skeleton). Merging
+  // onto the intended state keeps filter + sort + search composed in the URL.
+  const [intended, setIntended] = useState(query);
+  const [prevQuery, setPrevQuery] = useState(query);
+  // Once navigation settles, the server query is the truth again: it also picks
+  // up back/forward and external links. Never sync while pending — the
+  // committed prop may still reflect an older navigation than the latest intent.
+  if (query !== prevQuery && !pending) {
+    setPrevQuery(query);
+    setIntended(query);
+  }
+
   const navigate = useCallback(
     (q: ProductQueryInput) => {
-      const params = toSearchParams({ ...q, categorySlugs: locked.category ? undefined : q.categorySlugs, brandSlugs: locked.brand ? undefined : q.brandSlugs });
-      const qs = params.toString();
-      startTransition(() => router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false }));
+      setIntended(q);
+      const href = catalogHref(pathname, q, { category: locked.category, brand: locked.brand });
+      startTransition(() => router.push(href, { scroll: false }));
     },
     [router, pathname, locked.category, locked.brand],
   );
 
-  const update = useCallback((patch: Partial<ProductQueryInput>) => navigate({ ...query, ...patch, page: patch.page ?? 1 }), [navigate, query]);
-  const reset = useCallback(() => navigate({ search: query.search, sort: query.sort }), [navigate, query.search, query.sort]);
+  const update = useCallback((patch: CatalogPatch) => navigate(applyCatalogPatch(intended, patch)), [navigate, intended]);
+  // Clear all resets everything: filters, sort and search. Locked slugs are
+  // path-derived, so the page restores them without any URL param.
+  const reset = useCallback(() => navigate(EMPTY_CATALOG_QUERY), [navigate]);
 
-  return <Ctx.Provider value={{ query, locked, pending, update, reset }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ query: intended, locked, pending, update, reset }}>{children}</Ctx.Provider>;
 }
 
 export function useCatalog() {

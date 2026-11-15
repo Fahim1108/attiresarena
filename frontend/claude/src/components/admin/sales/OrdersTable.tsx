@@ -62,7 +62,10 @@ export function OrdersTable({
 }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [target, setTarget] = useState<OrderStatus | "">("");
-  const [exportState, setExportState] = useState<{ busy: boolean; message: string | null }>({
+  const [exportState, setExportState] = useState<{
+    busy: boolean;
+    message: { text: string; kind: "info" | "error" } | null;
+  }>({
     busy: false,
     message: null,
   });
@@ -97,25 +100,28 @@ export function OrdersTable({
     try {
       result = await exportAction(exportFilters);
     } catch {
-      setExportState({ busy: false, message: "Export failed. Try again." });
+      setExportState({ busy: false, message: { text: "Export failed. Try again.", kind: "error" } });
       return;
     }
     if (!result.ok) {
-      setExportState({ busy: false, message: result.error });
+      setExportState({ busy: false, message: { text: result.error, kind: "error" } });
       return;
     }
     downloadCsv(result.csv, result.filename);
     setExportState({
       busy: false,
-      message: result.truncated
-        ? `Exported ${result.total} matching orders (list truncated to 1,000 rows — narrow the filters for a complete export).`
-        : `Exported ${result.total} order${result.total === 1 ? "" : "s"}.`,
+      message: {
+        text: result.truncated
+          ? `Exported ${result.total} matching orders (list truncated to 1,000 rows — narrow the filters for a complete export).`
+          : `Exported ${result.total} order${result.total === 1 ? "" : "s"}.`,
+        kind: "info",
+      },
     });
   };
 
   return (
     <div>
-      <div className="aa-toolbar" aria-label="Order actions">
+      <div className="aa-toolbar" role="group" aria-label="Order actions">
         <button type="button" className="aa-secondary" onClick={runExport} disabled={exportState.busy}>
           {exportState.busy ? "Exporting…" : "Export CSV"}
         </button>
@@ -158,8 +164,11 @@ export function OrdersTable({
         ) : null}
       </div>
       {exportState.message ? (
-        <p role="status" className="aa-notice aa-notice--info">
-          {exportState.message}
+        <p
+          role={exportState.message.kind === "error" ? "alert" : "status"}
+          className={`aa-notice aa-notice--${exportState.message.kind === "error" ? "error" : "info"}`}
+        >
+          {exportState.message.text}
         </p>
       ) : null}
       {bulkState && !dialogOpen ? <FormMessage state={bulkState} /> : null}
@@ -222,7 +231,11 @@ export function OrdersTable({
                   <td>{PAYMENT_STATUS_LABELS[row.payment_status] ?? row.payment_status}</td>
                   <td>{formatMoney(row.total_minor)}</td>
                   <td className="aa-cell-actions">
-                    <Link className="aa-row-action" href={`/admin/sales/orders/${row.id}`}>
+                    <Link
+                      className="aa-row-action"
+                      href={`/admin/sales/orders/${row.id}`}
+                      aria-label={`View order ${row.order_number ? `#${row.order_number}` : row.id}`}
+                    >
                       View
                     </Link>
                   </td>

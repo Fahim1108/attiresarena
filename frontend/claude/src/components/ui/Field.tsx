@@ -1,9 +1,9 @@
-import { forwardRef, useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { useId, type InputHTMLAttributes, type ReactNode, type Ref, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const controlBase =
-  "w-full rounded-control border bg-surface px-3.5 text-sm text-ink placeholder:text-ink-muted/70 transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:bg-ink/[0.03] disabled:text-ink-muted";
+  "w-full rounded-control border bg-surface px-3.5 text-base text-ink placeholder:text-ink-muted transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:bg-ink/[0.03] disabled:text-ink-muted sm:text-sm";
 
 interface FieldShellProps {
   label?: string;
@@ -44,15 +44,16 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   hint?: string;
   leftIcon?: ReactNode;
   wrapperClassName?: string;
+  ref?: Ref<HTMLInputElement>;
 }
 
-export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({ label, error, hint, leftIcon, className, wrapperClassName, id, required, ...props }, ref) {
+export function Input({ label, error, hint, leftIcon, className, wrapperClassName, id, required, ref, ...props }: InputProps) {
   const autoId = useId();
   const inputId = id ?? autoId;
   return (
     <FieldShell label={label} error={error} hint={hint} required={required} id={inputId} className={wrapperClassName}>
       <div className="relative">
-        {leftIcon && <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted">{leftIcon}</span>}
+        {leftIcon && <span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted">{leftIcon}</span>}
         <input
           ref={ref}
           id={inputId}
@@ -65,7 +66,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({ l
       </div>
     </FieldShell>
   );
-});
+}
 
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
@@ -74,9 +75,10 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   placeholder?: string;
   options: { value: string; label: string }[];
   wrapperClassName?: string;
+  ref?: Ref<HTMLSelectElement>;
 }
 
-export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select({ label, error, hint, placeholder, options, className, wrapperClassName, id, required, ...props }, ref) {
+export function Select({ label, error, hint, placeholder, options, className, wrapperClassName, id, required, ref, ...props }: SelectProps) {
   const autoId = useId();
   const selectId = id ?? autoId;
   return (
@@ -87,7 +89,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
           id={selectId}
           required={required}
           aria-invalid={error ? true : undefined}
-          aria-describedby={error ? `${selectId}-error` : undefined}
+          aria-describedby={error ? `${selectId}-error` : hint ? `${selectId}-hint` : undefined}
           className={cn(controlBase, "h-11 appearance-none pr-10", error ? "border-danger" : "border-line", className)}
           {...props}
         >
@@ -102,16 +104,17 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
       </div>
     </FieldShell>
   );
-});
+}
 
 interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
   error?: string;
   hint?: string;
   wrapperClassName?: string;
+  ref?: Ref<HTMLTextAreaElement>;
 }
 
-export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea({ label, error, hint, className, wrapperClassName, id, required, ...props }, ref) {
+export function Textarea({ label, error, hint, className, wrapperClassName, id, required, ref, ...props }: TextareaProps) {
   const autoId = useId();
   const areaId = id ?? autoId;
   return (
@@ -121,12 +124,13 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
         id={areaId}
         required={required}
         aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${areaId}-error` : hint ? `${areaId}-hint` : undefined}
         className={cn(controlBase, "min-h-[110px] py-3", error ? "border-danger" : "border-line", className)}
         {...props}
       />
     </FieldShell>
   );
-});
+}
 
 interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type"> {
   label: ReactNode;

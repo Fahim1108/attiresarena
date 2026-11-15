@@ -140,13 +140,13 @@ export function AppearanceEditor({ initial }: { initial: StorefrontSettings }) {
           Attires Arena
         </Link>
         <span className="hidden text-sm text-ink-muted sm:inline">/ Appearance Editor</span>
-        <span className="hidden rounded bg-warning/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warning md:inline">Local preview · not saved</span>
+        <span className="hidden rounded bg-warning/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-warning md:inline">Local preview · not saved</span>
         <div className="ml-auto flex items-center gap-1.5">
           {dirty && <span className="mr-1 hidden text-xs text-ink-muted lg:inline">Unsaved changes</span>}
           <Button size="sm" variant="ghost" onClick={() => { setSettings(structuredClone(initial)); setDirty(false); }} leftIcon={<RotateCcw className="h-3.5 w-3.5" />} className="hidden sm:inline-flex">
             Reset
           </Button>
-          <Button size="sm" variant="outline" onClick={() => runAction("save")} disabled={pending} leftIcon={<Save className="h-3.5 w-3.5" />}>
+          <Button size="sm" variant="outline" onClick={() => runAction("save")} disabled={pending} leftIcon={<Save className="h-3.5 w-3.5" />} aria-label="Save draft">
             <span className="hidden sm:inline">Save draft</span>
           </Button>
           <Button size="sm" onClick={() => runAction("publish")} loading={pending} leftIcon={<Rocket className="h-3.5 w-3.5" />}>
@@ -192,7 +192,7 @@ export function AppearanceEditor({ initial }: { initial: StorefrontSettings }) {
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line bg-surface px-3 py-2">
             <div className="flex gap-1" role="radiogroup" aria-label="Preview device">
               {DEVICES.map(({ id, label, width, Icon }) => (
-                <button key={id} type="button" role="radio" aria-checked={device === id} onClick={() => setDevice(id)} title={`${label} · ${width}px`} className={cn("flex h-8 items-center gap-1.5 rounded-control px-2.5 text-xs", device === id ? "bg-selected text-primary" : "text-ink-muted hover:bg-ink/5")}>
+                <button key={id} type="button" role="radio" aria-checked={device === id} aria-label={`${label} · ${width}px`} onClick={() => setDevice(id)} title={`${label} · ${width}px`} className={cn("flex h-8 items-center gap-1.5 rounded-control px-2.5 text-xs", device === id ? "bg-selected text-primary" : "text-ink-muted hover:bg-ink/5")}>
                   <Icon className="h-4 w-4" aria-hidden /> <span className="hidden xl:inline">{label}</span>
                 </button>
               ))}
@@ -200,7 +200,7 @@ export function AppearanceEditor({ initial }: { initial: StorefrontSettings }) {
             <span className="text-xs text-ink-muted">
               {deviceWidth}px · {Math.round(scale * 100)}%
             </span>
-            <a href="/admin/appearance/preview" target="_blank" rel="noreferrer" className="hidden items-center gap-1 text-xs text-primary sm:flex">
+            <a href="/admin/appearance/preview" target="_blank" rel="noreferrer" aria-label="Open preview in a new tab" className="hidden items-center gap-1 text-xs text-primary sm:flex">
               Open <ExternalLink className="h-3 w-3" aria-hidden />
             </a>
           </div>
@@ -217,8 +217,8 @@ export function AppearanceEditor({ initial }: { initial: StorefrontSettings }) {
       </Modal>
 
       <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Import settings JSON" footer={<div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setImportOpen(false)}>Cancel</Button><Button onClick={importJson}>Apply to preview</Button></div>}>
-        <textarea value={importText} onChange={(e) => setImportText(e.target.value)} rows={12} className="w-full rounded-control border border-line p-3 font-mono text-xs focus:border-primary focus:outline-none" placeholder='{"theme": {...}, "homepage": [...]}' aria-label="Settings JSON" />
-        {importError && <p className="mt-2 text-xs text-danger">{importError}</p>}
+        <textarea value={importText} onChange={(e) => setImportText(e.target.value)} rows={12} className="w-full rounded-control border border-line p-3 font-mono text-xs focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10" placeholder='{"theme": {...}, "homepage": [...]}' aria-label="Settings JSON" />
+        {importError && <p role="alert" className="mt-2 text-xs text-danger">{importError}</p>}
       </Modal>
     </div>
   );

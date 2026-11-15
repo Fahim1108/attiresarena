@@ -72,8 +72,8 @@ export default async function ProductRecord({params}:{params:Promise<{id:string}
   ];
   body=<ProductWorkspace sections={sections}/>;
  }
- return <main id="main" className="aa-main aa-product-page"><Link className="aa-back-link" href="/admin/products/library">← All products</Link>
- <header className="aa-page-heading"><div><p className="aa-eyebrow">Catalog / {intake?'Physical garment '+intake.source_id:'Product'}</p><h1>{product.name}</h1></div><div className="aa-heading-actions"><span className={'aa-status aa-status-'+product.status}>{product.status}</span>{previewHref&&<Link className="aa-row-action" href={previewHref} target="_blank" rel="noopener noreferrer" prefetch={false}>Preview <ArrowUpRight size={14} aria-hidden="true"/></Link>}</div></header>
+ return <main id="main" tabIndex={-1} className="aa-main aa-product-page"><Link className="aa-back-link" href="/admin/products/library">← All products</Link>
+ <header className="aa-page-heading"><div><p className="aa-eyebrow">Catalog / {intake?'Physical garment '+intake.source_id:'Product'}</p><h1>{product.name}</h1></div><div className="aa-heading-actions"><span className={'aa-status aa-status-'+product.status}>{product.status}</span>{previewHref&&<Link className="aa-row-action" href={previewHref} target="_blank" rel="noopener noreferrer" prefetch={false} aria-label="Preview product (opens in a new tab)">Preview <ArrowUpRight size={14} aria-hidden="true"/></Link>}</div></header>
  {body}
  {canManage&&<aside className="aa-workspace-note"><Link href="/admin/audit">View activity log →</Link></aside>}</main>;
 }

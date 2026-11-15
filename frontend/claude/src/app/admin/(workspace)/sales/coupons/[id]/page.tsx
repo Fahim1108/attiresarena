@@ -44,7 +44,7 @@ export default async function CouponDetailPage({
   };
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Sales · Coupons"
         title={coupon.code}
@@ -141,7 +141,9 @@ export default async function CouponDetailPage({
               <tbody>
                 {redemptions.map((redemption) => (
                   <tr key={redemption.id}>
-                    <td>{formatDateTime(redemption.redeemed_at)}</td>
+                    <th scope="row">
+                      <time dateTime={redemption.redeemed_at}>{formatDateTime(redemption.redeemed_at)}</time>
+                    </th>
                     <td>
                       {redemption.phone ?? (redemption.user_id ? "Signed-in account" : "—")}
                     </td>

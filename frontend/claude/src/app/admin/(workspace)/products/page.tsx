@@ -26,7 +26,7 @@ export default async function ProductsPage({
       `${p.name} ${p.source_id}`.toLowerCase().includes(search)&&matchesProductFilter(p,filter)&&(!review||p.source_id===review),
     ) || [];
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <p className="aa-eyebrow">Catalogue / Physical intake</p>
       <h1>Product drafts</h1>
       <p>
@@ -41,8 +41,9 @@ export default async function ProductsPage({
         <input
           id="product-search"
           name="q"
+          type="search"
           defaultValue={q}
-          placeholder="Search name or shirt ID"
+          placeholder="Search name or shirt ID…"
           maxLength={200}
         />
         <label className="sr-only" htmlFor="product-filter">Product status filter</label><select id="product-filter" name="filter" defaultValue={filter}><option value="">All imported products</option><option value="missing-size">Sizes awaiting verification</option><option value="missing-measurement">Missing measurements</option><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option><option value="sold-out">Sold out</option></select><button>Search</button>

@@ -37,7 +37,7 @@ export default async function EditCatalogProductPage({
   const single = variants.length === 1 ? variants[0] : undefined;
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Catalog / Products"
         title={product.name}

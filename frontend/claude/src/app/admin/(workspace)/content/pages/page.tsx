@@ -14,7 +14,7 @@ export default async function ContentPagesPage() {
   const bySlug = new Map((blocks ?? []).map((block) => [block.slug, block]));
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Content"
         title="Pages"

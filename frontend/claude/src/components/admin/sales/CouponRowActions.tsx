@@ -26,11 +26,15 @@ export function CouponRowActions({
   const [dialogOpen, setDialogOpen] = useState(false);
 
   return (
-    <span className="aa-cell-actions">
+    <div className="aa-cell-actions">
       <form action={toggleFormAction} method="post" style={{ display: "inline" }}>
         <input type="hidden" name="id" value={couponId} />
         <input type="hidden" name="active" value={active ? "false" : "true"} />
-        <button type="submit" className="aa-row-action">
+        <button
+          type="submit"
+          className="aa-row-action"
+          aria-label={`${active ? "Deactivate" : "Activate"} coupon ${code}`}
+        >
           {active ? "Deactivate" : "Activate"}
         </button>
       </form>{" "}
@@ -39,6 +43,7 @@ export function CouponRowActions({
           type="button"
           className="aa-row-action aa-row-action--danger"
           disabled
+          aria-label={`Delete coupon ${code} (unavailable: this coupon has been used)`}
           title="This coupon has been used and cannot be deleted. Deactivate it instead."
         >
           Delete
@@ -47,6 +52,7 @@ export function CouponRowActions({
         <button
           type="button"
           className="aa-row-action aa-row-action--danger"
+          aria-label={`Delete coupon ${code}`}
           onClick={() => {
             setDialogOpen(true);
             dialog.current?.showModal();
@@ -86,6 +92,6 @@ export function CouponRowActions({
           </form>
         ) : null}
       </dialog>
-    </span>
+    </div>
   );
 }

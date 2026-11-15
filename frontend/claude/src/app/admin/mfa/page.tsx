@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { staffSession } from "@/lib/admin/access";
 import { StaffMfa } from "@/components/admin/access/StaffForms";
@@ -9,13 +10,25 @@ export default async function MfaPage() {
   if (factors.error)
     throw new Error("Authenticator settings unavailable. Please retry.");
   return (
-    <main id="main" className="aa-auth">
-      <p className="aa-eyebrow">Attires Arena / Security</p>
-      <h1>Two-step verification</h1>
-      <StaffMfa factorId={factors.data.totp[0]?.id} />
-      <form action={signOutStaff}>
-        <button className="aa-secondary">Sign out</button>
-      </form>
+    <main id="main" tabIndex={-1} className="aa-login-layout">
+      <section className="aa-login-panel" aria-labelledby="mfa-heading">
+        <Image
+          src="/brand/logo-maroon.png"
+          alt="Official Attires Arena logo"
+          className="aa-login-logo"
+          width={132}
+          height={127}
+          unoptimized
+        />
+        <header className="aa-login-heading">
+          <h1 id="mfa-heading">Two-step verification</h1>
+          <p>Authenticator verification is required.</p>
+        </header>
+        <StaffMfa factorId={factors.data.totp[0]?.id} />
+        <form action={signOutStaff} style={{ marginTop: "1rem", textAlign: "center" }}>
+          <button className="aa-secondary">Sign out</button>
+        </form>
+      </section>
     </main>
   );
 }

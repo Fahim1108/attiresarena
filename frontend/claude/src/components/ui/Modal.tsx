@@ -119,6 +119,7 @@ const overlayClasses = (shown: boolean) => cn("aa-overlay absolute inset-0 bg-in
 export function Modal({ open, onClose, title, hideTitle, description, children, footer, className }: OverlayProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  const descriptionId = useId();
   const { mounted, shown } = usePresence(open);
   useOverlayBehaviour(onClose, panelRef, mounted && open);
   if (!mounted || typeof document === "undefined") return null;
@@ -130,6 +131,7 @@ export function Modal({ open, onClose, title, hideTitle, description, children, 
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
         className={cn(
           "relative flex max-h-[90vh] w-full flex-col rounded-t-2xl bg-surface shadow-lift aa-panel sm:max-w-lg sm:rounded-card",
@@ -138,18 +140,20 @@ export function Modal({ open, onClose, title, hideTitle, description, children, 
           className,
         )}
       >
-        <div className={cn("flex items-start justify-between gap-4 border-b border-line px-5 py-4", hideTitle && "sr-only")}>
-          <div>
+        <div className={cn("flex items-start justify-between gap-4 border-b border-line px-5 py-4", hideTitle && "border-0 p-0")}>
+          <div className={cn(hideTitle && "sr-only")}>
             <h2 id={titleId} className="font-serif text-2xl text-ink">
               {title}
             </h2>
-            {description && <p className="mt-1 text-sm text-ink-muted">{description}</p>}
+            {description && <p id={descriptionId} className="mt-1 text-sm text-ink-muted">{description}</p>}
           </div>
-          <button type="button" onClick={onClose} className="-mr-2 rounded-full p-2 text-ink-muted transition-colors hover:bg-ink/5 hover:text-ink" aria-label="Close">
-            <X className="h-5 w-5" />
+          {/* hideTitle hides only the title block: the close button stays visible,
+              floating over the panel corner, instead of vanishing with the header. */}
+          <button type="button" onClick={onClose} className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-ink/5 hover:text-ink", hideTitle ? "absolute right-3 top-3 z-10 bg-surface/90 shadow-sm" : "-mr-2")} aria-label="Close">
+            <X className="h-5 w-5" aria-hidden />
           </button>
         </div>
-        <div className="overflow-y-auto px-5 py-5">{children}</div>
+        <div className="overflow-y-auto overscroll-contain px-5 py-5">{children}</div>
         {footer && <div className="border-t border-line px-5 py-4">{footer}</div>}
       </div>
     </div>,
@@ -157,7 +161,7 @@ export function Modal({ open, onClose, title, hideTitle, description, children, 
   );
 }
 
-export function Drawer({ open, onClose, title, hideTitle, children, footer, side = "right", className }: OverlayProps & { side?: "left" | "right" }) {
+export function Drawer({ open, onClose, title, hideTitle, children, footer, side = "right", className }: Omit<OverlayProps, "description"> & { side?: "left" | "right" }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const { mounted, shown } = usePresence(open);
@@ -183,11 +187,11 @@ export function Drawer({ open, onClose, title, hideTitle, children, footer, side
           <h2 id={titleId} className={cn("font-serif text-2xl text-ink", hideTitle && "sr-only")}>
             {title}
           </h2>
-          <button type="button" onClick={onClose} className="-mr-2 ml-auto rounded-full p-2 text-ink-muted transition-colors hover:bg-ink/5 hover:text-ink" aria-label="Close">
-            <X className="h-5 w-5" />
+          <button type="button" onClick={onClose} className="-mr-2 ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-ink/5 hover:text-ink" aria-label="Close">
+            <X className="h-5 w-5" aria-hidden />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto">{children}</div>
+        <div className="flex-1 overflow-y-auto overscroll-contain">{children}</div>
         {footer && <div className="border-t border-line p-5">{footer}</div>}
       </div>
     </div>,

@@ -14,7 +14,7 @@ export default async function CatalogCategoriesPage() {
   const tree = buildCategoryTree(categories);
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Catalog"
         title="Categories"

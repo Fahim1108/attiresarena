@@ -27,7 +27,7 @@ export function CartItem({ item, compact = false, onNavigate }: { item: CartItem
             </p>
           </div>
           <button type="button" onClick={() => removeItem(item.id)} className="-mr-1.5 -mt-1 rounded-full p-1.5 text-primary/80 hover:bg-selected hover:text-primary" aria-label={`Remove ${item.name} from cart`}>
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-4 w-4" aria-hidden />
           </button>
         </div>
         <div className="mt-auto flex items-end justify-between gap-2 pt-3">

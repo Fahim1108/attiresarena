@@ -6,7 +6,9 @@ import { useProductSize } from "./ProductSizeContext";
 import { ProductGallery } from "./ProductGallery";
 import { ProductPurchasePanel } from "./ProductPurchasePanel";
 
-/** Shares the selected colour between the gallery and the purchase panel. */
+/** Fixed-SKU display: customer products carry exactly one size and colour, so the
+ *  gallery and purchase panel always use the product's first (only) colour.
+ *  Colour/size switching is intentionally unavailable — see fixedCustomerItem. */
 export function ProductDetailClient({ product, brandName, sizeGuide }: { product: Product; brandName?: string; sizeGuide?: SizeGuide | null; initialColorId?: string }) {
   const selection = useProductSize();
   const colorId = product.colors[0]?.id ?? "";

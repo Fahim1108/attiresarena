@@ -49,7 +49,7 @@ export function CsvDownloadButton({
         {busy ? "Preparing…" : "Download daily sales CSV"}
       </button>
       {error ? (
-        <span role="alert" style={{ marginLeft: "0.6rem" }}>
+        <span role="alert" style={{ marginLeft: "0.6rem", color: "#7a1010" }}>
           {error}
         </span>
       ) : null}

@@ -7,17 +7,23 @@ import { useCatalog } from "./CatalogContext";
 
 export function ActiveFilters({ facets }: { facets: CatalogFacets }) {
   const { query, update, reset, locked } = useCatalog();
+  // Removals read the latest intended state via updater functions: removing two
+  // chips in quick succession must not resurrect the first one from a stale prop.
+  const without = (list: string[] | undefined, value: string) => {
+    const next = list?.filter((x) => x !== value);
+    return next?.length ? next : undefined;
+  };
   const chips: { label: string; remove: () => void }[] = [];
-  if (!locked.category) query.categorySlugs?.forEach((s) => chips.push({ label: facets.categories.find((c) => c.slug === s)?.name ?? s, remove: () => update({ categorySlugs: query.categorySlugs!.filter((x) => x !== s) }) }));
-  if (!locked.brand) query.brandSlugs?.forEach((s) => chips.push({ label: facets.brands.find((b) => b.slug === s)?.name ?? s, remove: () => update({ brandSlugs: query.brandSlugs!.filter((x) => x !== s) }) }));
-  query.sizes?.forEach((s) => chips.push({ label: `Size ${facets.sizeLabels?.[s] ?? s}`, remove: () => update({ sizes: query.sizes!.filter((x) => x !== s) }) }));
+  if (!locked.category) query.categorySlugs?.forEach((s) => chips.push({ label: facets.categories.find((c) => c.slug === s)?.name ?? s, remove: () => update((q) => ({ categorySlugs: without(q.categorySlugs, s) })) }));
+  if (!locked.brand) query.brandSlugs?.forEach((s) => chips.push({ label: facets.brands.find((b) => b.slug === s)?.name ?? s, remove: () => update((q) => ({ brandSlugs: without(q.brandSlugs, s) })) }));
+  query.sizes?.forEach((s) => chips.push({ label: `Size ${facets.sizeLabels?.[s] ?? s}`, remove: () => update((q) => ({ sizes: without(q.sizes, s) })) }));
   if (query.minPrice !== undefined || query.maxPrice !== undefined)
     chips.push({
       label: `${query.minPrice !== undefined ? formatPrice(query.minPrice) : "Any"} – ${query.maxPrice !== undefined ? formatPrice(query.maxPrice) : "Any"}`,
       remove: () => update({ minPrice: undefined, maxPrice: undefined }),
     });
-  if (query.shirtType) chips.push({label:query.shirtType,remove:()=>update({shirtType:undefined})});
-  if (query.inStock) chips.push({label:'In stock',remove:()=>update({inStock:undefined})});
+  if (query.shirtType) chips.push({ label: query.shirtType, remove: () => update({ shirtType: undefined }) });
+  if (query.inStock) chips.push({ label: "In stock", remove: () => update({ inStock: undefined }) });
   if (query.offers) chips.push({ label: "On offer", remove: () => update({ offers: undefined }) });
   if (query.search) chips.push({ label: `“${query.search}”`, remove: () => update({ search: undefined }) });
   if (!chips.length) return null;

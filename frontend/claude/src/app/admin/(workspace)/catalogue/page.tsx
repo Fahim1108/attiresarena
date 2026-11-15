@@ -16,7 +16,7 @@ export default async function CategoriesAndCollections({searchParams}:{searchPar
  const result=await query.order('name').order('id').range((filters.page-1)*24,filters.page*24-1);if(result.error)throw new Error('Catalogue records could not be read.');
  const records=termRecord.array().parse(result.data);const canManage=s.roles.some(r=>r==='owner'||r==='product_manager');
  const href=(page:number)=>'/admin/catalogue?'+new URLSearchParams({kind,q:filters.q,page:String(page)});
- return <main id="main" className="aa-main"><h1>Categories &amp; Collections</h1><nav className="aa-editor-actions" aria-label="Catalogue record types">{termKind.options.map(k=><Link href={'/admin/catalogue?kind='+k} key={k} aria-current={k===kind?'page':undefined}>{kindTitle(k)}</Link>)}</nav>
+ return <main id="main" tabIndex={-1} className="aa-main"><h1>Categories &amp; Collections</h1><nav className="aa-editor-actions" aria-label="Catalogue record types">{termKind.options.map(k=><Link href={'/admin/catalogue?kind='+k} key={k} aria-current={k===kind?'page':undefined}>{kindTitle(k)}</Link>)}</nav>
  <form className="aa-search" action="/admin/catalogue"><input type="hidden" name="kind" value={kind}/><label>Search names<input name="q" maxLength={120} defaultValue={filters.q}/></label><button>Search catalogue records</button></form>
  {canManage&&<details className="aa-panel"><summary>Create {kindLabel(kind)}</summary><TaxonomyForm kind={kind} id={randomUUID()}/></details>}
  <p>{result.count||0} matching records · Page {filters.page}</p>

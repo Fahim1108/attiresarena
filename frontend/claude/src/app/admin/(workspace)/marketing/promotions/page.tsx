@@ -9,7 +9,7 @@ export default async function PromotionsPage() {
   const promos = (banners ?? []).filter((banner) => banner.placement === "promo");
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Marketing"
         title="Promotions"

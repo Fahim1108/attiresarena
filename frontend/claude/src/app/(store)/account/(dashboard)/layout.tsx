@@ -10,7 +10,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
     <div className="container py-6 sm:py-10">
       <div className="mb-6">
         <p className="text-xs uppercase tracking-[0.2em] text-ink-muted">My Account</p>
-        <h1 className="mt-1 font-serif text-4xl text-ink">Hello, {customer?.fullName.split(" ")[0] ?? "there"}</h1>
+        <h1 className="mt-1 break-words font-serif text-4xl text-ink">Hello, {customer?.fullName.split(" ")[0] ?? "there"}</h1>
       </div>
       <div className="grid gap-6 lg:grid-cols-[220px_1fr] lg:gap-10 [&>*]:min-w-0">
         <AccountNav />

@@ -32,7 +32,7 @@ try {
     await expect(footer.locator('img[src*="logo-white"]')).toBeVisible();
     await expect(footer.locator('img[src*="wordmark-white"]')).toBeVisible();
     assert.equal(await footer.getByRole('list', { name: 'Social media' }).locator('li').count(), 4);
-    await expect(footer.getByText('Created by Firoj Ahamed Fahim', { exact: true })).toBeVisible();
+    await expect(footer.getByText('Developed by Firoj Ahamed Fahim', { exact: true })).toBeVisible();
     const collectionLinks = [];
     let previous = [];
     for (const title of ['New Arrivals', 'Featured Picks']) {

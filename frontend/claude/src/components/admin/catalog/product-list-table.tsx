@@ -36,6 +36,7 @@ function Thumbnail({ item }: { item: CatalogListItem }) {
         alt={item.thumbnailAlt}
         width={44}
         height={44}
+        loading="lazy"
       />
     );
   }
@@ -43,6 +44,7 @@ function Thumbnail({ item }: { item: CatalogListItem }) {
   return (
     <span
       className="aa-thumb"
+      role="img"
       aria-label={`No image for ${item.name}`}
       style={{
         display: "inline-flex",
@@ -66,7 +68,7 @@ export function ProductListTable({
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ text: string; kind: "info" | "error" } | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -106,7 +108,7 @@ export function ProductListTable({
   const runBulkStatus = async (status: "published" | "archived") => {
     setBusy(true);
     const result = await bulkSetCatalogProductStatus([...selected], status);
-    setMessage(result.ok ? result.message : result.error);
+    setMessage(result.ok ? { text: result.message, kind: "info" } : { text: result.error, kind: "error" });
     if (result.ok) setSelected(new Set());
     setBusy(false);
     router.refresh();
@@ -115,7 +117,7 @@ export function ProductListTable({
   const runBulkDelete = async () => {
     setBusy(true);
     const result = await bulkDeleteCatalogProducts([...selected]);
-    setMessage(result.ok ? result.message : result.error);
+    setMessage(result.ok ? { text: result.message, kind: "info" } : { text: result.error, kind: "error" });
     if (result.ok) setSelected(new Set());
     setConfirmBulkDelete(false);
     setBusy(false);
@@ -129,7 +131,7 @@ export function ProductListTable({
     if (result.ok && result.productId) {
       router.push(`/admin/catalog/products/${result.productId}?saved=duplicated`);
     } else {
-      setMessage(result.ok ? result.message : result.error);
+      setMessage(result.ok ? { text: result.message, kind: "info" } : { text: result.error, kind: "error" });
       router.refresh();
     }
   };
@@ -138,7 +140,7 @@ export function ProductListTable({
     setBusy(true);
     const next = item.status === "published" ? "archived" : "published";
     const result = await setCatalogProductStatus(item.id, next);
-    setMessage(result.ok ? result.message : result.error);
+    setMessage(result.ok ? { text: result.message, kind: "info" } : { text: result.error, kind: "error" });
     setBusy(false);
     router.refresh();
   };
@@ -146,7 +148,7 @@ export function ProductListTable({
   const runDelete = async (id: string) => {
     setBusy(true);
     const result = await deleteCatalogProduct(id);
-    setMessage(result.ok ? result.message : result.error);
+    setMessage(result.ok ? { text: result.message, kind: "info" } : { text: result.error, kind: "error" });
     setConfirmDeleteId(null);
     setBusy(false);
     router.refresh();
@@ -155,8 +157,11 @@ export function ProductListTable({
   return (
     <div>
       {message ? (
-        <p role="status" className="aa-notice aa-notice--info">
-          {message}
+        <p
+          role={message.kind === "error" ? "alert" : "status"}
+          className={`aa-notice aa-notice--${message.kind === "error" ? "error" : "info"}`}
+        >
+          {message.text}
         </p>
       ) : null}
 
@@ -231,7 +236,7 @@ export function ProductListTable({
           <thead>
             <tr>
               {canManage ? (
-                <th>
+                <th scope="col">
                   <input
                     type="checkbox"
                     checked={allSelected}
@@ -240,12 +245,12 @@ export function ProductListTable({
                   />
                 </th>
               ) : null}
-              <th>Product</th>
-              <th>Category</th>
-              <th>Price</th>
-              <th>Stock</th>
-              <th>Status</th>
-              <th>
+              <th scope="col">Product</th>
+              <th scope="col">Category</th>
+              <th scope="col">Price</th>
+              <th scope="col">Stock</th>
+              <th scope="col">Status</th>
+              <th scope="col">
                 <span className="aa-cell-actions">Actions</span>
               </th>
             </tr>
@@ -263,7 +268,7 @@ export function ProductListTable({
                     />
                   </td>
                 ) : null}
-                <td>
+                <th scope="row">
                   <span
                     style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}
                   >
@@ -276,7 +281,7 @@ export function ProductListTable({
                       </span>
                     </span>
                   </span>
-                </td>
+                </th>
                 <td>{item.categoryName ?? "—"}</td>
                 <td>
                   {item.minPriceMinor === null
@@ -305,6 +310,7 @@ export function ProductListTable({
                   <Link
                     href={`/admin/catalog/products/${item.id}`}
                     className="aa-row-action"
+                    aria-label={`${canManage ? "Edit" : "View"} ${item.name}`}
                   >
                     {canManage ? "Edit" : "View"}
                   </Link>{" "}
@@ -314,6 +320,7 @@ export function ProductListTable({
                         type="button"
                         className="aa-row-action"
                         disabled={busy}
+                        aria-label={`Duplicate ${item.name}`}
                         onClick={() => void runDuplicate(item.id)}
                       >
                         Duplicate
@@ -322,6 +329,7 @@ export function ProductListTable({
                         type="button"
                         className="aa-row-action"
                         disabled={busy}
+                        aria-label={`${item.status === "published" ? "Set Inactive" : "Set Active"}: ${item.name}`}
                         onClick={() => void runStatusToggle(item)}
                       >
                         {item.status === "published"
@@ -334,6 +342,7 @@ export function ProductListTable({
                             type="button"
                             className="aa-row-action aa-row-action--danger"
                             disabled={busy}
+                            aria-label={`Confirm delete ${item.name}`}
                             onClick={() => void runDelete(item.id)}
                           >
                             Confirm delete
@@ -341,6 +350,7 @@ export function ProductListTable({
                           <button
                             type="button"
                             className="aa-row-action"
+                            aria-label={`Cancel deleting ${item.name}`}
                             onClick={() => setConfirmDeleteId(null)}
                           >
                             Cancel
@@ -351,6 +361,7 @@ export function ProductListTable({
                           type="button"
                           className="aa-row-action aa-row-action--danger"
                           disabled={busy}
+                          aria-label={`Delete ${item.name}`}
                           onClick={() => setConfirmDeleteId(item.id)}
                         >
                           Delete

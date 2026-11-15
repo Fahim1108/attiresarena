@@ -23,7 +23,11 @@ export function ContactForm() {
         if (!isValidEmail(form.email)) errs.email = "Enter a valid email";
         if (form.message.trim().length < 10) errs.message = "Please write at least 10 characters";
         setErrors(errs);
-        if (Object.keys(errs).length) return;
+        const first = Object.keys(errs)[0];
+        if (first) {
+          document.getElementById(`contact-${first}`)?.focus();
+          return;
+        }
         start(async () => {
           try {
             const r = await submitContactFormAction(form);
@@ -35,13 +39,13 @@ export function ContactForm() {
       }}
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <Input label="Name" required value={form.name} onChange={set("name")} error={errors.name} />
-        <Input label="Email" type="email" required value={form.email} onChange={set("email")} error={errors.email} />
-        <Input label="Phone (optional)" type="tel" value={form.phone} onChange={set("phone")} />
+        <Input id="contact-name" label="Name" required autoComplete="name" value={form.name} onChange={set("name")} error={errors.name} />
+        <Input id="contact-email" label="Email" type="email" required autoComplete="email" spellCheck={false} value={form.email} onChange={set("email")} error={errors.email} />
+        <Input label="Phone (optional)" type="tel" inputMode="tel" autoComplete="tel" value={form.phone} onChange={set("phone")} />
         <Select label="Subject" options={["Order support", "Returns & exchange", "Product question", "Wholesale", "Other"].map((v) => ({ value: v, label: v }))} value={form.subject} onChange={set("subject")} />
       </div>
-      <Textarea label="Message" required value={form.message} onChange={set("message")} error={errors.message} />
-      {notice && <DemoNotice force>{notice}</DemoNotice>}
+      <Textarea id="contact-message" label="Message" required value={form.message} onChange={set("message")} error={errors.message} />
+      <div role="status">{notice && <DemoNotice force>{notice}</DemoNotice>}</div>
       <Button type="submit" size="lg" loading={pending}>
         Send Message
       </Button>

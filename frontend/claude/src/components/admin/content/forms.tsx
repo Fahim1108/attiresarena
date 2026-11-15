@@ -72,8 +72,8 @@ export function ContentBlockForm({
       />
       <div className="aa-form-grid">
         <div className="aa-field">
-          <label>Slug</label>
-          <input value={slug} disabled aria-label="Slug" />
+          <label htmlFor={`slug-${slug}`}>Slug</label>
+          <input id={`slug-${slug}`} value={slug} disabled />
           <p className="aa-hint">
             {slugLocked
               ? "This slug matches a storefront page and cannot change."
@@ -191,9 +191,10 @@ export function BannerForm({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={banner.imageUrl}
-                alt=""
+                alt="Current banner image"
                 width={160}
                 height={90}
+                loading="lazy"
                 style={{ display: "block", marginTop: "0.5rem", objectFit: "cover" }}
               />
             </p>
@@ -206,6 +207,8 @@ export function BannerForm({
           <input
             id={banner ? `banner-link-${banner.id}` : "banner-link"}
             name="link_url"
+            inputMode="url"
+            spellCheck={false}
             defaultValue={banner?.link_url ?? ""}
             maxLength={1000}
             placeholder="/shop"

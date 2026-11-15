@@ -11,7 +11,7 @@ try{
   const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(origin,{waitUntil:'networkidle'});
   await expect(page.getByRole('button',{name:/Quick view/i})).toHaveCount(0);
-  await expect(page.getByText('Created by Firoj Ahamed Fahim',{exact:true})).toBeVisible();
+  await expect(page.getByText('Developed by Firoj Ahamed Fahim',{exact:true})).toBeVisible();
   await expect(page.locator('footer a[href="https://wa.me/8801632915921"]')).toBeVisible();
   if(width>=1024){
    const logo=page.locator('header a[href="/"]').filter({has:page.locator('img')});const box=await logo.boundingBox();assert.ok(Math.abs(box.x+box.width/2-width/2)<2,'Centered header logo');

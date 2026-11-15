@@ -60,6 +60,16 @@ export function Campaign() {
         if (!event.currentTarget.contains(event.relatedTarget))
           setFocused(false);
       }}
+      onKeyDown={(event) => {
+        if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          setActive((index) => (index - 1 + campaigns.length) % campaigns.length);
+        }
+        if (event.key === "ArrowRight") {
+          event.preventDefault();
+          setActive((index) => (index + 1) % campaigns.length);
+        }
+      }}
     >
       <div
         className={`campaign-main official-campaign${active === 2 ? " is-cover" : ""}`}
@@ -101,7 +111,7 @@ export function Campaign() {
                 </h1>
                 <p>{campaign.copy}</p>
                 <Link href={campaign.href} className="primary-button">
-                  SHOP NOW <ArrowRight size={16} />
+                  SHOP NOW <ArrowRight size={16} aria-hidden="true" />
                 </Link>
               </div>
             </>
@@ -114,10 +124,10 @@ export function Campaign() {
             aria-pressed={paused}
             onClick={() => setPaused((value) => !value)}
           >
-            {paused ? <Play size={14} /> : <Pause size={14} />}
+            {paused ? <Play size={14} aria-hidden="true" /> : <Pause size={14} aria-hidden="true" />}
           </button>
           <Link href={campaign.href}>
-            Explore the collection <ArrowRight size={15} />
+            Explore the collection <ArrowRight size={15} aria-hidden="true" />
           </Link>
           <div
             className="campaign-dots"
@@ -128,7 +138,7 @@ export function Campaign() {
               <button
                 key={item.photo}
                 aria-label={`Show campaign ${index + 1}: ${item.title.join(" ")}`}
-                aria-pressed={active === index}
+                aria-current={active === index ? "true" : undefined}
                 onClick={() => setActive(index)}
               >
                 <span />
@@ -151,7 +161,7 @@ export function Campaign() {
               Arrivals
             </h2>
             <Link href="#arrivals">
-              EXPLORE <ArrowRight size={14} />
+              EXPLORE <ArrowRight size={14} aria-hidden="true" />
             </Link>
           </div>
         </div>
@@ -168,7 +178,7 @@ export function Campaign() {
               Footwear
             </h2>
             <Link href="/?category=sneakers#arrivals">
-              SHOP NOW <ArrowRight size={14} />
+              SHOP NOW <ArrowRight size={14} aria-hidden="true" />
             </Link>
           </div>
         </div>
@@ -193,7 +203,7 @@ export function PromotionalBanners() {
             maximum style.
           </p>
           <Link className="outline-button" href="#categories">
-            DISCOVER <ArrowRight size={14} />
+            DISCOVER <ArrowRight size={14} aria-hidden="true" />
           </Link>
         </div>
       </article>
@@ -207,7 +217,7 @@ export function PromotionalBanners() {
           <h2>Everyday Comfort</h2>
           <p>Elevated style for daily moments.</p>
           <Link className="outline-button" href="#arrivals">
-            SHOP NOW <ArrowRight size={14} />
+            SHOP NOW <ArrowRight size={14} aria-hidden="true" />
           </Link>
         </div>
       </article>

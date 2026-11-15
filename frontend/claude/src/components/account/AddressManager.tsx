@@ -2,7 +2,12 @@
 
 import { MapPin, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Badge, Button, Checkbox, DemoNotice, EmptyState, Input, Modal, Select, Textarea } from "@/components/ui";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { DemoNotice } from "@/components/ui/DemoNotice";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Checkbox, Input, Select, Textarea } from "@/components/ui/Field";
+import { Modal } from "@/components/ui/Modal";
 import { areasOf, districtsOf, divisionNames } from "@/data/bangladesh";
 import { isValidBdPhone, type FieldErrors } from "@/lib/validation";
 import { deleteAddressAction, saveAddressAction } from "@/services/actions";
@@ -16,8 +21,10 @@ export function AddressManager({ initial }: { initial: Address[] }) {
   const [editing, setEditing] = useState<Address | null>(null);
   const [errors, setErrors] = useState<FieldErrors<keyof Address>>({});
   const [notice, setNotice] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const districts = useMemo(() => districtsOf(editing?.division ?? ""), [editing?.division]);
   const areas = useMemo(() => areasOf(editing?.district ?? ""), [editing?.district]);
+  const focusFirstError = (id: string) => requestAnimationFrame(() => document.getElementById(id)?.focus());
 
   const save = async () => {
     if (!editing) return;
@@ -29,7 +36,12 @@ export function AddressManager({ initial }: { initial: Address[] }) {
     if (!editing.area.trim()) e.area = "Required";
     if (editing.addressLine.trim().length < 6) e.addressLine = "Enter full address";
     setErrors(e);
-    if (Object.keys(e).length) return;
+    if (e.fullName) return focusFirstError("addr-fullName");
+    if (e.phone) return focusFirstError("addr-phone");
+    if (e.division) return focusFirstError("addr-division");
+    if (e.district) return focusFirstError("addr-district");
+    if (e.area) return focusFirstError("addr-area");
+    if (e.addressLine) return focusFirstError("addr-addressLine");
     const saved = { ...editing, id: editing.id || `local_${Date.now()}` };
     setAddresses((list) => {
       const next = list.some((a) => a.id === saved.id) ? list.map((a) => (a.id === saved.id ? saved : a)) : [...list, saved];
@@ -52,7 +64,7 @@ export function AddressManager({ initial }: { initial: Address[] }) {
     <section>
       <div className="mb-5 flex items-center justify-between">
         <h2 className="font-serif text-3xl text-ink">Saved Addresses</h2>
-        <Button size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => { setErrors({}); setEditing({ ...empty }); }}>
+        <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => { setErrors({}); setConfirmDeleteId(null); setEditing({ ...empty }); }}>
           Add Address
         </Button>
       </div>
@@ -66,22 +78,35 @@ export function AddressManager({ initial }: { initial: Address[] }) {
                 <span className="font-medium text-ink">{a.label}</span>
                 {a.isDefault && <Badge tone="soft">Default</Badge>}
               </div>
-              <p className="mt-3 text-sm leading-relaxed text-ink-muted">
+              <p className="mt-3 break-words text-sm leading-relaxed text-ink-muted">
                 {a.fullName} · {a.phone}
                 <br />
                 {a.addressLine}, {a.area}, {a.district}, {a.division}
               </p>
               <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
-                <Button size="sm" variant="ghost" leftIcon={<Pencil className="h-3.5 w-3.5" />} onClick={() => { setErrors({}); setEditing(a); }}>
+                <Button variant="ghost" aria-label={`Edit ${a.label} address`} leftIcon={<Pencil className="h-3.5 w-3.5" />} onClick={() => { setErrors({}); setConfirmDeleteId(null); setEditing(a); }}>
                   Edit
                 </Button>
                 {!a.isDefault && (
-                  <Button size="sm" variant="ghost" leftIcon={<Star className="h-3.5 w-3.5" />} onClick={() => setAddresses((l) => l.map((x) => ({ ...x, isDefault: x.id === a.id })))}>
+                  <Button variant="ghost" aria-label={`Set ${a.label} as the default address`} leftIcon={<Star className="h-3.5 w-3.5" />} onClick={() => setAddresses((l) => l.map((x) => ({ ...x, isDefault: x.id === a.id })))}>
                     Set default
                   </Button>
                 )}
-                <Button size="sm" variant="ghost" className="text-danger" leftIcon={<Trash2 className="h-3.5 w-3.5" />} onClick={() => remove(a.id)}>
-                  Delete
+                <Button
+                  variant="ghost"
+                  className="text-danger"
+                  aria-label={confirmDeleteId === a.id ? `Confirm delete ${a.label} address` : `Delete ${a.label} address`}
+                  leftIcon={<Trash2 className="h-3.5 w-3.5" />}
+                  onClick={() => {
+                    if (confirmDeleteId === a.id) {
+                      setConfirmDeleteId(null);
+                      void remove(a.id);
+                    } else {
+                      setConfirmDeleteId(a.id);
+                    }
+                  }}
+                >
+                  {confirmDeleteId === a.id ? "Confirm delete" : "Delete"}
                 </Button>
               </div>
             </li>
@@ -106,18 +131,18 @@ export function AddressManager({ initial }: { initial: Address[] }) {
       >
         {editing && (
           <div className="grid gap-4 sm:grid-cols-2">
-            <Select label="Label" options={["Home", "Office", "Other"].map((v) => ({ value: v, label: v }))} value={editing.label} onChange={(e) => upd({ label: e.target.value })} />
-            <Input label="Full Name" value={editing.fullName} onChange={(e) => upd({ fullName: e.target.value })} error={errors.fullName} />
-            <Input label="Mobile Number" type="tel" placeholder="01XXXXXXXXX" value={editing.phone} onChange={(e) => upd({ phone: e.target.value })} error={errors.phone} wrapperClassName="sm:col-span-2" />
-            <Select label="Division" placeholder="Select division" options={divisionNames.map((d) => ({ value: d, label: d }))} value={editing.division} onChange={(e) => upd({ division: e.target.value, district: "", area: "" })} error={errors.division} />
-            <Select label="District" placeholder="Select district" disabled={!editing.division} options={districts.map((d) => ({ value: d, label: d }))} value={editing.district} onChange={(e) => upd({ district: e.target.value, area: "" })} error={errors.district} />
+            <Select label="Label" name="address-label" options={["Home", "Office", "Other"].map((v) => ({ value: v, label: v }))} value={editing.label} onChange={(e) => upd({ label: e.target.value })} />
+            <Input id="addr-fullName" name="name" label="Full Name" autoComplete="name" value={editing.fullName} onChange={(e) => upd({ fullName: e.target.value })} error={errors.fullName} />
+            <Input id="addr-phone" name="tel" label="Mobile Number" type="tel" autoComplete="tel" placeholder="01XXXXXXXXX" value={editing.phone} onChange={(e) => upd({ phone: e.target.value })} error={errors.phone} wrapperClassName="sm:col-span-2" />
+            <Select id="addr-division" name="division" label="Division" placeholder="Select division" options={divisionNames.map((d) => ({ value: d, label: d }))} value={editing.division} onChange={(e) => upd({ division: e.target.value, district: "", area: "" })} error={errors.division} />
+            <Select id="addr-district" name="district" label="District" placeholder="Select district" disabled={!editing.division} options={districts.map((d) => ({ value: d, label: d }))} value={editing.district} onChange={(e) => upd({ district: e.target.value, area: "" })} error={errors.district} />
             {areas.length ? (
-              <Select label="Area / Thana" placeholder="Select area" options={areas.map((d) => ({ value: d, label: d }))} value={editing.area} onChange={(e) => upd({ area: e.target.value })} error={errors.area} wrapperClassName="sm:col-span-2" />
+              <Select id="addr-area" name="area" label="Area / Thana" placeholder="Select area" options={areas.map((d) => ({ value: d, label: d }))} value={editing.area} onChange={(e) => upd({ area: e.target.value })} error={errors.area} wrapperClassName="sm:col-span-2" />
             ) : (
-              <Input label="Area / Upazila" value={editing.area} disabled={!editing.district} onChange={(e) => upd({ area: e.target.value })} error={errors.area} wrapperClassName="sm:col-span-2" />
+              <Input id="addr-area" name="area" label="Area / Upazila" value={editing.area} disabled={!editing.district} onChange={(e) => upd({ area: e.target.value })} error={errors.area} wrapperClassName="sm:col-span-2" />
             )}
-            <Textarea label="Detailed Address" value={editing.addressLine} onChange={(e) => upd({ addressLine: e.target.value })} error={errors.addressLine} wrapperClassName="sm:col-span-2" className="min-h-[80px]" />
-            <Checkbox label="Set as default address" checked={editing.isDefault} onChange={(e) => upd({ isDefault: e.target.checked })} className="sm:col-span-2" />
+            <Textarea id="addr-addressLine" name="address" label="Detailed Address" autoComplete="street-address" value={editing.addressLine} onChange={(e) => upd({ addressLine: e.target.value })} error={errors.addressLine} wrapperClassName="sm:col-span-2" className="min-h-[80px]" />
+            <Checkbox name="default-address" label="Set as default address" checked={editing.isDefault} onChange={(e) => upd({ isDefault: e.target.checked })} className="sm:col-span-2" />
           </div>
         )}
       </Modal>

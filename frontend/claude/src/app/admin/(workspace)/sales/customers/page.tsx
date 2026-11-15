@@ -17,7 +17,7 @@ export default async function CustomersPage({
   const totalPages = Math.max(1, Math.ceil(totalCustomers / filters.pageSize));
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Sales"
         title="Customers"
@@ -98,7 +98,7 @@ export default async function CustomersPage({
             <tbody>
               {customers.map((customer) => (
                 <tr key={customer.phone}>
-                  <td>
+                  <th scope="row">
                     <Link
                       href={`/admin/sales/customers/${encodeURIComponent(customer.phone)}`}
                       className="aa-cell-main"
@@ -106,7 +106,7 @@ export default async function CustomersPage({
                       {customer.name}
                     </Link>
                     <span className="aa-cell-sub">{customer.phone}</span>
-                  </td>
+                  </th>
                   <td>{customer.email ?? "—"}</td>
                   <td>{customer.orderCount}</td>
                   <td>{formatMoney(customer.totalSpentMinor)}</td>
@@ -123,6 +123,7 @@ export default async function CustomersPage({
                     <Link
                       className="aa-row-action"
                       href={`/admin/sales/customers/${encodeURIComponent(customer.phone)}`}
+                      aria-label={`View profile for ${customer.name}`}
                     >
                       View
                     </Link>

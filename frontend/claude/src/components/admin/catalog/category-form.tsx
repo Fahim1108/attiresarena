@@ -2,7 +2,7 @@
 
 /* Private signed image URLs are deliberately unoptimized and expire shortly. */
 /* eslint-disable @next/next/no-img-element */
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { slugify } from "@/lib/admin/format";
 import {
   saveCategory,
@@ -11,7 +11,7 @@ import {
 } from "@/lib/admin/catalog-categories";
 import { uploadCategoryImage } from "@/lib/admin/catalog-media";
 import { validateImageFileMeta } from "@/lib/admin/catalog-variants";
-import { SubmitButton } from "../ui-client";
+import { focusFirstInvalid, SubmitButton } from "../ui-client";
 
 export interface CategoryParentOption {
   id: string;
@@ -63,9 +63,10 @@ function CategoryImageField({
       {previewUrl ? (
         <img
           src={previewUrl}
-          alt=""
+          alt={`${label} preview`}
           width={200}
           height={120}
+          loading="lazy"
           style={{
             objectFit: "cover",
             maxWidth: "100%",
@@ -97,6 +98,7 @@ function CategoryImageField({
           type="button"
           className="aa-secondary"
           disabled={uploading}
+          aria-label={`${label}: ${path ? "replace image" : "upload image"}`}
           onClick={() => inputRef.current?.click()}
         >
           {path ? "Replace image" : "Upload image"}
@@ -105,6 +107,7 @@ function CategoryImageField({
           <button
             type="button"
             className="aa-row-action aa-row-action--danger"
+            aria-label={`${label}: remove image`}
             onClick={() => {
               setPath("");
               setPreviewUrl(null);
@@ -115,7 +118,7 @@ function CategoryImageField({
           </button>
         ) : null}
       </div>
-      {status ? <p className="aa-hint">{status}</p> : null}
+      {status ? <p role="status" className="aa-hint">{status}</p> : null}
       <p className="aa-hint">JPEG, PNG or WebP, up to 5 MB.</p>
     </div>
   );
@@ -135,20 +138,32 @@ export function CategoryForm({
   const [name, setName] = useState(category?.name ?? "");
   const [slug, setSlug] = useState(category?.slug ?? "");
   const [slugEdited, setSlugEdited] = useState(Boolean(category));
+  const idSuffix = category?.id ?? "new";
+  const inputId = (field: string) => `category-${field}-${idSuffix}`;
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (state.fieldErrors && Object.keys(state.fieldErrors).length > 0) {
+      focusFirstInvalid(formRef.current);
+    }
+  }, [state]);
 
   const fieldError = (key: string) => state.fieldErrors?.[key];
-  const errorText = (key: string) => {
+  // Inline errors are announced through aria-describedby on their field
+  // (plus focus moves to the first invalid field), not assertive alerts.
+  const errorText = (key: string, field: string) => {
     const message = fieldError(key);
     if (!message) return null;
     return (
-      <p role="alert" className="aa-hint" style={{ color: "#7a1010" }}>
+      <p id={`${inputId(field)}-error`} className="aa-hint" style={{ color: "#7a1010" }}>
         {message}
       </p>
     );
   };
+  const describedBy = (key: string, field: string) =>
+    fieldError(key) ? `${inputId(field)}-error` : undefined;
 
   return (
-    <form action={formAction}>
+    <form action={formAction} ref={formRef}>
       {category ? (
         <>
           <input type="hidden" name="id" value={category.id} />
@@ -177,45 +192,49 @@ export function CategoryForm({
       ) : null}
       <div className="aa-form-grid">
         <div className="aa-field">
-          <label htmlFor={`category-name-${category?.id ?? "new"}`}>Name</label>
+          <label htmlFor={inputId("name")}>Name</label>
           <input
-            id={`category-name-${category?.id ?? "new"}`}
+            id={inputId("name")}
             name="name"
             value={name}
             maxLength={120}
             aria-invalid={fieldError("name") ? true : undefined}
+            aria-describedby={describedBy("name", "name")}
             onChange={(e) => {
               setName(e.target.value);
               if (!slugEdited) setSlug(slugify(e.target.value));
             }}
             required
           />
-          {errorText("name")}
+          {errorText("name", "name")}
         </div>
         <div className="aa-field">
-          <label htmlFor={`category-slug-${category?.id ?? "new"}`}>URL slug</label>
+          <label htmlFor={inputId("slug")}>URL slug</label>
           <input
-            id={`category-slug-${category?.id ?? "new"}`}
+            id={inputId("slug")}
             name="slug"
             value={slug}
             maxLength={160}
             aria-invalid={fieldError("slug") ? true : undefined}
+            aria-describedby={describedBy("slug", "slug")}
             onChange={(e) => {
               setSlug(e.target.value);
               setSlugEdited(true);
             }}
             required
           />
-          {errorText("slug")}
+          {errorText("slug", "slug")}
         </div>
         <div className="aa-field">
-          <label htmlFor={`category-parent-${category?.id ?? "new"}`}>
+          <label htmlFor={inputId("parent")}>
             Parent category
           </label>
           <select
-            id={`category-parent-${category?.id ?? "new"}`}
+            id={inputId("parent")}
             name="parent_id"
             defaultValue={category?.parent_id ?? ""}
+            aria-invalid={fieldError("parent_id") ? true : undefined}
+            aria-describedby={describedBy("parent_id", "parent")}
           >
             <option value="">No parent (top level)</option>
             {parentOptions.map((option) => (
@@ -228,35 +247,39 @@ export function CategoryForm({
             Categories may be at most 3 levels deep. A category cannot be
             moved under itself or one of its children.
           </p>
-          {errorText("parent_id")}
+          {errorText("parent_id", "parent")}
         </div>
         <div className="aa-field">
-          <label htmlFor={`category-sort-${category?.id ?? "new"}`}>
+          <label htmlFor={inputId("sort")}>
             Sort position
           </label>
           <input
-            id={`category-sort-${category?.id ?? "new"}`}
+            id={inputId("sort")}
             name="sort_position"
             defaultValue={String(category?.sort_position ?? 0)}
             inputMode="numeric"
+            aria-invalid={fieldError("sort_position") ? true : undefined}
+            aria-describedby={describedBy("sort_position", "sort")}
           />
           <p className="aa-hint">
             Lower numbers sort first among siblings. Use the up/down buttons
             in the list for quick reordering.
           </p>
-          {errorText("sort_position")}
+          {errorText("sort_position", "sort")}
         </div>
         <div className="aa-field aa-field--full">
-          <label htmlFor={`category-description-${category?.id ?? "new"}`}>
+          <label htmlFor={inputId("description")}>
             Description
           </label>
           <textarea
-            id={`category-description-${category?.id ?? "new"}`}
+            id={inputId("description")}
             name="description"
             defaultValue={category?.description ?? ""}
             maxLength={2000}
+            aria-invalid={fieldError("description") ? true : undefined}
+            aria-describedby={describedBy("description", "description")}
           />
-          {errorText("description")}
+          {errorText("description", "description")}
         </div>
         <CategoryImageField
           fieldName="image_storage_path"
@@ -271,28 +294,32 @@ export function CategoryForm({
           currentUrl={category?.bannerUrl ?? null}
         />
         <div className="aa-field">
-          <label htmlFor={`category-seo-title-${category?.id ?? "new"}`}>
+          <label htmlFor={inputId("seo-title")}>
             SEO title
           </label>
           <input
-            id={`category-seo-title-${category?.id ?? "new"}`}
+            id={inputId("seo-title")}
             name="seo_title"
             defaultValue={category?.seo_title ?? ""}
             maxLength={160}
+            aria-invalid={fieldError("seo_title") ? true : undefined}
+            aria-describedby={describedBy("seo_title", "seo-title")}
           />
-          {errorText("seo_title")}
+          {errorText("seo_title", "seo-title")}
         </div>
         <div className="aa-field">
-          <label htmlFor={`category-seo-description-${category?.id ?? "new"}`}>
+          <label htmlFor={inputId("seo-description")}>
             SEO description
           </label>
           <textarea
-            id={`category-seo-description-${category?.id ?? "new"}`}
+            id={inputId("seo-description")}
             name="seo_description"
             defaultValue={category?.seo_description ?? ""}
             maxLength={320}
+            aria-invalid={fieldError("seo_description") ? true : undefined}
+            aria-describedby={describedBy("seo_description", "seo-description")}
           />
-          {errorText("seo_description")}
+          {errorText("seo_description", "seo-description")}
         </div>
         <div className="aa-field">
           <label

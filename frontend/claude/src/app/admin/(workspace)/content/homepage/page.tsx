@@ -14,7 +14,7 @@ export default async function HomepageContentPage() {
   const fallbackText = header.announcement.left ?? "";
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Content"
         title="Homepage content"
@@ -55,23 +55,23 @@ export default async function HomepageContentPage() {
             built-in campaign slides. Add a banner to replace them.
           </p>
         ) : (
-          <ul>
-            {heroBanners.map((banner, index) => (
+          <ol style={{ listStyle: "decimal", paddingLeft: "1.5rem" }}>
+            {heroBanners.map((banner) => (
               <li key={banner.id}>
-                {index + 1}. {banner.title}{" "}
+                {banner.title}{" "}
                 <StatusBadge tone={banner.visible ? "success" : "neutral"}>
                   {banner.visible ? "Visible" : "Hidden"}
                 </StatusBadge>
               </li>
             ))}
-          </ul>
+          </ol>
         )}
       </Panel>
       <Panel
         title="Homepage sections"
         description="Section order and visibility are defined in the storefront code and change with a deployment. They are shown here read-only so the current layout is visible in one place."
       >
-        <ul>
+        <ol style={{ listStyle: "decimal", paddingLeft: "1.5rem" }}>
           {homepageSections.map((section) => (
             <li key={section.id}>
               {section.adminLabel}{" "}
@@ -80,7 +80,7 @@ export default async function HomepageContentPage() {
               </StatusBadge>
             </li>
           ))}
-        </ul>
+        </ol>
       </Panel>
     </main>
   );

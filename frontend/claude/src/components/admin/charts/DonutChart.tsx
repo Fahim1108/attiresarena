@@ -93,7 +93,7 @@ export function DonutChart({
           <text x="70" y="66" textAnchor="middle" fontSize="20" fontWeight="600" fill="#171717">
             {formatValue(total)}
           </text>
-          <text x="70" y="84" textAnchor="middle" fontSize="10" fill="#74706C">
+          <text x="70" y="84" textAnchor="middle" fontSize="11" fill="#74706C">
             {centerLabel}
           </text>
         </svg>
@@ -104,7 +104,7 @@ export function DonutChart({
             const share = total > 0 ? Math.round((segment.value / total) * 100) : 0;
             const text = (
               <>
-                <span className="aa-swatch" style={{ background: color }} />
+                <span className="aa-swatch" style={{ background: color }} aria-hidden="true" />
                 {segment.label} · {formatValue(segment.value)} ({share}%)
               </>
             );

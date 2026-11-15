@@ -4,7 +4,7 @@ export default async function AuditPage() {
   const { client, roles } = await staffSession();
   if (!roles.some((r) => r === "owner" || r === "product_manager"))
     return (
-      <main id="main" className="aa-main">
+      <main id="main" tabIndex={-1} className="aa-main">
         <h1>Audit access unavailable</h1>
         <p>Your role cannot read catalogue change records.</p>
       </main>
@@ -27,7 +27,7 @@ export default async function AuditPage() {
     )
     .parse(result.data);
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <p className="aa-eyebrow">Security / Accountability</p>
       <h1>Catalogue audit log</h1>
       <p>

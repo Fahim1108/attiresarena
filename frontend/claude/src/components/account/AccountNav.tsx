@@ -25,7 +25,7 @@ export function AccountNav() {
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={cn("flex items-center gap-2.5 whitespace-nowrap rounded-control px-3.5 py-2.5 text-sm transition-colors", active ? "bg-selected text-primary" : "border border-line text-ink hover:bg-ink/5 lg:border-transparent")}
+                className={cn("flex items-center gap-2.5 whitespace-nowrap rounded-control px-3.5 py-3 text-sm transition-colors", active ? "bg-selected text-primary" : "border border-line text-ink hover:bg-ink/5 lg:border-transparent")}
               >
                 <Icon className="h-4 w-4" aria-hidden /> {label}
               </Link>
@@ -33,7 +33,7 @@ export function AccountNav() {
           );
         })}
         <li className="shrink-0 lg:mt-3 lg:border-t lg:border-line lg:pt-3">
-          <Link href="/account/login" className="flex items-center gap-2.5 whitespace-nowrap rounded-control border border-line px-3.5 py-2.5 text-sm text-ink-muted hover:text-primary lg:border-transparent">
+          <Link href="/account/login" className="flex items-center gap-2.5 whitespace-nowrap rounded-control border border-line px-3.5 py-3 text-sm text-ink-muted hover:text-primary lg:border-transparent">
             <LogIn className="h-4 w-4" aria-hidden /> Sign In
           </Link>
         </li>

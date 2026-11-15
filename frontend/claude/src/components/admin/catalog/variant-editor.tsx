@@ -153,16 +153,20 @@ export function VariantEditor({
             <thead>
               <tr>
                 {officialShirtSizeGuide.columns.map((column) => (
-                  <th key={column}>{column}</th>
+                  <th scope="col" key={column}>{column}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {officialShirtSizeGuide.rows.map((row) => (
                 <tr key={row[0]}>
-                  {row.map((cell, i) => (
-                    <td key={i}>{cell}</td>
-                  ))}
+                  {row.map((cell, i) =>
+                    i === 0 ? (
+                      <th scope="row" key={i}>{cell}</th>
+                    ) : (
+                      <td key={i}>{cell}</td>
+                    ),
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -270,9 +274,15 @@ export function VariantEditor({
                   />
                 </div>
                 <div className="aa-field">
-                  <label htmlFor={`variant-stock-${row.key}`}>
-                    {saved ? "Stock (see Inventory)" : "Initial stock"}
-                  </label>
+                  {saved ? (
+                    <span style={{ fontWeight: 600, fontSize: "0.88rem" }}>
+                      Stock (see Inventory)
+                    </span>
+                  ) : (
+                    <label htmlFor={`variant-stock-${row.key}`}>
+                      Initial stock
+                    </label>
+                  )}
                   {saved ? (
                     <p className="aa-muted" style={{ margin: 0 }}>
                       On hand {row.onHand ?? "—"} · Available{" "}
@@ -317,6 +327,7 @@ export function VariantEditor({
                   <button
                     type="button"
                     className="aa-row-action aa-row-action--danger"
+                    aria-label={`Remove variant ${index + 1}`}
                     onClick={() =>
                       setRows((current) =>
                         current.filter((r) => r.key !== row.key),
@@ -333,7 +344,7 @@ export function VariantEditor({
                 )}
               </div>
               {hints.map((hint) => (
-                <p key={hint} role="alert" className="aa-notice aa-notice--warning">
+                <p key={hint} className="aa-notice aa-notice--warning">
                   Variant {index + 1}: {hint}
                 </p>
               ))}

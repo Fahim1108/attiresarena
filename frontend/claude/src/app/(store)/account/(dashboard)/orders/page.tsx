@@ -2,7 +2,9 @@ import { ChevronRight, Package } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { OrderStatusBadge } from "@/components/account/OrderStatusBadge";
-import { ButtonLink, EmptyState, SmartImage } from "@/components/ui";
+import { ButtonLink } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SmartImage } from "@/components/ui/SmartImage";
 import { formatDate, formatPrice } from "@/lib/format";
 import { getOrders } from "@/services";
 
@@ -20,7 +22,7 @@ export default async function OrdersPage() {
               <Link href={`/account/orders/${o.orderNumber}`} className="group block rounded-card border border-line p-4 transition-colors hover:border-primary/40 sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <p className="text-sm font-medium text-ink">{o.orderNumber}</p>
+                    <p className="break-words text-sm font-medium text-ink">{o.orderNumber}</p>
                     <p className="text-xs text-ink-muted">Placed {formatDate(o.placedAt)} · {o.summary.itemCount} items</p>
                   </div>
                   <OrderStatusBadge status={o.status} />
@@ -32,8 +34,11 @@ export default async function OrdersPage() {
                         <SmartImage src={l.image.src} alt={l.name} fill sizes="44px" className="object-cover" />
                       </span>
                     ))}
+                    {o.lines.length > 4 && (
+                      <span className="grid h-14 w-11 place-items-center rounded border-2 border-surface bg-selected text-xs font-semibold text-primary">+{o.lines.length - 4}</span>
+                    )}
                   </div>
-                  <span className="flex items-center gap-2 text-sm font-semibold text-ink">
+                  <span className="flex items-center gap-2 text-sm font-semibold tabular-nums text-ink">
                     {formatPrice(o.summary.total)} <ChevronRight className="h-4 w-4 text-ink-muted transition-transform group-hover:translate-x-0.5" aria-hidden />
                   </span>
                 </div>

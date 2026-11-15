@@ -4,7 +4,7 @@ import {
   createCatalogProduct,
   readCategoryOptions,
 } from "@/lib/admin/catalog-products";
-import { PageHeading, Panel } from "@/components/admin/ui";
+import { PageHeading } from "@/components/admin/ui";
 import { ProductForm } from "@/components/admin/catalog/product-form";
 
 export const metadata = { title: "Add product" };
@@ -14,7 +14,7 @@ export default async function NewCatalogProductPage() {
   const categories = await readCategoryOptions();
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Catalog / Products"
         title="Add product"
@@ -45,14 +45,7 @@ export default async function NewCatalogProductPage() {
         categories={categories}
         canManage
         imageCount={0}
-        imagesPanel={
-          <Panel title="Images">
-            <p>
-              Save the product first, then add images on its edit page. Images
-              are stored privately and shown with signed URLs.
-            </p>
-          </Panel>
-        }
+        imagesPanel={null}
       />
     </main>
   );

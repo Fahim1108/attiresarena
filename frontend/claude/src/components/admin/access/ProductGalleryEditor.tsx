@@ -10,7 +10,7 @@ function GalleryImage({image,images,target}:{image:Image;images:Image[];target:T
  const [state,action,pending]=useActionState(editGallery,{});
  const previous=images.findIndex(i=>i.id===image.id);
  const cover=[image.id,...images.filter(i=>i.id!==image.id).map(i=>i.id)];
- return <article className="aa-panel">{image.url?<img src={image.url} alt={image.alt_text||'Private product photo'} width={240} height={240} style={{objectFit:'contain',maxWidth:'100%'}}/>:<p>Image preview unavailable. Reload to request a fresh private URL.</p>}
+ return <article className="aa-panel">{image.url?<img src={image.url} alt={image.alt_text||'Private product photo'} width={240} height={240} loading='lazy' style={{objectFit:'contain',maxWidth:'100%'}}/>:<p>Image preview unavailable. Reload to request a fresh private URL.</p>}
  <form action={action} className="aa-form"><TargetFields target={target}/><input type="hidden" name="image_id" value={image.id}/><input type="hidden" name="ids" value={JSON.stringify(cover)}/>
  <label>Image description<input name="alt" defaultValue={image.alt_text} maxLength={300}/></label>
  <div className="aa-editor-actions"><button name="operation" value="alt" disabled={pending}>Save image description</button>{previous>0&&<button name="operation" value="reorder" disabled={pending}>Make cover image</button>}<button name="operation" value="remove" disabled={pending}>Remove from gallery</button></div>

@@ -14,7 +14,7 @@ export default async function BannersPage({
   const editing = (banners ?? []).find((banner) => banner.id === editId);
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Content"
         title="Banners"

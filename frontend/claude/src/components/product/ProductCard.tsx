@@ -2,7 +2,6 @@
 
 import { ShoppingCart } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
 import { Badge, Price, Rating, SmartImage } from "@/components/ui";
 import { useStorefront } from "@/context/StorefrontContext";
 import { cn } from "@/lib/cn";
@@ -24,7 +23,7 @@ export interface ProductCardProps {
 
 export function ProductCard({ product, brandName, priority, sizes = "(min-width:1024px) 25vw, (min-width:768px) 33vw, 50vw", className }: ProductCardProps) {
   const { productCard: cfg } = useStorefront();
-  const [colorId] = useState(product.colors[0]?.id);
+  const colorId = product.colors[0]?.id;
   const router = useRouter();
   const { addItem, openDrawer } = useCart();
 
@@ -52,7 +51,8 @@ export function ProductCard({ product, brandName, priority, sizes = "(min-width:
   return (
     <article className={cn("aa-product-card group relative", className)}>
       <div className={cn("relative overflow-hidden rounded-card", cfg.imageAspect === "portrait" ? "aspect-[4/5]" : cfg.imageAspect === "landscape" ? "aspect-[4/3]" : "aspect-square")} style={{ backgroundColor: cfg.imageBackground }}>
-        <Link href={href} aria-label={product.name} className="aa-press absolute inset-0">
+        {/* The image link duplicates the product-name link below; hide it from keyboard and assistive tech so each card has a single tab stop. */}
+        <Link href={href} tabIndex={-1} aria-hidden className="aa-press absolute inset-0">
           {/* Hover (pointer devices only): gentle 1.05 zoom + cross-fade to the secondary image. */}
           <span className="aa-product-photo absolute inset-0">
             {main && <SmartImage src={main.src} alt={main.alt} fill priority={priority} sizes={sizes} className={cn("aa-product-secondary", product.reviewOnly ? "object-contain bg-white" : "object-cover", hover && "[@media(hover:hover)]:group-hover:opacity-0")} />}
@@ -77,7 +77,7 @@ export function ProductCard({ product, brandName, priority, sizes = "(min-width:
       <div className="mt-3 space-y-1.5 px-0.5">
         {cfg.showBrand && brandName && <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-ink-muted">{brandName}</p>}
         <h3 className="line-clamp-1 text-sm text-ink sm:text-[15px]">
-          <Link href={href} className="hover:text-primary">
+          <Link href={href} title={product.name} className="hover:text-primary">
             {product.name}
           </Link>
         </h3>

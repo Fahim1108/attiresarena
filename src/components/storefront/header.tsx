@@ -24,13 +24,14 @@ export function SearchForm({
         Search the catalogue
       </label>
       <button aria-label="Search products" type="submit">
-        <Search size={17} />
+        <Search size={17} aria-hidden="true" />
       </button>
       <input
         id={id}
         name="q"
+        type="search"
         defaultValue={initialQuery}
-        placeholder="Search for shirts, pants, sneakers..."
+        placeholder="Search for shirts, pants, sneakers…"
         maxLength={100}
       />
     </form>
@@ -50,7 +51,7 @@ export function StoreHeader({ query }: { query: string }) {
     <>
       <div className="store-announcement">
         <span>
-          <Truck size={13} /> Style elevated, everyday <i /> A fashion
+          <Truck size={13} aria-hidden="true" /> Style elevated, everyday <i aria-hidden="true" /> A fashion
           destination for Bangladesh
         </span>
         <a href="mailto:attiresarena664@gmail.com">Help</a>
@@ -64,7 +65,7 @@ export function StoreHeader({ query }: { query: string }) {
             aria-controls="mobile-menu"
             onClick={() => setOpen(!open)}
           >
-            {open ? <X /> : <Menu />}
+            {open ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
           </button>
           <nav className="desktop-nav" aria-label="Main navigation">
             {links.map(({ href, label }) => (
@@ -86,7 +87,7 @@ export function StoreHeader({ query }: { query: string }) {
               className="icon-control account-link"
               aria-label="Your account"
             >
-              <UserRound size={21} />
+              <UserRound size={21} aria-hidden="true" />
             </Link>
             <button
               className="icon-control unavailable-control"
@@ -94,7 +95,7 @@ export function StoreHeader({ query }: { query: string }) {
               title="Wishlist is not available yet"
               aria-label="Wishlist unavailable"
             >
-              <Heart size={21} />
+              <Heart size={21} aria-hidden="true" />
             </button>
             <button
               className="icon-control unavailable-control"
@@ -102,7 +103,7 @@ export function StoreHeader({ query }: { query: string }) {
               title="Shopping bag is not available yet"
               aria-label="Shopping bag unavailable"
             >
-              <ShoppingBag size={22} />
+              <ShoppingBag size={22} aria-hidden="true" />
             </button>
           </div>
         </div>

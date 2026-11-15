@@ -30,7 +30,7 @@ export default async function ThemeSettingsPage() {
   ];
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Settings"
         title="Theme settings"

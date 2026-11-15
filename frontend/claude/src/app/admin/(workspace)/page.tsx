@@ -96,9 +96,16 @@ function DeltaLine({
     return <span className="aa-kpi-delta">— {caption}</span>;
   }
   const arrow = delta > 0 ? "▲" : delta < 0 ? "▼" : "•";
+  // The arrow glyph alone does not announce direction; name it for
+  // screen readers. No up/down colour is applied: a rise is not always
+  // good news (e.g. cancelled orders), so colour must not imply it.
+  const direction =
+    delta > 0 ? "Increased " : delta < 0 ? "Decreased " : "Unchanged ";
   return (
     <span className="aa-kpi-delta">
-      {arrow} {Math.abs(delta).toFixed(1)}% {caption}
+      <span className="aa-sr-only">{direction}</span>
+      <span aria-hidden="true">{arrow} </span>
+      {Math.abs(delta).toFixed(1)}% {caption}
     </span>
   );
 }
@@ -132,7 +139,7 @@ function KpiCard({
 
 function UnavailableDashboard({ message }: { message: string }) {
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Administration"
         title="Dashboard"
@@ -208,7 +215,7 @@ export default async function AdminDashboard({
   );
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Administration"
         title="Dashboard"
@@ -245,7 +252,7 @@ export default async function AdminDashboard({
         <button className="aa-button" type="submit">
           Apply
         </button>
-        <span className="aa-check-row" aria-label="Preset periods">
+        <span className="aa-check-row" role="group" aria-label="Preset periods">
           {presets.map((preset) => (
             <Link
               key={preset.label}
@@ -254,6 +261,11 @@ export default async function AdminDashboard({
                 from: preset.from,
                 to: preset.to,
               })}
+              aria-current={
+                preset.from === range.from && preset.to === range.to
+                  ? "true"
+                  : undefined
+              }
             >
               {preset.label}
             </Link>
@@ -473,7 +485,7 @@ export default async function AdminDashboard({
                         )}
                       </td>
                       <td className="aa-cell-actions">
-                        <Link className="aa-row-action" href={`/admin/sales/orders/${order.id}`}>
+                        <Link className="aa-row-action" href={`/admin/sales/orders/${order.id}`} aria-label={`View order ${order.order_number !== null ? `#${order.order_number}` : order.id.slice(0, 8)}`}>
                           View
                         </Link>
                       </td>

@@ -29,13 +29,13 @@ export function MobileBottomNav() {
               <span className="relative">
                 <Icon className={cn("h-6 w-6", active && "fill-current")} strokeWidth={active ? 1.8 : 1.5} aria-hidden />
                 {href === "#cart" && hydrated && itemCount > 0 && (
-                  <CartBadge count={itemCount} ready={hydrated} className="absolute -right-2.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-white" />
+                  <CartBadge count={itemCount} ready={hydrated} className="absolute -right-2.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-white" />
                 )}
               </span>
               <span>{label}</span>
             </>
           );
-          const cls = cn("aa-press flex h-full flex-col items-center justify-center gap-1 text-[11px]", active ? "font-medium text-primary" : "text-ink-muted");
+          const cls = cn("aa-press flex h-full flex-col items-center justify-center gap-1 text-xs", active ? "font-medium text-primary" : "text-ink-muted");
           return (
             <li key={label}>
               {href === "#cart" ? (

@@ -11,7 +11,7 @@ export function CustomersExportButton({
   exportAction: CustomersExportAction;
 }) {
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ text: string; kind: "info" | "error" } | null>(null);
 
   const runExport = async () => {
     setBusy(true);
@@ -20,21 +20,22 @@ export function CustomersExportButton({
     try {
       result = await exportAction(exportFilters);
     } catch {
-      setMessage("Export failed. Try again.");
+      setMessage({ text: "Export failed. Try again.", kind: "error" });
       setBusy(false);
       return;
     }
     if (!result.ok) {
-      setMessage(result.error);
+      setMessage({ text: result.error, kind: "error" });
       setBusy(false);
       return;
     }
     downloadCsv(result.csv, result.filename);
-    setMessage(
-      result.truncated
+    setMessage({
+      text: result.truncated
         ? `Exported ${result.total} customers (totals cover the 5,000 most recent orders — narrow the search for a complete export).`
         : `Exported ${result.total} customer${result.total === 1 ? "" : "s"}.`,
-    );
+      kind: "info",
+    });
     setBusy(false);
   };
 
@@ -44,8 +45,12 @@ export function CustomersExportButton({
         {busy ? "Exporting…" : "Export CSV"}
       </button>{" "}
       {message ? (
-        <span role="status" className="aa-hint">
-          {message}
+        <span
+          role={message.kind === "error" ? "alert" : "status"}
+          className="aa-hint"
+          style={message.kind === "error" ? { color: "#7a1010" } : undefined}
+        >
+          {message.text}
         </span>
       ) : null}
     </span>

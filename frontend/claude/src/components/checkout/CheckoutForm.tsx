@@ -2,7 +2,7 @@
 
 import { ArrowLeft, ArrowRight, Lock, PackageCheck, ShoppingBag } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { CouponField } from "@/components/cart/CouponField";
 import { OrderSummary } from "@/components/cart/OrderSummary";
 import { Button, ButtonLink, Checkbox, DemoNotice, EmptyState, Input, Modal, Select, CheckoutSkeleton, SmartImage, Textarea } from "@/components/ui";
@@ -35,6 +35,18 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
   const [result, setResult] = useState<{ title: string; message: string; payload: CheckoutPayload } | null>(null);
   const [placed, setPlaced] = useState<{ orderNumber: string; total?: number; phone: string } | null>(null);
   const [pending, startTransition] = useTransition();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const firstStepRender = useRef(true);
+
+  // Moving between steps unmounts the clicked button, which drops keyboard
+  // focus. Move focus to the new step's heading instead (announced, no scroll).
+  useEffect(() => {
+    if (firstStepRender.current) {
+      firstStepRender.current = false;
+      return;
+    }
+    panelRef.current?.querySelector("h2")?.focus({ preventScroll: true });
+  }, [step]);
 
   const orderable = canPlaceOrder(orderingEnabled, manualPaymentConfiguration.available);
   const summary = getSummary(form.district || undefined);
@@ -119,7 +131,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
     return (
       <div data-order-placed>
         <EmptyState
-          icon={<PackageCheck className="h-7 w-7" />}
+          icon={<PackageCheck className="h-7 w-7" aria-hidden />}
           title={`Order #${placed.orderNumber} received`}
           description={`Your order is pending${placed.total !== undefined ? ` · Total ${formatPrice(placed.total)}` : ""} · Cash on Delivery. No payment has been recorded. We will contact you on ${placed.phone} to confirm it. Please keep your order number.`}
           action={<ButtonLink href="/shop">Continue Shopping</ButtonLink>}
@@ -128,7 +140,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
     );
 
   if (!items.length)
-    return <EmptyState icon={<ShoppingBag className="h-7 w-7" />} title="Your cart is empty" description="Add products to your cart before checking out." action={<ButtonLink href="/shop">Browse Products</ButtonLink>} />;
+    return <EmptyState icon={<ShoppingBag className="h-7 w-7" aria-hidden />} title="Your cart is empty" description="Add products to your cart before checking out." action={<ButtonLink href="/shop">Browse Products</ButtonLink>} />;
 
   const deliveryLabel = form.district ? (isInsideDhaka(form.district) ? "Inside Dhaka" : "Outside Dhaka") : "Select a district to calculate delivery";
 
@@ -142,7 +154,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
         </DemoNotice>
         <CheckoutSteps steps={STEPS} current={step} onStepClick={setStep} />
 
-        <div className="mt-6 rounded-card border border-line p-5 sm:p-7">
+        <div ref={panelRef} className="mt-6 rounded-card border border-line p-5 sm:p-7">
           {step === 0 && (
             <form
               noValidate
@@ -152,7 +164,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
               }}
               className="space-y-5"
             >
-              <h2 className="font-serif text-2xl text-ink">Delivery Information</h2>
+              <h2 tabIndex={-1} className="font-serif text-2xl text-ink">Delivery Information</h2>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Input id="checkout-fullName" label="Full Name" required autoComplete="name" placeholder="Enter your full name" value={form.fullName} onChange={(e) => set("fullName", e.target.value)} error={errors.fullName} wrapperClassName="sm:col-span-2" />
                 <Input id="checkout-phone" label="Phone Number" required type="tel" inputMode="tel" autoComplete="tel" placeholder="01XXXXXXXXX" value={form.phone} onChange={(e) => set("phone", e.target.value)} onBlur={captureContact} error={errors.phone} hint="We'll call to confirm your order." />
@@ -181,7 +193,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
                 <Link href="/cart" className="inline-flex items-center justify-center gap-2 text-sm text-ink-muted hover:text-primary">
                   <ArrowLeft className="h-4 w-4" aria-hidden /> Back to cart
                 </Link>
-                <Button variant="burgundy" type="submit" size="lg" rightIcon={<ArrowRight className="h-4 w-4" />}>
+                <Button variant="burgundy" type="submit" size="lg" rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}>
                   Continue to Payment
                 </Button>
               </div>
@@ -190,14 +202,15 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
 
           {step === 1 && (
             <div className="space-y-6">
+              <h2 tabIndex={-1} className="font-serif text-2xl text-ink">Payment</h2>
               <PaymentMethodSelector value={payment} onChange={setPayment} onlineEnabled={commerce.onlinePaymentEnabled} previewEnabled />
               <ManualAdvancePayment mode={payment} configuration={manualPaymentConfiguration} totalMinor={summary.total * 100} division={form.division} district={form.district} />
               <Textarea label="Order note (optional)" placeholder="Anything we should know? e.g. preferred delivery time" value={note} onChange={(e) => setNote(e.target.value)} className="min-h-[80px]" />
               <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
-                <Button variant="ghost" onClick={() => setStep(0)} leftIcon={<ArrowLeft className="h-4 w-4" />}>
+                <Button variant="ghost" onClick={() => setStep(0)} leftIcon={<ArrowLeft className="h-4 w-4" aria-hidden />}>
                   Back
                 </Button>
-                <Button variant="burgundy" size="lg" onClick={next} rightIcon={<ArrowRight className="h-4 w-4" />}>
+                <Button variant="burgundy" size="lg" onClick={next} rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}>
                   Review Order
                 </Button>
               </div>
@@ -206,7 +219,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
 
           {step === 2 && (
             <div className="space-y-6">
-              <h2 className="font-serif text-2xl text-ink">Review your order</h2>
+              <h2 tabIndex={-1} className="font-serif text-2xl text-ink">Review your order</h2>
               <dl className="grid gap-4 text-sm sm:grid-cols-2">
                 <div className="rounded-control border border-line bg-white p-4">
                   <dt className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-ink-muted">
@@ -241,7 +254,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
                       <SmartImage src={i.image.src} alt="" fill sizes="52px" className="object-cover" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm text-ink">{i.name}</span>
+                      <span className="block truncate text-sm text-ink" title={i.name}>{i.name}</span>
                       <span className="block text-xs text-ink-muted">
                         {i.colorName} · {i.size} · Qty {i.quantity}
                       </span>
@@ -251,10 +264,10 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
                 ))}
               </ul>
               <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
-                <Button variant="ghost" onClick={() => setStep(1)} leftIcon={<ArrowLeft className="h-4 w-4" />}>
+                <Button variant="ghost" onClick={() => setStep(1)} leftIcon={<ArrowLeft className="h-4 w-4" aria-hidden />}>
                   Back
                 </Button>
-                <Button variant="burgundy" size="lg" onClick={placeOrder} loading={pending} disabled={!orderable} leftIcon={<Lock className="h-4 w-4" />}>
+                <Button variant="burgundy" size="lg" onClick={placeOrder} loading={pending} disabled={!orderable} leftIcon={<Lock className="h-4 w-4" aria-hidden />}>
                   Place Order ({payment === "cod" ? "COD" : "Online"}) · {formatPrice(summary.total)}
                 </Button>
               </div>
@@ -274,7 +287,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
                   <span className="absolute -right-0 -top-0 flex h-4 min-w-4 items-center justify-center rounded-bl bg-ink px-1 text-[9px] text-white">{i.quantity}</span>
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs text-ink">{i.name}</span>
+                  <span className="block truncate text-xs text-ink" title={i.name}>{i.name}</span>
                   <span className="block text-[11px] text-ink-muted">
                     {i.colorName} · {i.size}
                   </span>

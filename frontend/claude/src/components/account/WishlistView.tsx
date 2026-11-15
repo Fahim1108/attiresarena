@@ -3,7 +3,9 @@
 import { Heart } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ProductCard } from "@/components/product/ProductCard";
-import { ButtonLink, EmptyState, ProductGridSkeleton } from "@/components/ui";
+import { ButtonLink } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ProductGridSkeleton } from "@/components/ui/LoadingSkeleton";
 import { useWishlist } from "@/context/WishlistContext";
 import { getProductsByIdsAction } from "@/services/actions";
 import type { Product } from "@/types";

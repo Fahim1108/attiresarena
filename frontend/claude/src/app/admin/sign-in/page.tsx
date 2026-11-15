@@ -5,7 +5,7 @@ import { adminConfiguration } from "@/lib/admin/supabase";
 import {ShieldCheck,LockKeyhole,ArrowLeft} from 'lucide-react';
 export default function StaffSignInPage() {
   return (
-    <main id="main" className="aa-login-layout"><section className="aa-login-panel" aria-labelledby="staff-welcome">
+    <main id="main" tabIndex={-1} className="aa-login-layout"><section className="aa-login-panel" aria-labelledby="staff-welcome">
       <div className="aa-login-access"><ShieldCheck size={16} strokeWidth={1.6} aria-hidden="true"/>Staff Access Only</div>
       <Image
         src="/brand/logo-maroon.png"

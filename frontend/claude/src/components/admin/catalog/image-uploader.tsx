@@ -46,7 +46,7 @@ export function ImageUploader({
   const router = useRouter();
   const [queued, setQueued] = useState<QueuedFile[]>([]);
   const [dragOver, setDragOver] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ text: string; kind: "info" | "error" } | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [altDrafts, setAltDrafts] = useState<Record<string, string>>({});
@@ -100,7 +100,7 @@ export function ImageUploader({
     if (accepted.length > 0) {
       setQueued((current) => [...current, ...accepted]);
     }
-    setMessage(problems.length > 0 ? problems.join(" ") : null);
+    setMessage(problems.length > 0 ? { text: problems.join(" "), kind: "error" } : null);
   };
 
   const uploadOne = async (key: string) => {
@@ -119,7 +119,7 @@ export function ImageUploader({
       setQueued((current) =>
         current.map((q) => (q.key === key ? { ...q, status: "done" } : q)),
       );
-      setMessage(result.message);
+      setMessage({ text: result.message, kind: "info" });
       router.refresh();
     } else {
       setQueued((current) =>
@@ -127,7 +127,7 @@ export function ImageUploader({
           q.key === key ? { ...q, status: "failed", error: result.error } : q,
         ),
       );
-      setMessage(result.error);
+      setMessage({ text: result.error, kind: "error" });
     }
   };
 
@@ -149,7 +149,7 @@ export function ImageUploader({
     setBusy(true);
     setMessage(null);
     const result = await reorderCatalogMedia(productId, orderedIds);
-    setMessage(result.ok ? result.message : result.error);
+    setMessage(result.ok ? { text: result.message, kind: "info" } : { text: result.error, kind: "error" });
     setBusy(false);
     if (result.ok) router.refresh();
   };
@@ -175,7 +175,7 @@ export function ImageUploader({
   const remove = async (id: string) => {
     setBusy(true);
     const result = await removeCatalogMedia(productId, id);
-    setMessage(result.ok ? result.message : result.error);
+    setMessage(result.ok ? { text: result.message, kind: "info" } : { text: result.error, kind: "error" });
     setConfirmDeleteId(null);
     setBusy(false);
     if (result.ok) router.refresh();
@@ -184,7 +184,7 @@ export function ImageUploader({
   const replace = async (id: string, file: File) => {
     const error = validateImageFileMeta(file);
     if (error) {
-      setMessage(`${file.name}: ${error}`);
+      setMessage({ text: `${file.name}: ${error}`, kind: "error" });
       return;
     }
     setBusy(true);
@@ -193,7 +193,7 @@ export function ImageUploader({
     form.set("media_id", id);
     form.set("image", file);
     const result = await replaceCatalogImage(form);
-    setMessage(result.ok ? result.message : result.error);
+    setMessage(result.ok ? { text: result.message, kind: "info" } : { text: result.error, kind: "error" });
     setBusy(false);
     if (result.ok) router.refresh();
   };
@@ -202,7 +202,7 @@ export function ImageUploader({
     const alt = altDrafts[id] ?? "";
     setBusy(true);
     const result = await updateCatalogMediaAlt(productId, id, alt);
-    setMessage(result.ok ? result.message : result.error);
+    setMessage(result.ok ? { text: result.message, kind: "info" } : { text: result.error, kind: "error" });
     setBusy(false);
     if (result.ok) router.refresh();
   };
@@ -216,8 +216,11 @@ export function ImageUploader({
         description="Images are stored privately in Supabase Storage and shown with short-lived signed URLs. The first image is the main image."
       >
         {message ? (
-          <p role="status" className="aa-notice aa-notice--info">
-            {message}
+          <p
+            role={message.kind === "error" ? "alert" : "status"}
+            className={`aa-notice aa-notice--${message.kind === "error" ? "error" : "info"}`}
+          >
+            {message.text}
           </p>
         ) : null}
         {!canManage ? (
@@ -339,7 +342,7 @@ export function ImageUploader({
                         <input
                           type="file"
                           accept="image/jpeg,image/png,image/webp"
-                          hidden
+                          className="aa-sr-only"
                           disabled={busy}
                           onChange={(e) => {
                             const file = e.target.files?.[0];
@@ -479,6 +482,7 @@ export function ImageUploader({
                         type="button"
                         className="aa-secondary"
                         disabled={busy}
+                        aria-label={`${item.status === "failed" ? "Retry upload" : "Upload"} ${item.file.name}`}
                         onClick={() => void uploadOne(item.key)}
                       >
                         {item.status === "failed" ? "Retry" : "Upload"}
@@ -487,6 +491,7 @@ export function ImageUploader({
                     <button
                       type="button"
                       className="aa-row-action aa-row-action--danger"
+                      aria-label={`Remove ${item.file.name} from upload queue`}
                       onClick={() => {
                         revokePreview(item.previewUrl);
                         setQueued((current) =>

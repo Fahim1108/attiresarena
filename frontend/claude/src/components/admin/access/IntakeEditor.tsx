@@ -44,7 +44,7 @@ export function IntakeEditor({
       </div>
       <p>{missingProductFacts(item).join(" · ")||"Facts entered — verification and publication pending"}</p>
       {workspaceHref&&<Link href={workspaceHref} className="aa-button aa-secondary">Open product workspace</Link>}
-      {previewEnabled&&editable&&item.status!=="archived"&&<Link href={"/product/"+item.slug} target="_blank" rel="noopener noreferrer" prefetch={false} className="aa-button aa-secondary">Preview saved product</Link>}
+      {previewEnabled&&editable&&item.status!=="archived"&&<Link href={"/product/"+item.slug} target="_blank" rel="noopener noreferrer" prefetch={false} className="aa-button aa-secondary" aria-label="Preview saved product (opens in a new tab)">Preview saved product</Link>}
       <details open={initiallyOpen||undefined}>
         <summary>
           {editable ? "Edit imported draft" : "View product details"}
@@ -166,7 +166,7 @@ export function IntakeEditor({
                 type="button"
                 onClick={() => setStep((value) => Math.min(4, value + 1))}
               >
-                Continue
+                Next step
               </button>
             ) : (
               editable && (

@@ -65,7 +65,7 @@ export default async function CatalogInventoryPage({
   const { overview } = inventory;
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Catalog"
         title="Inventory"
@@ -87,33 +87,33 @@ export default async function CatalogInventoryPage({
       ) : null}
 
       <div className="aa-kpi-grid">
-        <section className="aa-panel aa-kpi">
+        <article className="aa-panel aa-kpi">
           <span>Products with variants</span>
           <strong>{formatCount(overview.productCount)}</strong>
           <span className="aa-kpi-delta">
             {formatCount(overview.variantCount)} variants
           </span>
-        </section>
-        <section className="aa-panel aa-kpi">
+        </article>
+        <article className="aa-panel aa-kpi">
           <span>Available stock</span>
           <strong>{formatCount(overview.totalAvailable)}</strong>
           <span className="aa-kpi-delta">
             {formatCount(overview.totalOnHand)} on hand ·{" "}
             {formatCount(overview.totalReserved)} reserved
           </span>
-        </section>
-        <section className="aa-panel aa-kpi">
+        </article>
+        <article className="aa-panel aa-kpi">
           <span>Low-stock variants</span>
           <strong>{formatCount(overview.lowStockCount)}</strong>
           <span className="aa-kpi-delta">
             At or below their low-stock threshold
           </span>
-        </section>
-        <section className="aa-panel aa-kpi">
+        </article>
+        <article className="aa-panel aa-kpi">
           <span>Out-of-stock variants</span>
           <strong>{formatCount(overview.outOfStockCount)}</strong>
           <span className="aa-kpi-delta">Nothing available to sell</span>
-        </section>
+        </article>
       </div>
 
       <Panel title="Adjust stock">
@@ -133,9 +133,10 @@ export default async function CatalogInventoryPage({
           <input
             id="inventory-q"
             name="q"
+            type="search"
             defaultValue={textParam("q")}
             maxLength={120}
-            placeholder="Search by product, size or color"
+            placeholder="Search by product, size or color…"
           />
         </div>
         <div className="aa-field">
@@ -155,7 +156,7 @@ export default async function CatalogInventoryPage({
         </Link>
       </form>
 
-      <p className="aa-muted">
+      <p className="aa-muted" role="status">
         {inventory.total} matching variant{inventory.total === 1 ? "" : "s"} ·
         Page {inventory.page} of {inventory.totalPages}
       </p>
@@ -164,26 +165,26 @@ export default async function CatalogInventoryPage({
         <table className="aa-table">
           <thead>
             <tr>
-              <th>Product</th>
-              <th>Size / Color</th>
-              <th>On hand</th>
-              <th>Reserved</th>
-              <th>Available</th>
-              <th>Low-stock threshold</th>
-              <th>Status</th>
+              <th scope="col">Product</th>
+              <th scope="col">Size / Color</th>
+              <th scope="col">On hand</th>
+              <th scope="col">Reserved</th>
+              <th scope="col">Available</th>
+              <th scope="col">Low-stock threshold</th>
+              <th scope="col">Status</th>
             </tr>
           </thead>
           <tbody>
             {inventory.rows.map((row) => (
               <tr key={row.variantId}>
-                <td>
+                <th scope="row">
                   <Link href={`/admin/catalog/products/${row.productId}`}>
                     <span className="aa-cell-main">{row.productName}</span>
                   </Link>
                   <span className="aa-cell-sub">
                     {row.active ? "Active variant" : "Inactive variant"}
                   </span>
-                </td>
+                </th>
                 <td>
                   {row.size} / {row.color}
                 </td>
@@ -221,18 +222,18 @@ export default async function CatalogInventoryPage({
           <table className="aa-table">
             <thead>
               <tr>
-                <th>Variant</th>
-                <th>Change</th>
-                <th>On hand after</th>
-                <th>Reason</th>
-                <th>Actor</th>
-                <th>Date</th>
+                <th scope="col">Variant</th>
+                <th scope="col">Change</th>
+                <th scope="col">On hand after</th>
+                <th scope="col">Reason</th>
+                <th scope="col">Actor</th>
+                <th scope="col">Date</th>
               </tr>
             </thead>
             <tbody>
               {movements.rows.map((movement) => (
                 <tr key={movement.id}>
-                  <td>{movement.variantLabel}</td>
+                  <th scope="row">{movement.variantLabel}</th>
                   <td
                     style={{
                       color: movement.delta > 0 ? "#1d4d22" : "#7a1010",

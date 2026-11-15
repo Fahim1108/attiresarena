@@ -14,7 +14,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CartBadge } from "@/components/motion/CartBadge";
 import { CartDrawer } from "@/components/cart/CartDrawer";
-import { IconButton, Modal } from "@/components/ui";
+import { IconButton } from "@/components/ui/IconButton";
+import { Modal } from "@/components/ui/Modal";
 import { useCart } from "@/context/CartContext";
 import { useStorefront } from "@/context/StorefrontContext";
 import { useWishlist } from "@/context/WishlistContext";
@@ -153,8 +154,9 @@ export function Header() {
                 <Heart
                   className="h-5 w-5 lg:h-[22px] lg:w-[22px]"
                   strokeWidth={1.5}
+                  aria-hidden
                 />
-                <span className="hidden text-[11px] lg:block">Wishlist</span>
+                <span className="hidden text-xs lg:block">Wishlist</span>
                 {wishlist.hydrated && wishlist.ids.length > 0 && (
                   <span
                     className="absolute right-2 top-2 h-2 w-2 rounded-full bg-primary lg:-right-1 lg:top-0"
@@ -171,17 +173,18 @@ export function Header() {
                 <ShoppingCart
                   className="h-5 w-5 lg:h-[22px] lg:w-[22px]"
                   strokeWidth={1.5}
+                  aria-hidden
                 />
-                <span className="hidden text-[11px] lg:block">Cart</span>
+                <span className="hidden text-xs lg:block">Cart</span>
                 <CartBadge count={itemCount} ready={hydrated} className="absolute right-0.5 top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-white lg:-right-2.5 lg:-top-2" />
               </button>
               {/* Phones: account bubble (cart lives in the bottom navigation) */}
               <Link
                 href="/account"
                 aria-label="Account"
-                className="aa-press flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white shadow-sm sm:hidden"
+                className="aa-press flex h-11 w-11 items-center justify-center rounded-full bg-primary text-white shadow-sm sm:hidden"
               >
-                <User className="h-5 w-5 fill-current" strokeWidth={1.5} />
+                <User className="h-5 w-5 fill-current" strokeWidth={1.5} aria-hidden />
               </Link>
             </div>
           </div>

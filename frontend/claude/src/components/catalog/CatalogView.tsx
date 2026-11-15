@@ -5,7 +5,6 @@ import { ProductGrid } from "@/components/product/ProductGrid";
 import { Breadcrumbs, ButtonLink, EmptyState } from "@/components/ui";
 import type { ProductQueryInput } from "@/services";
 import type { Brand, CatalogFacets, Paginated, Product } from "@/types";
-import { countActiveFilters } from "@/lib/catalog-query";
 import { ActiveFilters } from "./ActiveFilters";
 import { CatalogProvider, CatalogResults } from "./CatalogContext";
 import { FilterDrawer } from "./FilterDrawer";
@@ -26,25 +25,24 @@ interface CatalogViewProps {
 
 /** Shared product listing layout for /shop, /category/[slug] and /brand/[slug]. */
 export function CatalogView({ title, description, breadcrumbs, query, result, brands, locked, banner }: CatalogViewProps) {
-  const active = countActiveFilters({ ...query, categorySlugs: locked?.category ? undefined : query.categorySlugs, brandSlugs: locked?.brand ? undefined : query.brandSlugs });
   return (
     <CatalogProvider query={query} locked={locked}>
       <div className="container pb-8 pt-5 sm:pt-8">
         <Breadcrumbs items={breadcrumbs} />
         <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="font-serif text-[34px] leading-tight text-ink sm:text-5xl">
+            <h1 className="text-balance font-serif text-[34px] leading-tight text-ink sm:text-5xl">
               {title} <span className="align-middle font-sans text-base font-normal text-ink-muted sm:text-lg">({result.total})</span>
             </h1>
             {description && <p className="mt-2 max-w-xl text-sm text-ink-muted">{description}</p>}
           </div>
         </div>
-        <ShirtStyles products={result.items} />
+        <ShirtStyles products={result.items} query={query} />
         {banner}
 
         <div className="sticky top-[151px] z-20 -mx-4 mt-5 flex items-center justify-between gap-2 border-y border-line bg-surface/95 px-4 py-2.5 backdrop-blur sm:mx-0 sm:px-0 lg:static lg:border-x-0 lg:border-t-0 lg:bg-transparent lg:pb-4 lg:pt-0">
           <div className="flex items-center gap-2">
-            <FilterDrawer facets={result.facets} total={result.total} activeCount={active} />
+            <FilterDrawer facets={result.facets} total={result.total} />
             <p className="hidden text-sm text-ink-muted lg:block">
               Showing {result.items.length ? (result.page - 1) * result.pageSize + 1 : 0}–{(result.page - 1) * result.pageSize + result.items.length} of {result.total}
             </p>
@@ -68,7 +66,7 @@ export function CatalogView({ title, description, breadcrumbs, query, result, br
                 <ProductGrid products={result.items} brands={brands} columns={3} className="lg:grid-cols-3 xl:grid-cols-4" />
               ) : (
                 <EmptyState
-                  icon={<SearchX className="h-7 w-7" />}
+                  icon={<SearchX className="h-7 w-7" aria-hidden />}
                   title="No products found"
                   description="Try removing a filter or searching for something else."
                   action={<ButtonLink href="/shop" variant="outline">View all products</ButtonLink>}

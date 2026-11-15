@@ -7,7 +7,7 @@ export default async function PasswordSettingsPage() {
   await requireStaff();
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Settings"
         title="Change password"

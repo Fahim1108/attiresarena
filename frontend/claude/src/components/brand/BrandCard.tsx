@@ -20,15 +20,15 @@ export function BrandWordmark({ brand, className, compact }: { brand: Brand; cla
 
 export function BrandCard({ brand, productCount, className }: { brand: Brand; productCount?: number; className?: string }) {
   return (
-    <Link href={`/brand/${brand.slug}`} className={cn("aa-press group flex h-[76px] flex-col items-center justify-center rounded-card border border-line bg-surface px-3 transition-all hover:border-primary/40 hover:shadow-soft sm:h-[92px]", className)} aria-label={brand.name}>
+    <Link href={`/brand/${brand.slug}`} className={cn("aa-press group flex h-[76px] flex-col items-center justify-center rounded-card border border-line bg-surface px-3 transition-[border-color,box-shadow] hover:border-primary/40 hover:shadow-soft sm:h-[92px]", className)} aria-label={brand.name}>
       {brand.logo ? (
         <span className="relative h-10 w-full">
           <SmartImage src={brand.logo.src} alt={brand.logo.alt} fill sizes="160px" className="object-contain" />
         </span>
       ) : (
-        <BrandWordmark brand={brand} className="text-base transition-colors group-hover:text-primary sm:text-xl" />
+        <BrandWordmark brand={brand} className="min-w-0 max-w-full truncate text-base transition-colors group-hover:text-primary sm:text-xl" />
       )}
-      {productCount !== undefined && <span className="mt-1 text-[11px] text-ink-muted">{productCount} items</span>}
+      {productCount !== undefined && <span className="mt-1 text-[11px] text-ink-muted">{productCount} {productCount === 1 ? "item" : "items"}</span>}
     </Link>
   );
 }

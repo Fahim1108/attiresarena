@@ -3,14 +3,17 @@
 import { SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 import { Button, Drawer } from "@/components/ui";
+import { countActiveFilters } from "@/lib/catalog-query";
 import type { CatalogFacets } from "@/types";
 import { useCatalog } from "./CatalogContext";
 import { FilterPanel } from "./FilterPanel";
 
 /** Mobile/tablet filter drawer. Filters apply instantly; the button just closes the drawer. */
-export function FilterDrawer({ facets, total, activeCount }: { facets: CatalogFacets; total: number; activeCount: number }) {
+export function FilterDrawer({ facets, total }: { facets: CatalogFacets; total: number }) {
   const [open, setOpen] = useState(false);
-  const { reset, pending } = useCatalog();
+  const { query, reset, pending, locked } = useCatalog();
+  // Counted from the intended query so the badge updates instantly, matching the chips.
+  const activeCount = countActiveFilters({ ...query, categorySlugs: locked.category ? undefined : query.categorySlugs, brandSlugs: locked.brand ? undefined : query.brandSlugs });
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-control border border-line px-3.5 text-xs text-ink hover:border-ink/40 sm:text-sm lg:hidden">

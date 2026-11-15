@@ -5,5 +5,5 @@ import {useState} from 'react';
 import {Package} from 'lucide-react';
 export function ProductThumbnail({url,alt}:{url:string|null;alt:string}){
  const [failed,setFailed]=useState<string|null>(null);
- return <span className="aa-product-thumb">{url&&failed!==url?<img src={url} alt={alt} width={48} height={60} onError={()=>setFailed(url)}/>:<Package size={20} strokeWidth={1.4} aria-label="No image preview"/>}</span>;
+ return <span className="aa-product-thumb">{url&&failed!==url?<img src={url} alt={alt} width={48} height={60} onError={()=>setFailed(url)}/>:<span role="img" aria-label="No image preview"><Package size={20} strokeWidth={1.4} aria-hidden="true"/></span>}</span>;
 }

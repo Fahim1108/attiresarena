@@ -21,11 +21,13 @@ export function Accordion({ items, defaultOpen = [], allowMultiple = true, class
       {items.map((item) => {
         const isOpen = open.includes(item.id);
         const panelId = `${baseId}-${item.id}`;
+        const buttonId = `${panelId}-button`;
         return (
           <div key={item.id}>
             <h3>
               <button
                 type="button"
+                id={buttonId}
                 aria-expanded={isOpen}
                 aria-controls={panelId}
                 onClick={() => toggle(item.id)}
@@ -35,7 +37,7 @@ export function Accordion({ items, defaultOpen = [], allowMultiple = true, class
                 <ChevronDown className={cn("h-4 w-4 shrink-0 text-ink-muted transition-transform duration-200", isOpen && "rotate-180")} aria-hidden />
               </button>
             </h3>
-            <div id={panelId} role="region" hidden={!isOpen} className="pb-5 text-sm leading-relaxed text-ink-muted">
+            <div id={panelId} role="region" aria-labelledby={buttonId} hidden={!isOpen} className="pb-5 text-sm leading-relaxed text-ink-muted">
               {item.content}
             </div>
           </div>

@@ -8,12 +8,11 @@ import {
   exportDailySalesCsv,
   getAnalyticsReport,
 } from "@/lib/admin/analytics";
-import { formatCount, formatMoney, toDhakaDateKey } from "@/lib/admin/format";
+import { formatCount, formatDate, formatMoney, toDhakaDateKey } from "@/lib/admin/format";
 
 /**
- * Charts are builder A's components (read-only imports). Money values are
- * passed in minor units with formatMoney as the formatter; the donut
- * passes order counts with formatCount.
+ * Money values are passed in minor units with formatMoney as the formatter;
+ * the donut passes order counts with formatCount.
  */
 
 function shiftDays(dateKey: string, days: number): string {
@@ -51,11 +50,11 @@ export default async function AnalyticsPage({
   const { range } = report;
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Analytics"
         title="Reports"
-        description={`Real order data, ${range.from} to ${range.to}. Gross sales exclude cancelled and returned orders; net revenue is merchandise subtotal minus discounts, excluding delivery charges.`}
+        description={`Real order data, ${formatDate(range.from)} to ${formatDate(range.to)}. Gross sales exclude cancelled and returned orders; net revenue is merchandise subtotal minus discounts, excluding delivery charges.`}
         actions={
           <CsvDownloadButton action={exportDailySalesCsv} from={range.from} to={range.to} />
         }
@@ -68,7 +67,7 @@ export default async function AnalyticsPage({
             href={`/admin/analytics?from=${preset.from}&to=${preset.to}`}
             aria-current={
               preset.from === range.from && preset.to === range.to
-                ? "page"
+                ? "true"
                 : undefined
             }
           >
@@ -159,21 +158,12 @@ export default async function AnalyticsPage({
             description="Orders placed in the selected range will appear here."
           />
         ) : (
-          <>
-            <DonutChart
-              segments={report.statusDistribution}
-              centerLabel="Orders"
-              formatValue={formatCount}
-              ariaLabel="Orders by status"
-            />
-            <ul>
-              {report.statusDistribution.map((segment) => (
-                <li key={segment.label}>
-                  {segment.label}: {formatCount(segment.value)}
-                </li>
-              ))}
-            </ul>
-          </>
+          <DonutChart
+            segments={report.statusDistribution}
+            centerLabel="Orders"
+            formatValue={formatCount}
+            ariaLabel="Orders by status"
+          />
         )}
       </Panel>
 
@@ -205,7 +195,7 @@ export default async function AnalyticsPage({
                 <tbody>
                   {report.bestSellers.map((item) => (
                     <tr key={item.productName}>
-                      <td className="aa-cell-main">{item.productName}</td>
+                      <th scope="row" className="aa-cell-main">{item.productName}</th>
                       <td>{formatCount(item.quantity)}</td>
                       <td>{formatMoney(item.revenueMinor)}</td>
                     </tr>
@@ -235,7 +225,7 @@ export default async function AnalyticsPage({
               <tbody>
                 {report.salesByCategory.map((row) => (
                   <tr key={row.category}>
-                    <td className="aa-cell-main">{row.category}</td>
+                    <th scope="row" className="aa-cell-main">{row.category}</th>
                     <td>{formatMoney(row.revenueMinor)}</td>
                   </tr>
                 ))}
@@ -269,7 +259,7 @@ export default async function AnalyticsPage({
               <tbody>
                 {report.couponPerformance.map((row) => (
                   <tr key={row.code}>
-                    <td className="aa-cell-main">{row.code}</td>
+                    <th scope="row" className="aa-cell-main">{row.code}</th>
                     <td>{formatCount(row.redemptions)}</td>
                   </tr>
                 ))}

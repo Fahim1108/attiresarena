@@ -2,7 +2,7 @@ import { staffSession } from "@/lib/admin/access";
 export default async function AppearanceUnavailable() {
   await staffSession();
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <h1>Appearance management</h1>
       <p>
         Unavailable: the preserved design editor has no real CMS persistence

@@ -33,6 +33,9 @@ export const viewport: Viewport = {
   themeColor: "#6B0202",
   width: "device-width",
   initialScale: 1,
+  // Lets env(safe-area-inset-*) report real values so the fixed bottom nav
+  // clears notches and gesture bars; zoom is intentionally left enabled.
+  viewportFit: "cover",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

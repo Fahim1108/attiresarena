@@ -29,6 +29,7 @@ export function WishlistButton({ productId, productName, className, variant = "f
       <Heart
         className={cn("h-[18px] w-[18px] transition-[fill,color] duration-300 ease-out", active ? "fill-primary text-primary" : "fill-transparent text-ink")}
         strokeWidth={1.7}
+        aria-hidden
       />
     </button>
   );

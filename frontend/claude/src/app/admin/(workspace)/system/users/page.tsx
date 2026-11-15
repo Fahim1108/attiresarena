@@ -19,7 +19,7 @@ export default async function AdminUsersPage() {
   ).length;
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="System"
         title="Admin users"

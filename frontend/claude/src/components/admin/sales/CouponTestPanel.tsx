@@ -80,7 +80,7 @@ export function CouponTestPanel({ testAction }: { testAction: CouponTestAction }
         </div>
         <div className="aa-field">
           <label htmlFor="test-phone">Phone (optional)</label>
-          <input id="test-phone" name="phone" inputMode="tel" placeholder="01XXXXXXXXX" />
+          <input id="test-phone" name="phone" type="tel" inputMode="tel" placeholder="01XXXXXXXXX" />
           <p className="aa-hint">Used for per-customer limits when no account ID is given.</p>
         </div>
       </div>

@@ -8,13 +8,13 @@ export function QuantitySelector({ value, onChange, min = 1, max = 99, size = "m
   return (
     <div role="group" aria-label={label} className={cn("inline-flex items-center rounded-control border border-line bg-surface", className)}>
       <button type="button" className={btn} onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min} aria-label="Decrease quantity">
-        <Minus className="h-3.5 w-3.5" />
+        <Minus className="h-3.5 w-3.5" aria-hidden />
       </button>
       <output aria-live="polite" className={cn("min-w-[2rem] text-center font-medium tabular-nums text-ink", size === "sm" ? "text-xs" : "text-sm")}>
         {value}
       </output>
       <button type="button" className={btn} onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max} aria-label="Increase quantity">
-        <Plus className="h-3.5 w-3.5" />
+        <Plus className="h-3.5 w-3.5" aria-hidden />
       </button>
     </div>
   );

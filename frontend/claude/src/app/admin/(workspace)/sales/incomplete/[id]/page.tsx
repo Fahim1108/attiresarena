@@ -26,7 +26,7 @@ export default async function IncompleteDetailPage({
     await readIncompleteDetail(id);
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Sales · Incomplete orders"
         title={session.customer_name}
@@ -115,7 +115,7 @@ export default async function IncompleteDetailPage({
               <tbody>
                 {items.map((item) => (
                   <tr key={item.id}>
-                    <td>
+                    <th scope="row">
                       <span style={{ display: "inline-flex", gap: "0.6rem", alignItems: "center" }}>
                         <ProductThumbnail
                           url={item.imageUrl}
@@ -123,7 +123,7 @@ export default async function IncompleteDetailPage({
                         />
                         <span className="aa-cell-main">{item.products?.name ?? "Product"}</span>
                       </span>
-                    </td>
+                    </th>
                     <td>
                       {item.product_variants
                         ? `${item.product_variants.size} · ${item.product_variants.color}`

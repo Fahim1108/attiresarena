@@ -50,7 +50,7 @@ export function CategoryList({
   canManage: boolean;
 }) {
   const router = useRouter();
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ text: string; kind: "info" | "error" } | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -66,7 +66,7 @@ export function CategoryList({
   const runDelete = async (id: string) => {
     setBusy(true);
     const result = await deleteCategory(id);
-    setMessage(result.ok ? result.message : result.error);
+    setMessage(result.ok ? { text: result.message, kind: "info" } : { text: result.error, kind: "error" });
     setConfirmDeleteId(null);
     setBusy(false);
     if (result.ok) router.refresh();
@@ -82,7 +82,7 @@ export function CategoryList({
     if (next.join() === ids.join()) return;
     setBusy(true);
     const result = await reorderCategories(next);
-    setMessage(result.ok ? result.message : result.error);
+    setMessage(result.ok ? { text: result.message, kind: "info" } : { text: result.error, kind: "error" });
     setBusy(false);
     if (result.ok) router.refresh();
   };
@@ -143,6 +143,7 @@ export function CategoryList({
                     type="button"
                     className="aa-secondary"
                     disabled={busy || index === 0}
+                    aria-label={`Move ${node.name} up among siblings`}
                     title={index === 0 ? "Already first among siblings" : "Move up among siblings"}
                     onClick={() => void runMove(nodes, node.id, -1)}
                   >
@@ -152,6 +153,7 @@ export function CategoryList({
                     type="button"
                     className="aa-secondary"
                     disabled={busy || index === nodes.length - 1}
+                    aria-label={`Move ${node.name} down among siblings`}
                     title={
                       index === nodes.length - 1
                         ? "Already last among siblings"
@@ -168,6 +170,7 @@ export function CategoryList({
                         className="aa-button"
                         data-danger
                         disabled={busy}
+                        aria-label={`Confirm delete ${node.name}`}
                         onClick={() => void runDelete(node.id)}
                       >
                         Confirm delete
@@ -175,6 +178,7 @@ export function CategoryList({
                       <button
                         type="button"
                         className="aa-secondary"
+                        aria-label={`Cancel deleting ${node.name}`}
                         onClick={() => setConfirmDeleteId(null)}
                       >
                         Cancel
@@ -185,6 +189,7 @@ export function CategoryList({
                       type="button"
                       className="aa-row-action aa-row-action--danger"
                       disabled={busy}
+                      aria-label={`Delete ${node.name}`}
                       onClick={() => setConfirmDeleteId(node.id)}
                     >
                       Delete
@@ -219,8 +224,11 @@ export function CategoryList({
   return (
     <div>
       {message ? (
-        <p role="status" className="aa-notice aa-notice--info">
-          {message}
+        <p
+          role={message.kind === "error" ? "alert" : "status"}
+          className={`aa-notice aa-notice--${message.kind === "error" ? "error" : "info"}`}
+        >
+          {message.text}
         </p>
       ) : null}
       {renderNodes(tree)}

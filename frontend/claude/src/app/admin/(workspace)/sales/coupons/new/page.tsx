@@ -8,7 +8,7 @@ export const metadata = { title: "New coupon" };
 
 export default function NewCouponPage() {
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Sales · Coupons"
         title="New coupon"

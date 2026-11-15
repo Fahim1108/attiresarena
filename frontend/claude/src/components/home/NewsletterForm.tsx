@@ -2,7 +2,7 @@
 
 import { PendingIndicator } from "@/components/ui/LoadingSkeleton";
 import { ArrowRight } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { isValidEmail } from "@/lib/validation";
 import { subscribeNewsletterAction } from "@/services/actions";
 import { cn } from "@/lib/cn";
@@ -12,6 +12,8 @@ export function NewsletterForm({ tone = "light", className, compact = false }: {
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
   const dark = tone === "dark";
+  const fieldId = useId();
+  const statusId = `${fieldId}-status`;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,16 +30,21 @@ export function NewsletterForm({ tone = "light", className, compact = false }: {
   return (
     <form onSubmit={submit} className={className} noValidate>
       <div className={cn("flex overflow-hidden rounded-control border", dark ? "border-white/25 bg-white/5" : "border-line bg-surface")}>
-        <label htmlFor={`newsletter-${tone}`} className="sr-only">
+        <label htmlFor={fieldId} className="sr-only">
           Email address
         </label>
         <input
-          id={`newsletter-${tone}`}
+          id={fieldId}
+          name="email"
           type="email"
+          autoComplete="email"
+          spellCheck={false}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Your email address"
-          className={cn("min-w-0 flex-1 bg-transparent px-4 text-sm focus:outline-none", compact ? "h-10 text-xs" : "h-12", dark ? "text-white placeholder:text-white/50" : "text-ink placeholder:text-ink-muted/70")}
+          aria-invalid={status && !status.ok ? true : undefined}
+          aria-describedby={status ? statusId : undefined}
+          className={cn("min-w-0 flex-1 bg-transparent px-4 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40", compact ? "h-10 text-xs" : "h-12", dark ? "text-white placeholder:text-white/50" : "text-ink placeholder:text-ink-muted/70")}
         />
         <button
           type="submit"
@@ -50,7 +57,7 @@ export function NewsletterForm({ tone = "light", className, compact = false }: {
         </button>
       </div>
       {status && (
-        <p role="status" className={cn("mt-2 text-xs", status.ok ? (dark ? "text-white" : "text-success") : dark ? "text-[#FFD8D8]" : "text-warning")}>
+        <p id={statusId} role="status" className={cn("mt-2 text-xs", status.ok ? (dark ? "text-white" : "text-success") : dark ? "text-[#FFD8D8]" : "text-warning")}>
           {status.text}
         </p>
       )}

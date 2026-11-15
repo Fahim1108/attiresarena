@@ -52,7 +52,7 @@ export function CartDrawer() {
               )}
             </p>
             <div className="mt-2 h-1 overflow-hidden rounded-full bg-line" role="progressbar" aria-valuenow={Math.round(progress)} aria-valuemin={0} aria-valuemax={100} aria-label="Progress to free delivery">
-              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+              <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${progress}%` }} />
             </div>
           </div>
           <div className="divide-y divide-line">
@@ -63,7 +63,7 @@ export function CartDrawer() {
         </div>
       ) : (
         <EmptyState
-          icon={<ShoppingBag className="h-7 w-7" />}
+          icon={<ShoppingBag className="h-7 w-7" aria-hidden />}
           title="Your cart is empty"
           description="Discover new arrivals and timeless essentials."
           action={

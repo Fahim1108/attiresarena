@@ -1,4 +1,4 @@
-import { Badge } from "@/components/ui";
+import { Badge } from "@/components/ui/Badge";
 import type { OrderStatus } from "@/types";
 
 const map: Record<OrderStatus, { label: string; tone: "soft" | "success" | "warning" | "neutral" | "dark" }> = {

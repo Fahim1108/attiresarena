@@ -2,7 +2,8 @@
 
 import { ArrowLeft, ArrowRight, Lock, ShoppingBag } from "lucide-react";
 import Link from "next/link";
-import { ButtonLink, EmptyState, CartSkeleton } from "@/components/ui";
+import { useState } from "react";
+import { Button, ButtonLink, EmptyState, CartSkeleton, Modal } from "@/components/ui";
 import { commerce } from "@/config";
 import { useCart } from "@/context/CartContext";
 import { formatPrice } from "@/lib/format";
@@ -12,6 +13,7 @@ import { OrderSummary } from "./OrderSummary";
 
 export function CartView() {
   const { items, hydrated, getSummary, itemCount, clear } = useCart();
+  const [confirmClear, setConfirmClear] = useState(false);
   const summary = getSummary();
 
   if (!hydrated) return <CartSkeleton/>;
@@ -19,7 +21,7 @@ export function CartView() {
   if (!items.length)
     return (
       <EmptyState
-        icon={<ShoppingBag className="h-7 w-7" />}
+        icon={<ShoppingBag className="h-7 w-7" aria-hidden />}
         title="Your cart is empty"
         description="Looks like you haven't added anything yet. Explore our latest arrivals."
         action={<ButtonLink href="/shop">Start Shopping</ButtonLink>}
@@ -32,8 +34,8 @@ export function CartView() {
     <div className="grid gap-8 lg:grid-cols-[1fr_380px] lg:gap-12 [&>*]:min-w-0">
       <section aria-label="Cart items">
         <div className="flex items-center justify-between border-b border-line pb-3 text-xs text-ink-muted">
-          <span>{itemCount} items</span>
-          <button type="button" onClick={clear} className="underline underline-offset-4 hover:text-primary">
+          <span>{itemCount} {itemCount === 1 ? "item" : "items"}</span>
+          <button type="button" onClick={() => setConfirmClear(true)} className="underline underline-offset-4 hover:text-primary">
             Clear cart
           </button>
         </div>
@@ -52,7 +54,7 @@ export function CartView() {
           <CouponField />
           <OrderSummary summary={summary} deliveryNote={`Inside Dhaka shown. Outside Dhaka: ${formatPrice(commerce.deliveryCharges.outsideDhaka)} — calculated at checkout.`} />
           {remaining > 0 && <p className="rounded-control border border-line bg-white px-3 py-2 text-xs text-primary">Add {formatPrice(remaining)} more for free delivery.</p>}
-          <ButtonLink href="/checkout" size="lg" fullWidth rightIcon={<ArrowRight className="h-4 w-4" />}>
+          <ButtonLink href="/checkout" size="lg" fullWidth rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}>
             Proceed to Checkout
           </ButtonLink>
           <p className="flex items-center justify-center gap-1.5 text-[11px] text-ink-muted">
@@ -60,6 +62,30 @@ export function CartView() {
           </p>
         </div>
       </aside>
+      <Modal
+        open={confirmClear}
+        onClose={() => setConfirmClear(false)}
+        title="Clear your cart?"
+        description="All items will be removed from your cart. This cannot be undone."
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setConfirmClear(false)}>
+              Keep items
+            </Button>
+            <Button
+              variant="burgundy"
+              onClick={() => {
+                clear();
+                setConfirmClear(false);
+              }}
+            >
+              Clear cart
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-ink-muted">You can add items back from the shop afterwards.</p>
+      </Modal>
     </div>
   );
 }

@@ -21,7 +21,7 @@ export function ColorSwatches({ colors, activeId, onHover, max = 4, className }:
               e.preventDefault();
               onHover?.(c.id);
             }}
-            className={cn("flex h-5 w-5 items-center justify-center rounded-full border transition-all", activeId === c.id ? "border-ink" : "border-transparent hover:border-ink/40")}
+            className={cn("flex h-5 w-5 items-center justify-center rounded-full border transition-[border-color]", activeId === c.id ? "border-ink" : "border-transparent hover:border-ink/40")}
           >
             <span className={cn("h-3.5 w-3.5 rounded-full", isLightColor(c.hex) && "ring-1 ring-inset ring-ink/15")} style={{ backgroundColor: c.hex }} />
           </button>

@@ -24,7 +24,7 @@ export default async function IncompletePage({
   const totalPages = Math.max(1, Math.ceil(count / filters.pageSize));
 
   return (
-    <main id="main" className="aa-main">
+    <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
         eyebrow="Sales"
         title="Incomplete orders"
@@ -115,13 +115,13 @@ export default async function IncompletePage({
                   .slice(0, 2);
                 return (
                   <tr key={session.id}>
-                    <td>
+                    <th scope="row">
                       <span className="aa-cell-main">{session.customer_name}</span>
                       <span className="aa-cell-sub">{session.phone}</span>
                       {session.email ? (
                         <span className="aa-cell-sub">{session.email}</span>
                       ) : null}
-                    </td>
+                    </th>
                     <td>
                       {names.join(", ")}
                       {items.length > 2 ? ` +${items.length - 2} more` : ""}
@@ -139,7 +139,7 @@ export default async function IncompletePage({
                       </StatusBadge>
                     </td>
                     <td className="aa-cell-actions">
-                      <Link className="aa-row-action" href={`/admin/sales/incomplete/${session.id}`}>
+                      <Link className="aa-row-action" href={`/admin/sales/incomplete/${session.id}`} aria-label={`View incomplete checkout for ${session.customer_name}`}>
                         View
                       </Link>
                     </td>

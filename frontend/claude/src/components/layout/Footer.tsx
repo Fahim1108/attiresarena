@@ -39,9 +39,10 @@ export function Footer() {
           <div className={styles.identity}>
             <div className={styles.branding}>
               <Logo variant="inverse" small />
-              <Image src="/brand/wordmark-white.png" alt="Attires Arena" width={222} height={19} className={styles.wordmark} />
+              <Image src="/brand/wordmark-white.png" alt="" width={222} height={19} className={styles.wordmark} />
             </div>
-            <ul className={styles.social} aria-label="Social media">
+            <nav aria-label="Social media">
+            <ul className={styles.social}>
               {footer.social.map((s) => {
                 const Icon = socialIcons[s.network];
                 const href = configuredUrl(s.href);
@@ -58,7 +59,7 @@ export function Footer() {
                         href={href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        aria-label={label}
+                        aria-label={`${label} (opens in new tab)`}
                       >
                         <Icon aria-hidden size={19} />
                       </a>
@@ -76,6 +77,7 @@ export function Footer() {
                 );
               })}
             </ul>
+            </nav>
           </div>
           {footer.columns.map((col) => (
             <nav key={col.title} aria-label={col.title}>
@@ -100,7 +102,7 @@ export function Footer() {
             </p>
             <p className={styles.tagline}>Style Elevated. Always.</p>
           </div>
-          <p className={styles.credit}>Created by <a href={developerContact.whatsappUrl} target="_blank" rel="noopener noreferrer" className={styles.developerLink}><strong>{developerContact.name}</strong></a></p>
+          <p className={styles.credit}>Developed by <a href={developerContact.whatsappUrl} target="_blank" rel="noopener noreferrer" aria-label={`${developerContact.name} (opens in new tab)`} className={styles.developerLink}><strong>{developerContact.name}</strong></a></p>
         </div>
       </div>
     </footer>

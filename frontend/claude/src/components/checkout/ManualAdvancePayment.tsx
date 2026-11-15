@@ -70,18 +70,18 @@ export function ManualAdvancePayment({ configuration, totalMinor, division, dist
   }
 
   return (
-    <section aria-labelledby={`${id}-heading`} className="space-y-5 border-t border-[#EAEAEA] pt-5" data-advance-payment data-payment-mode={mode}>
+    <section aria-labelledby={`${id}-heading`} className="space-y-5 border-t border-line pt-5" data-advance-payment data-payment-mode={mode}>
       <div>
         <h3 id={`${id}-heading`} className="font-serif text-2xl">{mode === "cod" ? "COD advance payment" : "Full online payment"}</h3>
-        <p lang={mode === "cod" ? "bn" : undefined} className="mt-2 text-sm leading-relaxed text-[#74706C]">{mode === "cod" ? "ডেলিভারি চার্জ বাদে বাকি টাকা প্রোডাক্ট হাতে পেয়ে পরিশোধ করুন।" : "Review payment of the complete order total, including delivery. Live collection is disabled."}</p>
+        <p lang={mode === "cod" ? "bn" : undefined} className="mt-2 text-sm leading-relaxed text-ink-muted">{mode === "cod" ? "ডেলিভারি চার্জ বাদে বাকি টাকা প্রোডাক্ট হাতে পেয়ে পরিশোধ করুন।" : "Review payment of the complete order total, including delivery. Live collection is disabled."}</p>
       </div>
-      <dl className="space-y-2 rounded-lg border border-[#EAEAEA] bg-white p-4 text-sm" data-advance-breakdown>
+      <dl className="space-y-2 rounded-lg border border-line bg-white p-4 text-sm" data-advance-breakdown>
         <div className="flex justify-between gap-4"><dt>Order reference</dt><dd className="break-all text-right">{orderReference ?? "Not created yet"}</dd></div>
         <div className="flex justify-between gap-4"><dt>Total order amount</dt><dd>{formatPaymentAmount(totalMinor)}</dd></div>
         <div className="flex justify-between gap-4 font-semibold text-primary"><dt>{mode === "cod" ? "Required advance" : "Full payment amount"}</dt><dd data-required-advance>{breakdown ? formatPaymentAmount(breakdown.amountDueMinor) : "Select location"}</dd></div>
-        <div className="flex justify-between gap-4 border-t border-[#EAEAEA] pt-2"><dt>Remaining on delivery</dt><dd data-remaining-balance>{breakdown ? formatPaymentAmount(breakdown.remainingMinor) : "—"}</dd></div>
+        <div className="flex justify-between gap-4 border-t border-line pt-2"><dt>Remaining on delivery</dt><dd data-remaining-balance>{breakdown ? formatPaymentAmount(breakdown.remainingMinor) : "—"}</dd></div>
       </dl>
-      {breakdown && mode === "cod" && <p className="text-sm text-[#74706C]">{breakdown.zone === "inside-dhaka" ? "Inside Dhaka district" : "Outside Dhaka district"}: {formatPaymentAmount(breakdown.amountDueMinor)} advance required to confirm COD. Amounts shown are estimates until a secure order quote is available.</p>}
+      {breakdown && mode === "cod" && <p className="text-sm text-ink-muted">{breakdown.zone === "inside-dhaka" ? "Inside Dhaka district" : "Outside Dhaka district"}: {formatPaymentAmount(breakdown.amountDueMinor)} advance required to confirm COD. Amounts shown are estimates until a secure order quote is available.</p>}
       <div role="tablist" aria-label="Personal payment method" className="grid grid-cols-2 gap-2">
         {(["bkash", "nagad"] as const).map((method, index) => (
           <button key={method} id={`${id}-${method}`} type="button" role="tab" aria-label={`Personal ${names[method]}`} aria-selected={provider === method}
@@ -93,30 +93,30 @@ export function ManualAdvancePayment({ configuration, totalMinor, division, dist
               event.preventDefault(); setProvider(next ? "nagad" : "bkash"); setCopyMessage("");
               event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("button")[next]?.focus();
             }}
-            className={`aa-press flex min-h-14 items-center justify-center gap-2 rounded-lg border bg-white px-4 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${provider === method ? "border-primary text-primary" : "border-[#EAEAEA] text-[#74706C]"}`}>
+            className={`aa-press flex min-h-14 items-center justify-center gap-2 rounded-lg border bg-white px-4 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${provider === method ? "border-primary text-primary" : "border-line text-ink-muted"}`}>
             <Image src={paymentBrands[method].logo} alt="" width={64} height={64} className="h-16 w-16 shrink-0 object-contain" />
-            <span className="text-left leading-tight"><span className="block text-[10px] font-normal text-[#74706C]">Personal</span><span>{names[method]}</span></span>
+            <span className="text-left leading-tight"><span className="block text-[10px] font-normal text-ink-muted">Personal</span><span>{names[method]}</span></span>
           </button>
         ))}
       </div>
-      <div id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-${provider}`} className="space-y-4 rounded-lg border border-[#EAEAEA] bg-white p-4">
+      <div id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-${provider}`} className="space-y-4 rounded-lg border border-line bg-white p-4">
         <h4 className="font-semibold">Personal {names[provider]} · {mode === "cod" ? "advance" : "full payment"}</h4>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><p className="text-xs text-[#74706C]">Recipient number</p><p className="mt-1 font-medium" data-recipient-number>{destination?.recipientNumber ?? "Awaiting account authorisation"}</p></div>
-          <Button size="sm" variant="outline" disabled={!destination} onClick={() => destination && void copy(destination.recipientNumber, "Number")} leftIcon={<Copy size={14} />}>Copy Number</Button>
+          <div><p className="text-xs text-ink-muted">Recipient number</p><p className="mt-1 font-medium" data-recipient-number>{destination?.recipientNumber ?? "Awaiting account authorisation"}</p></div>
+          <Button size="sm" variant="outline" disabled={!destination} onClick={() => destination && void copy(destination.recipientNumber, "Number")} leftIcon={<Copy size={14} aria-hidden />}>Copy Number</Button>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><p className="text-xs text-[#74706C]">{mode === "cod" ? "Exact advance amount" : "Exact full payment amount"}</p><p className="mt-1 text-lg font-semibold text-primary">{breakdown ? formatPaymentAmount(breakdown.amountDueMinor) : "Select location"}</p></div>
-          <Button size="sm" variant="outline" disabled={!breakdown} onClick={() => breakdown && void copy((breakdown.amountDueMinor / 100).toFixed(breakdown.amountDueMinor % 100 ? 2 : 0), "Amount")} leftIcon={<Copy size={14} />}>Copy Amount</Button>
+          <div><p className="text-xs text-ink-muted">{mode === "cod" ? "Exact advance amount" : "Exact full payment amount"}</p><p className="mt-1 text-lg font-semibold text-primary">{breakdown ? formatPaymentAmount(breakdown.amountDueMinor) : "Select location"}</p></div>
+          <Button size="sm" variant="outline" disabled={!breakdown} onClick={() => breakdown && void copy((breakdown.amountDueMinor / 100).toFixed(breakdown.amountDueMinor % 100 ? 2 : 0), "Amount")} leftIcon={<Copy size={14} aria-hidden />}>Copy Amount</Button>
         </div>
         <p role="status" className="min-h-4 text-xs text-primary">{copyMessage}</p>
         <PaymentInstructions destination={destination} available={configuration.available} />
       </div>
-      {receipt ? <div role="status" className="space-y-2 rounded-lg border border-[#EAEAEA] p-5">
+      {receipt ? <div role="status" className="space-y-2 rounded-lg border border-line p-5">
         <h4 className="font-serif text-2xl">Payment Details Submitted</h4>
         <p>Your payment is awaiting verification.</p><p className="text-sm">Order reference: {receipt.orderReference}</p>
       </div> : <form noValidate onSubmit={submit} className="space-y-4 [&_label]:text-sm" aria-label="Submit payment details" data-payment-form>
-        <p className="text-sm text-[#74706C]">Never share your PIN or OTP. Submissions are unavailable; payment details will not be saved.</p>
+        <p className="text-sm text-ink-muted">Never share your PIN or OTP. Submissions are unavailable; payment details will not be saved.</p>
         <fieldset disabled={pending} className="space-y-4">
           <Input id={`${id}-transactionId`} label="Transaction ID / Last 4 digits of number" hint="Last 4 digits of your sending number. A review hint only; payment must be verified separately." placeholder="Transaction ID or last 4 digits" required maxLength={128} autoComplete="off" autoCapitalize="characters" spellCheck={false} value={transactionId} onChange={e => { setTransactionId(e.target.value); setErrors(current => ({ ...current, transactionId: undefined })); }} onBlur={() => setTransactionId(s => s.trim())} error={errors.transactionId} />
           <Input id={`${id}-senderNumber`} label={`Your ${names[provider]} Number`} required type="tel" inputMode="tel" autoComplete="tel" value={senderNumber} onChange={e => { setSenderNumber(e.target.value); setErrors(current => ({ ...current, senderNumber: undefined })); }} error={errors.senderNumber} />

@@ -43,7 +43,7 @@ export function ProductGallery({ images, productName }: { images: ProductImage[]
               onClick={() => go(i)}
               aria-label={`Show image ${i + 1} of ${images.length}`}
               aria-current={i === index}
-              className={cn("relative block h-[84px] w-[68px] overflow-hidden rounded bg-[#F4F2F0] ring-offset-2 transition-all lg:h-[104px] lg:w-[84px]", i === index ? "ring-2 ring-primary" : "opacity-70 hover:opacity-100")}
+              className={cn("relative block h-[84px] w-[68px] overflow-hidden rounded bg-[#F4F2F0] ring-offset-2 transition-[opacity,box-shadow] lg:h-[104px] lg:w-[84px]", i === index ? "ring-2 ring-primary" : "opacity-70 hover:opacity-100")}
             >
               <SmartImage src={img.src} alt="" fill sizes="84px" className="object-cover" />
             </button>
@@ -87,20 +87,20 @@ export function ProductGallery({ images, productName }: { images: ProductImage[]
           ))}
         </div>
 
-        <button type="button" onClick={() => setZoomOpen(true)} className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-surface/90 text-ink shadow-sm hover:bg-surface" aria-label="Open zoomed image">
-          <ZoomIn className="h-4 w-4" />
+        <button type="button" onClick={() => setZoomOpen(true)} className="absolute right-3 top-3 flex h-11 w-11 items-center justify-center rounded-full bg-surface/90 text-ink shadow-sm hover:bg-surface" aria-label="Open zoomed image">
+          <ZoomIn className="h-4 w-4" aria-hidden />
         </button>
         {images.length > 1 && (
           <>
-            <button type="button" onClick={() => go(index - 1)} className="absolute left-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-surface/90 shadow-sm hover:bg-surface lg:flex" aria-label="Previous image">
-              <ChevronLeft className="h-5 w-5" />
+            <button type="button" onClick={() => go(index - 1)} className="absolute left-3 top-1/2 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-surface/90 shadow-sm hover:bg-surface lg:flex" aria-label="Previous image">
+              <ChevronLeft className="h-5 w-5" aria-hidden />
             </button>
-            <button type="button" onClick={() => go(index + 1)} className="absolute right-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-surface/90 shadow-sm hover:bg-surface lg:flex" aria-label="Next image">
-              <ChevronRight className="h-5 w-5" />
+            <button type="button" onClick={() => go(index + 1)} className="absolute right-3 top-1/2 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-surface/90 shadow-sm hover:bg-surface lg:flex" aria-label="Next image">
+              <ChevronRight className="h-5 w-5" aria-hidden />
             </button>
             <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5 lg:hidden" aria-hidden>
               {images.map((img, i) => (
-                <span key={img.src} className={cn("h-1.5 rounded-full transition-all", i === index ? "w-5 bg-primary" : "w-1.5 bg-ink/25")} />
+                <span key={img.src} className={cn("h-1.5 rounded-full transition-[width,background-color]", i === index ? "w-5 bg-primary" : "w-1.5 bg-ink/25")} />
               ))}
             </div>
           </>
@@ -114,14 +114,14 @@ export function ProductGallery({ images, productName }: { images: ProductImage[]
               <SmartImage src={current.src} alt={current.alt} fill sizes="100vw" className="object-contain" />
             </div>
             <div className="mt-4 flex items-center justify-between">
-              <button type="button" onClick={() => go(index - 1)} className="flex h-10 w-10 items-center justify-center rounded-full border border-line hover:border-ink" aria-label="Previous image">
-                <ChevronLeft className="h-5 w-5" />
+              <button type="button" onClick={() => go(index - 1)} className="flex h-11 w-11 items-center justify-center rounded-full border border-line hover:border-ink" aria-label="Previous image">
+                <ChevronLeft className="h-5 w-5" aria-hidden />
               </button>
               <span className="text-sm text-ink-muted">
                 {index + 1} / {images.length}
               </span>
-              <button type="button" onClick={() => go(index + 1)} className="flex h-10 w-10 items-center justify-center rounded-full border border-line hover:border-ink" aria-label="Next image">
-                <ChevronRight className="h-5 w-5" />
+              <button type="button" onClick={() => go(index + 1)} className="flex h-11 w-11 items-center justify-center rounded-full border border-line hover:border-ink" aria-label="Next image">
+                <ChevronRight className="h-5 w-5" aria-hidden />
               </button>
             </div>
           </div>

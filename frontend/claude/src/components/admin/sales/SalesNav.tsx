@@ -9,7 +9,7 @@ const SECTIONS: { key: SalesSection; href: string; label: string }[] = [
   { key: "coupons", href: "/admin/sales/coupons", label: "Coupons" },
 ];
 
-/** Section tabs for the sales area (the sidebar has no sales links yet). */
+/** Section tabs for the sales area, mirroring the sidebar sales links. */
 export function SalesNav({ current }: { current: SalesSection }) {
   return (
     <nav className="aa-tabs" aria-label="Sales sections">
