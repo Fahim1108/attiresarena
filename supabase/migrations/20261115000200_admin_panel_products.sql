@@ -465,6 +465,12 @@ grant execute on function public.admin_update_product(uuid, timestamptz, jsonb) 
 -- 20261104000100 migration, which exists in no repo file. The old
 -- function is orphaned (the only app caller is the new admin lib, which
 -- expects the semantics below), so replacing it is safe.
+-- DROP first: PostgreSQL error 42P13 forbids CREATE OR REPLACE from
+-- renaming the old parameter "next_status" to "new_status", and the
+-- app calls this RPC with the JSON key "new_status", so the parameter
+-- name must stay. The DROP runs inside this file's transaction, so a
+-- later failure rolls it back and the old function survives.
+drop function if exists public.admin_set_product_status(uuid, timestamptz, text);
 create or replace function public.admin_set_product_status(target_id uuid, expected_updated_at timestamptz, new_status text)
 returns timestamptz language plpgsql security definer set search_path = '' as $$
 declare previous public.products; saved timestamptz;
