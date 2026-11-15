@@ -14,7 +14,7 @@ export function ProductDetailClient({ product, brandName, sizeGuide }: { product
   const colorId = product.colors[0]?.id ?? "";
   return (
     <div className="grid gap-8 lg:grid-cols-[1.15fr_1fr] lg:gap-14">
-      <ProductGallery images={imagesForColor(product, colorId)} productName={product.name} />
+      <ProductGallery images={imagesForColor(product, colorId)} productName={product.name} videoId={product.youtubeVideoId} />
       <div className="lg:sticky lg:top-28 lg:self-start">
         {product.reviewOnly && <p className="mb-4 text-xs text-ink-muted">{product.displaySizeEstimate?"Size shown is provisional until the garment is measured.":"Recorded size — physical verification is still pending."}</p>}
         <ProductPurchasePanel product={product} brandName={brandName} colorId={colorId} onColorChange={() => {}} sizeGuide={sizeGuide} onSizeChange={selection?.setSize} />

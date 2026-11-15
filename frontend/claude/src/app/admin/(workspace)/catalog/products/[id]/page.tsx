@@ -133,6 +133,7 @@ export default async function EditCatalogProductPage({
           seoTitle: product.seo_title,
           seoDescription: product.seo_description,
           metaKeywords: product.meta_keywords,
+          youtubeVideoId: product.youtube_video_id,
           basePriceMinor: single?.price_minor ?? null,
           baseSaleMinor: single?.sale_price_minor ?? null,
           baseCostMinor: single?.cost_price_minor ?? null,

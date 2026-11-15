@@ -139,6 +139,105 @@
 .aa-field textarea[aria-invalid="true"] { border-color: #c0392b; }
 .aa-check-row { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
 .aa-check-row label { display: inline-flex; gap: 0.45rem; align-items: center; font-weight: 400; }
+
+/* Radio option cards (RadioOptionGroup: product Visibility, category
+   level). Root cause of the oversized blue radios: the generic admin
+   rule `.aa-admin input` (admin.css) sizes EVERY input as a full-width
+   44px text field, and only checkboxes have a rescue rule (18px,
+   maroon accent). Radios had no rescue in production scope — the only
+   radio sizing lives under `.aa-admin--workspace`, which production
+   never renders — so a native radio ballooned to the text-field box
+   and kept the browser default blue accent, squeezing its label into
+   a narrow wrapping column. These scoped rules restore a fixed 20px
+   maroon radio inside a bordered card; the generic input rule is
+   untouched, so no other control changes. Selected state is never
+   colour alone: filled maroon radio + maroon edge + tinted card +
+   maroon bold label. Contrast: label #171717 on white 17.93:1,
+   #6B0202 on the #F6EAEA tint 10.94:1, hint #5F5A57 on white 6.80:1
+   and on the tint 5.79:1, resting border #8F8985 3.45:1. */
+.aa-admin .aa-radio-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 0.6rem;
+  max-width: 38rem;
+}
+.aa-admin .aa-radio-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  min-height: 44px;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #8f8985;
+  border-radius: var(--aa-radius-control);
+  background: #fff;
+  color: #171717;
+  font-weight: 400;
+  box-shadow: 0 1px 2px rgba(64, 0, 0, 0.06);
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.aa-admin .aa-radio-card input[type="radio"] {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  accent-color: #6b0202;
+  cursor: pointer;
+}
+.aa-admin .aa-radio-card__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.aa-admin .aa-radio-card__label {
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #171717;
+}
+.aa-admin .aa-radio-card__hint {
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #5f5a57;
+}
+.aa-admin .aa-radio-card:hover {
+  border-color: #6b0202;
+  background: #fbf6f6;
+}
+.aa-admin .aa-radio-card:has(input:checked) {
+  border-color: #6b0202;
+  background: #f6eaea;
+  box-shadow: inset 0 0 0 1px #6b0202, 0 1px 2px rgba(64, 0, 0, 0.08);
+}
+.aa-admin .aa-radio-card:has(input:checked) .aa-radio-card__label {
+  color: #6b0202;
+}
+.aa-admin .aa-radio-card input[type="radio"]:focus-visible {
+  outline: 2px solid #6b0202;
+  outline-offset: 2px;
+}
+.aa-admin .aa-radio-card:has(input:focus-visible) {
+  outline: 2px solid #6b0202;
+  outline-offset: 2px;
+}
+.aa-admin .aa-radio-card:has(input:disabled) {
+  background: #f7f4f4;
+  border-color: #d8d2cf;
+  color: #5f5a57;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.aa-admin .aa-radio-card:has(input:disabled) .aa-radio-card__label {
+  color: #5f5a57;
+}
+.aa-admin .aa-radio-card:has(input:disabled) input[type="radio"] {
+  cursor: not-allowed;
+}
 .aa-form-actions {
   display: flex;
   flex-wrap: wrap;

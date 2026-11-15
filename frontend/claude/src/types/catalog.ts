@@ -63,6 +63,8 @@ export interface Product {
   /** Images per color id. Falls back to `defaultImages` when a color has none. */
   imagesByColor: Record<string, ProductImage[]>;
   defaultImages: ProductImage[];
+  /** YouTube video ID (11 chars) for the product video slide, when set. Absent means no video UI at all. */
+  youtubeVideoId?: string;
   details: string[];
   material?: string;
   care?: string[];

@@ -21,6 +21,7 @@ import {
   formatBytes,
 } from "./image-compress";
 import { CompressToggle } from "./compress-toggle";
+import { RadioOptionGroup } from "./radio-option-cards";
 import { focusFirstInvalid, SubmitButton } from "../ui-client";
 
 export interface CategoryParentOption {
@@ -305,44 +306,38 @@ export function CategoryForm({
             Category level
           </span>
           <input type="hidden" name="category_level" value={level} />
-          <div
-            className="aa-check-row"
-            role="radiogroup"
-            aria-labelledby={inputId("level-label")}
-          >
-            <label>
-              <input
-                type="radio"
-                name={`category_level_choice_${idSuffix}`}
-                value="primary"
-                checked={level === "primary"}
-                onChange={() => onLevelChange("primary")}
-              />
-              Primary (top level)
-            </label>
-            <label>
-              <input
-                type="radio"
-                name={`category_level_choice_${idSuffix}`}
-                value="secondary"
-                checked={level === "secondary"}
-                onChange={() => onLevelChange("secondary")}
-              />
-              Secondary (under a primary)
-            </label>
-            {!isCreate ? (
-              <label>
-                <input
-                  type="radio"
-                  name={`category_level_choice_${idSuffix}`}
-                  value="sub"
-                  checked={level === "sub"}
-                  onChange={() => onLevelChange("sub")}
-                />
-                Sub-category (third level)
-              </label>
-            ) : null}
-          </div>
+          <RadioOptionGroup
+            name={`category_level_choice_${idSuffix}`}
+            ariaLabelledBy={inputId("level-label")}
+            describedBy={describedBy("category_level", "level")}
+            options={[
+              {
+                value: "primary",
+                label: "Primary",
+                hint: "Top level",
+                checked: level === "primary",
+                onChange: () => onLevelChange("primary"),
+              },
+              {
+                value: "secondary",
+                label: "Secondary",
+                hint: "Under a primary",
+                checked: level === "secondary",
+                onChange: () => onLevelChange("secondary"),
+              },
+              ...(isCreate
+                ? []
+                : [
+                    {
+                      value: "sub",
+                      label: "Sub-category",
+                      hint: "Third level",
+                      checked: level === "sub",
+                      onChange: () => onLevelChange("sub"),
+                    },
+                  ]),
+            ]}
+          />
           <p className="aa-hint">
             Primary categories sit at the top level. Secondary categories
             must belong to a primary. Sub-categories are legacy third-level

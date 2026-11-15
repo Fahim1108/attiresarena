@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 import { PRODUCT_BADGES } from "@/lib/admin/constants";
 import { slugify } from "@/lib/admin/format";
+import { youtubeWatchUrl } from "@/lib/youtube-video";
+import { YoutubeVideoPlayer } from "@/components/product/YoutubeVideoPlayer";
 import {
   deriveCategoryPair,
   primaryCategories,
@@ -15,6 +17,7 @@ import type {
 } from "@/lib/admin/catalog-products";
 import { Notice, Panel } from "../ui";
 import { focusFirstInvalid, SubmitButton } from "../ui-client";
+import { RadioOptionGroup } from "./radio-option-cards";
 import { VariantEditor, type VariantDraftInitial } from "./variant-editor";
 
 export interface ProductFormInitial {
@@ -31,6 +34,8 @@ export interface ProductFormInitial {
   seoTitle: string | null;
   seoDescription: string | null;
   metaKeywords: string | null;
+  /** Canonical 11-char YouTube video ID, or null when no video is set. */
+  youtubeVideoId: string | null;
   basePriceMinor: number | null;
   baseSaleMinor: number | null;
   baseCostMinor: number | null;
@@ -114,6 +119,11 @@ export function ProductForm({
     `${category.name}${category.published ? "" : " (hidden)"}`;
 
   const fieldError = (key: string) => state.fieldErrors?.[key];
+  // Saved video, when the stored ID is valid: pre-fills the link field
+  // and powers the saved-link + preview below the field.
+  const savedVideoUrl = initial.youtubeVideoId
+    ? youtubeWatchUrl(initial.youtubeVideoId)
+    : null;
   // Inline errors are announced through aria-describedby on their field
   // (plus focus moves to the first invalid field), not assertive alerts.
   const errorText = (key: string, inputId: string) => {
@@ -444,6 +454,59 @@ export function ProductForm({
             )}
           </Panel>
 
+          <Panel title="Product video">
+            <div className="aa-form-grid">
+              <div className="aa-field aa-field--full">
+                <label htmlFor="product-youtube-video">
+                  YouTube link (optional)
+                </label>
+                <input
+                  id="product-youtube-video"
+                  name="youtube_video_url"
+                  type="url"
+                  inputMode="url"
+                  defaultValue={savedVideoUrl ?? ""}
+                  maxLength={2048}
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="https://www.youtube.com/watch?v=…"
+                  style={{ minHeight: 44 }}
+                  aria-invalid={fieldError("youtube_video_url") ? true : undefined}
+                  aria-describedby={describedBy("youtube_video_url", "product-youtube-video")}
+                />
+                <p className="aa-hint">
+                  Paste a YouTube link for this product. The video appears
+                  as an extra slide in the storefront gallery and only
+                  loads when a shopper presses play. Leave empty for no
+                  video.
+                </p>
+                {errorText("youtube_video_url", "product-youtube-video")}
+              </div>
+            </div>
+            {savedVideoUrl && initial.youtubeVideoId ? (
+              <div style={{ marginTop: "1rem" }}>
+                <p>
+                  Saved video:{" "}
+                  <a href={savedVideoUrl} target="_blank" rel="noreferrer">
+                    Watch on YouTube
+                  </a>
+                </p>
+                <div
+                  style={{
+                    marginTop: "0.5rem",
+                    maxWidth: "30rem",
+                    aspectRatio: "16 / 9",
+                  }}
+                >
+                  <YoutubeVideoPlayer
+                    videoId={initial.youtubeVideoId}
+                    title={initial.name || "Product"}
+                  />
+                </div>
+              </div>
+            ) : null}
+          </Panel>
+
           <Panel title="Variants">
             <VariantEditor
               initial={variants}
@@ -521,26 +584,25 @@ export function ProductForm({
           </Panel>
 
           <Panel title="Visibility">
-            <div className="aa-check-row" role="radiogroup" aria-label="Product status" aria-describedby={describedBy("status", "product-status")}>
-              <label>
-                <input
-                  type="radio"
-                  name="status"
-                  value="published"
-                  defaultChecked={initial.status === "published"}
-                />
-                Active (published in the admin panel)
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name="status"
-                  value="archived"
-                  defaultChecked={initial.status === "archived"}
-                />
-                Inactive (archived)
-              </label>
-            </div>
+            <RadioOptionGroup
+              name="status"
+              ariaLabel="Product status"
+              describedBy={describedBy("status", "product-status")}
+              options={[
+                {
+                  value: "published",
+                  label: "Active",
+                  hint: "Published in the admin panel",
+                  defaultChecked: initial.status === "published",
+                },
+                {
+                  value: "archived",
+                  label: "Inactive",
+                  hint: "Archived",
+                  defaultChecked: initial.status === "archived",
+                },
+              ]}
+            />
             <p className="aa-muted">{STOREFRONT_NOTE}</p>
             {errorText("status", "product-status")}
           </Panel>

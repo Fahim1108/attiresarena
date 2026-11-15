@@ -41,6 +41,7 @@ export default async function NewCatalogProductPage() {
           seoTitle: null,
           seoDescription: null,
           metaKeywords: null,
+          youtubeVideoId: null,
           basePriceMinor: null,
           baseSaleMinor: null,
           baseCostMinor: null,

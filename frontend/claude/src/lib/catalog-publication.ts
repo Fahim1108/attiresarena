@@ -112,6 +112,7 @@
 import { PRODUCT_MEDIA_BUCKET } from "@/lib/admin/constants";
 import { isCatalogStoragePath } from "@/lib/admin/catalog-variants";
 import { canonicalSize } from "@/lib/catalogue-dimensions";
+import { isYoutubeVideoId } from "@/lib/youtube-video";
 import type {
   ColorOption,
   Product,
@@ -205,6 +206,8 @@ export interface PublishedAdminRow {
   badges: string[];
   created_at: string;
   published_at: string | null;
+  /** YouTube video ID from products.youtube_video_id (migration 014); null/absent when no video. */
+  youtube_video_id: string | null;
   variants: PublishedAdminVariantRow[];
   media: PublishedAdminMediaRow[];
 }
@@ -264,6 +267,12 @@ export function parsePublishedAdminRow(value: unknown): PublishedAdminRow | null
   const name = typeof value.name === "string" ? value.name.trim() : "";
   const categoryId = value.category_id ?? null;
   const publishedAt = value.published_at ?? null;
+  // Video is an enhancement, never a reason to drop a product: only a
+  // valid 11-character ID survives; anything else degrades to no video.
+  // The field is absent entirely until migration 014 is applied.
+  const youtubeVideoId = isYoutubeVideoId(value.youtube_video_id)
+    ? value.youtube_video_id
+    : null;
   if (
     !isUuid(value.id) ||
     typeof value.slug !== "string" ||
@@ -312,6 +321,7 @@ export function parsePublishedAdminRow(value: unknown): PublishedAdminRow | null
     badges: value.badges,
     created_at: value.created_at,
     published_at: publishedAt,
+    youtube_video_id: youtubeVideoId,
     variants,
     media,
   };
@@ -427,6 +437,9 @@ export function projectPublishedAdminProduct(
     variants,
     imagesByColor,
     defaultImages: images,
+    ...(parsed.youtube_video_id
+      ? { youtubeVideoId: parsed.youtube_video_id }
+      : {}),
     description: parsed.description,
     shortDescription: parsed.description.slice(0, 160).trim(),
     details: [...parsed.highlights],

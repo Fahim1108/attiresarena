@@ -84,6 +84,10 @@ import {
 } from "./catalog-variants";
 import { readPublishedFeed } from "../../services/adapters/published-thrift";
 import type { StorefrontFeedHealth } from "../catalog-publication";
+import {
+  parseYoutubeVideoInput,
+  YOUTUBE_VIDEO_ID_PATTERN,
+} from "../youtube-video";
 
 /** Upper bound on rows scanned for one list request (stock/price filters
  *  run in memory over embedded aggregates PostgREST cannot filter by). */
@@ -442,6 +446,8 @@ const productDetailSchema = z.object({
   seo_title: z.string().nullable(),
   seo_description: z.string().nullable(),
   meta_keywords: z.string().nullable(),
+  /** YouTube video ID (migration 014); null when no video or pre-migration. */
+  youtube_video_id: z.string().nullable(),
   created_at: z.iso.datetime({ offset: true }),
   updated_at: z.iso.datetime({ offset: true }),
 });
@@ -488,7 +494,7 @@ export async function readCatalogProduct(
   const canViewCosts = canViewProductCosts(session);
   const productColumns =
     "id,name,slug,description,status,category_id,brand,highlights,tags,badges," +
-    "seo_title,seo_description,meta_keywords,created_at,updated_at," +
+    "seo_title,seo_description,meta_keywords,youtube_video_id,created_at,updated_at," +
     "secondary_category_id,is_published,published_at,categories(name)";
   const productBaseColumns =
     "id,name,slug,description,status,category_id,brand,highlights,tags,badges," +
@@ -537,6 +543,9 @@ export async function readCatalogProduct(
       secondary_category_id: null,
       is_published: false,
       published_at: null,
+      // Pre-migration fallback: migration 014's column is absent, so
+      // the product reads as having no video.
+      youtube_video_id: null,
     };
   } else {
     if (!product.data) return null;
@@ -658,6 +667,8 @@ const productFormSchema = z.object({
   seo_title: z.string().trim().max(160).nullable(),
   seo_description: z.string().trim().max(320).nullable(),
   meta_keywords: z.string().trim().max(500).nullable(),
+  /** Canonical 11-char YouTube ID extracted from the pasted link. */
+  youtube_video_id: z.string().regex(YOUTUBE_VIDEO_ID_PATTERN).nullable(),
   base_price_minor: z.number().int().min(0),
   base_sale_price_minor: z.number().int().min(0).nullable(),
   base_cost_price_minor: z.number().int().min(0).nullable(),
@@ -685,6 +696,13 @@ function parseProductForm(form: FormData): {
   if (secondaryRaw !== "" && categoryRaw === "") {
     fieldErrors.secondary_category_id =
       "Choose a primary category before choosing a secondary category.";
+  }
+  // The form sends a pasted YouTube link; only the extracted video ID
+  // is stored. An unparseable link is a field-level error, never a
+  // silent drop: the admin must fix it or clear the field.
+  const youtubeParsed = parseYoutubeVideoInput(text("youtube_video_url"));
+  if (youtubeParsed.error) {
+    fieldErrors.youtube_video_url = youtubeParsed.error;
   }
   const basePrice = parseMoneyToMinor(text("base_price"));
   const baseSaleRaw = text("base_sale_price").trim();
@@ -756,6 +774,7 @@ function parseProductForm(form: FormData): {
       text("seo_description").trim() === "" ? null : text("seo_description").trim(),
     meta_keywords:
       text("meta_keywords").trim() === "" ? null : text("meta_keywords").trim(),
+    youtube_video_id: youtubeParsed.videoId,
     base_price_minor: basePrice ?? -1,
     base_sale_price_minor: baseSale,
     base_cost_price_minor: baseCost,
@@ -769,7 +788,9 @@ function parseProductForm(form: FormData): {
       const mapped =
         key === "category_id"
           ? "category_id"
-          : key === "base_price_minor"
+          : key === "youtube_video_id"
+            ? "youtube_video_url"
+            : key === "base_price_minor"
             ? "base_price"
             : key === "base_sale_price_minor"
               ? "base_sale_price"
@@ -802,6 +823,9 @@ function toRpcPayload(data: ProductFormData, includeIds: boolean) {
     seo_title: data.seo_title,
     seo_description: data.seo_description,
     meta_keywords: data.meta_keywords,
+    // Ignored by the pre-014 RPCs (unknown jsonb key), persisted once
+    // migration 014 is applied — so saves stay safe in either state.
+    youtube_video_id: data.youtube_video_id,
     base_price_minor: data.base_price_minor,
     base_sale_price_minor: data.base_sale_price_minor,
     base_cost_price_minor: data.base_cost_price_minor,
@@ -1059,11 +1083,16 @@ function parseStagedImages(
 }
 
 /**
- * Attach staged images at positions 0..n via the media RPC. Sequential
- * on purpose: positions are explicit and the gallery must keep the
- * staged order. Returns the number attached; unattached staged bytes
- * stay orphaned in the private bucket (same caveat as category
- * images) and the caller reports the shortfall.
+ * Attach staged images at dense positions 0..n-1 via the media RPC.
+ * Sequential on purpose: positions are explicit and the gallery must
+ * keep the staged order. The position is the count attached so far,
+ * NOT the staged index: if one attach fails, later images still land
+ * on dense positions instead of leaving a gap that could wedge the
+ * 20th slot (an append at position = count would collide with a
+ * leftover gap position under the unique constraint). Returns the
+ * number attached; unattached staged bytes stay orphaned in the
+ * private bucket (same caveat as category images) and the caller
+ * reports the shortfall.
  */
 async function attachStagedImages(
   client: Awaited<ReturnType<typeof staffSession>>["client"],
@@ -1071,13 +1100,13 @@ async function attachStagedImages(
   staged: StagedImageInput[],
 ): Promise<number> {
   let attached = 0;
-  for (const [index, item] of staged.entries()) {
+  for (const item of staged) {
     const result = await client.rpc("admin_add_product_media", {
       p_product_id: productId,
       p_storage_path: item.path,
       p_storage_object_id: null,
       p_alt_text: item.alt,
-      p_position: index,
+      p_position: attached,
     });
     if (!result.error && typeof result.data === "string") attached += 1;
   }
