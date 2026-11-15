@@ -68,33 +68,69 @@ const mediaRowSchema = z.object({
   position: z.number().int().min(0).max(19),
 });
 
-/** Product gallery rows with short-lived signed URLs (private bucket). */
+export interface CatalogMediaRead {
+  items: CatalogMediaItem[];
+  /** True when the gallery query failed: the section degrades, not the page. */
+  unavailable: boolean;
+  /** Gallery rows skipped as malformed; they stay untouched. */
+  skipped: number;
+}
+
+/**
+ * Product gallery rows with short-lived signed URLs (private bucket).
+ * Failures are REPORTED, never thrown: a failed gallery read degrades
+ * only the gallery section of the edit page, and a failed signed URL
+ * leaves that image without a preview URL instead of crashing the page.
+ */
 export async function readProductMedia(
   productId: string,
-): Promise<CatalogMediaItem[]> {
+): Promise<CatalogMediaRead> {
   const session = await staffSession();
-  if (!z.uuid().safeParse(productId).success) return [];
-  const result = await session.client
-    .from("product_media")
-    .select("id,storage_path,alt_text,position")
-    .eq("product_id", productId)
-    .order("position", { ascending: true });
-  if (result.error) throw new Error("Product gallery could not be read.");
-  const rows = mediaRowSchema.array().parse(result.data ?? []);
-  return Promise.all(
+  if (!z.uuid().safeParse(productId).success) {
+    return { items: [], unavailable: false, skipped: 0 };
+  }
+  let result: { data: unknown; error: unknown };
+  try {
+    result = await session.client
+      .from("product_media")
+      .select("id,storage_path,alt_text,position")
+      .eq("product_id", productId)
+      .order("position", { ascending: true });
+  } catch {
+    return { items: [], unavailable: true, skipped: 0 };
+  }
+  if (result.error) return { items: [], unavailable: true, skipped: 0 };
+  // Per-row validation: one malformed gallery row is skipped, never a
+  // page crash.
+  const rows: z.infer<typeof mediaRowSchema>[] = [];
+  let skipped = 0;
+  const data = Array.isArray(result.data) ? result.data : [];
+  for (const row of data) {
+    const parsed = mediaRowSchema.safeParse(row);
+    if (parsed.success) rows.push(parsed.data);
+    else skipped += 1;
+  }
+  const items = await Promise.all(
     rows.map(async (row) => {
-      const signed = await session.client.storage
-        .from(PRODUCT_MEDIA_BUCKET)
-        .createSignedUrl(row.storage_path, 120);
+      let url: string | null = null;
+      try {
+        const signed = await session.client.storage
+          .from(PRODUCT_MEDIA_BUCKET)
+          .createSignedUrl(row.storage_path, 120);
+        url = signed.error ? null : signed.data.signedUrl;
+      } catch {
+        url = null;
+      }
       return {
         id: row.id,
         storagePath: row.storage_path,
         altText: row.alt_text,
         position: row.position,
-        url: signed.error ? null : signed.data.signedUrl,
+        url,
       };
     }),
   );
+  return { items, unavailable: false, skipped };
 }
 
 function rpcMessage(error: unknown, fallback: string): string {
@@ -133,6 +169,25 @@ async function countProductMedia(
     .eq("product_id", productId);
   if (result.error) return null;
   return result.count ?? 0;
+}
+
+/**
+ * Short-lived preview URL for a freshly uploaded path. Signing failures
+ * (error or rejection) degrade to null — the upload already succeeded,
+ * so the caller still returns the stored path.
+ */
+async function signedPreviewUrl(
+  client: Awaited<ReturnType<typeof staffSession>>["client"],
+  path: string,
+): Promise<string | null> {
+  try {
+    const signed = await client.storage
+      .from(PRODUCT_MEDIA_BUCKET)
+      .createSignedUrl(path, 600);
+    return signed.error ? null : signed.data.signedUrl;
+  } catch {
+    return null;
+  }
 }
 
 async function prepareUpload(
@@ -240,7 +295,11 @@ export async function replaceCatalogImage(
   if (existing.error || !existing.data) {
     return actionError("Image not found. Reload and try again.");
   }
-  const oldRow = mediaRowSchema.parse(existing.data);
+  const oldRowParsed = mediaRowSchema.safeParse(existing.data);
+  if (!oldRowParsed.success) {
+    return actionError("Image could not be read. Reload and try again.");
+  }
+  const oldRow = oldRowParsed.data;
   const altRaw = form.get("alt");
   const alt =
     typeof altRaw === "string" ? altRaw.slice(0, 300) : oldRow.alt_text;
@@ -310,10 +369,13 @@ export async function reorderCatalogMedia(
   if (existing.error) {
     return actionError("Gallery could not be checked. Reload and try again.");
   }
-  const existingIds = z
+  const existingParsed = z
     .array(z.object({ id: z.uuid() }))
-    .parse(existing.data ?? [])
-    .map((row) => row.id);
+    .safeParse(existing.data ?? []);
+  if (!existingParsed.success) {
+    return actionError("Gallery could not be checked. Reload and try again.");
+  }
+  const existingIds = existingParsed.data.map((row) => row.id);
   const orderError = validateReorderOrder(parsed.data, existingIds);
   if (orderError) return actionError(orderError);
   const result = await session.client.rpc("admin_reorder_product_media", {
@@ -409,13 +471,10 @@ export async function uploadCategoryImage(
   if (upload.error) {
     return { ok: false, error: "Upload failed. Check your access and try again." };
   }
-  const signed = await session.client.storage
-    .from(PRODUCT_MEDIA_BUCKET)
-    .createSignedUrl(path, 600);
   return {
     ok: true,
     path,
-    url: signed.error ? null : signed.data.signedUrl,
+    url: await signedPreviewUrl(session.client, path),
   };
 }
 
@@ -444,13 +503,10 @@ export async function stageCatalogImage(
   if (upload.error) {
     return { ok: false, error: "Upload failed. Check your access and try again." };
   }
-  const signed = await session.client.storage
-    .from(PRODUCT_MEDIA_BUCKET)
-    .createSignedUrl(path, 600);
   return {
     ok: true,
     path,
-    url: signed.error ? null : signed.data.signedUrl,
+    url: await signedPreviewUrl(session.client, path),
   };
 }
 

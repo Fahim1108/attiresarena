@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   readCatalogProduct,
-  readCategoryOptions,
+  readCategoryOptionsWithStatus,
   updateCatalogProduct,
 } from "@/lib/admin/catalog-products";
 import { readProductMedia } from "@/lib/admin/catalog-media";
@@ -23,12 +23,53 @@ export default async function EditCatalogProductPage({
 }) {
   const { id } = await params;
   const query = await searchParams;
-  const detail = await readCatalogProduct(id);
-  if (!detail) notFound();
-  const [categories, media] = await Promise.all([
-    readCategoryOptions(),
+  const read = await readCatalogProduct(id);
+  if (read.status === "not-found") notFound();
+  if (read.status === "unavailable") {
+    // Honest error state inside the admin layout — never the generic
+    // boundary, and never a claim about whether a save went through.
+    return (
+      <main id="main" tabIndex={-1} className="aa-main">
+        <PageHeading
+          eyebrow="Catalog / Products"
+          title="Product could not be read"
+          description="This product could not be loaded."
+          actions={
+            <Link href="/admin/catalog/products" className="aa-secondary">
+              Back to products
+            </Link>
+          }
+        />
+        <Panel title="The product details are unavailable">
+          <p className="aa-muted">
+            This product could not be loaded. It may have been deleted or
+            changed, or the database could not be reached. If you just
+            saved this product, check the products list before saving
+            again — the save may have gone through even though this page
+            did not load.
+          </p>
+          <p>
+            <Link
+              href={`/admin/catalog/products/${id}`}
+              className="aa-secondary"
+            >
+              Retry
+            </Link>{" "}
+            <Link href="/admin/catalog/products" className="aa-secondary">
+              Back to products
+            </Link>
+          </p>
+        </Panel>
+      </main>
+    );
+  }
+  const detail = read.detail;
+  const [categoryRead, mediaRead] = await Promise.all([
+    readCategoryOptionsWithStatus(),
     readProductMedia(id),
   ]);
+  const categories = categoryRead.options;
+  const media = mediaRead.items;
   const { product, variants, canManage, canViewCosts } = detail;
   const saved = typeof query.saved === "string" ? query.saved : "";
   const categoriesFailed = query.categories === "failed";
@@ -46,6 +87,19 @@ export default async function EditCatalogProductPage({
   // exist; with exactly one variant, pre-fill it from that variant so the
   // form shows the real numbers instead of blanks.
   const single = variants.length === 1 ? variants[0] : undefined;
+
+  // The form is editable only when every section it can overwrite was
+  // read completely. A missing category option could silently unassign
+  // the product's category on save, and missing variants would hide
+  // real data the owner expects to edit. Stock and gallery failures
+  // only affect displayed figures, so they degrade with notices while
+  // the form stays editable; the gallery stays usable because adding
+  // images is append-only and never overwrites existing rows.
+  const formReadOnly =
+    categoryRead.unavailable ||
+    categoryRead.skipped > 0 ||
+    detail.variantsUnavailable;
+  const formCanManage = canManage && !formReadOnly;
 
   return (
     <main id="main" tabIndex={-1} className="aa-main">
@@ -91,6 +145,65 @@ export default async function EditCatalogProductPage({
           {imagesFailed} staged image{imagesFailed === 1 ? "" : "s"} could
           not be attached. Add the missing image{imagesFailed === 1 ? "" : "s"}{" "}
           below.
+        </Notice>
+      ) : null}
+      {categoryRead.unavailable ? (
+        <Notice kind="warning">
+          Category options could not be read, so this form is read-only.
+          Reload to try again — saving without the full category list
+          could remove this product&apos;s category assignment.
+        </Notice>
+      ) : null}
+      {!categoryRead.unavailable && categoryRead.skipped > 0 ? (
+        <Notice kind="warning">
+          {categoryRead.skipped} categor
+          {categoryRead.skipped === 1 ? "y option" : "y options"} could not
+          be read, so this form is read-only. Reload to try again — the
+          missing options could include this product&apos;s category.
+        </Notice>
+      ) : null}
+      {detail.variantsUnavailable ? (
+        <Notice kind="warning">
+          Product variants could not be read, so this form is read-only.
+          Reload to try again.
+        </Notice>
+      ) : null}
+      {!detail.variantsUnavailable && detail.variantsSkipped > 0 ? (
+        <Notice kind="warning">
+          {detail.variantsSkipped} variant
+          {detail.variantsSkipped === 1 ? "" : "s"} could not be read and{" "}
+          {detail.variantsSkipped === 1 ? "is" : "are"} not shown below.{" "}
+          {detail.variantsSkipped === 1 ? "It was" : "They were"} not changed.
+        </Notice>
+      ) : null}
+      {detail.inventoryUnavailable ? (
+        <Notice kind="warning">
+          Stock figures could not be read, so stock fields below show
+          defaults. Check Inventory for the real stock.
+        </Notice>
+      ) : null}
+      {!detail.inventoryUnavailable && detail.inventorySkipped > 0 ? (
+        <Notice kind="warning">
+          Stock figures for {detail.inventorySkipped} variant
+          {detail.inventorySkipped === 1 ? "" : "s"} could not be read, so{" "}
+          {detail.inventorySkipped === 1 ? "its" : "those"} stock field
+          {detail.inventorySkipped === 1 ? "" : "s"} show
+          {detail.inventorySkipped === 1 ? "s" : ""} a default. Check
+          Inventory for the real stock.
+        </Notice>
+      ) : null}
+      {mediaRead.unavailable ? (
+        <Notice kind="warning">
+          Product images could not be read. You can still add new images
+          below, or reload to try again.
+        </Notice>
+      ) : null}
+      {!mediaRead.unavailable && mediaRead.skipped > 0 ? (
+        <Notice kind="warning">
+          {mediaRead.skipped} image{mediaRead.skipped === 1 ? "" : "s"}{" "}
+          could not be read and {mediaRead.skipped === 1 ? "is" : "are"}{" "}
+          not shown below. {mediaRead.skipped === 1 ? "It was" : "They were"}{" "}
+          not changed.
         </Notice>
       ) : null}
       <Panel title="Storefront publication">
@@ -152,7 +265,7 @@ export default async function EditCatalogProductPage({
           available: variant.inventory?.available ?? null,
         }))}
         categories={categories}
-        canManage={canManage}
+        canManage={formCanManage}
         canViewCosts={canViewCosts}
         imageCount={media.length}
         imagesPanel={

@@ -273,7 +273,10 @@ export function ProductForm({
                   "product-secondary-category",
                 )}
               </div>
-              {pair.replacedId ? (
+              {/* Only when the form can be saved: in read-only mode
+                  (role-based or degraded reads) no save can replace
+                  the assignment, so the warning would mislead. */}
+              {pair.replacedId && canManage ? (
                 <p className="aa-notice aa-notice--warning aa-field--full">
                   This product was assigned to{" "}
                   {replacedCategory

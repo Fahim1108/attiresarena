@@ -107,6 +107,15 @@ export default async function CatalogInventoryPage({
         </Notice>
       ) : null}
 
+      {!isSample && (inventory?.skippedRows ?? 0) > 0 ? (
+        <Notice kind="warning">
+          {inventory?.skippedRows} variant row
+          {(inventory?.skippedRows ?? 0) === 1 ? "" : "s"} could not be read
+          and {(inventory?.skippedRows ?? 0) === 1 ? "is" : "are"} not shown
+          below. Totals cover the rows that could be read.
+        </Notice>
+      ) : null}
+
       <div className="aa-kpi-grid">
         <article className="aa-panel aa-kpi">
           <span>Products with variants</span>

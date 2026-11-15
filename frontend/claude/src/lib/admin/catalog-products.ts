@@ -44,9 +44,13 @@
  *
  * UNAVAILABILITY: listCatalogProducts returns null when the catalogue
  * cannot be read (post-auth only — requireStaff redirects still
- * propagate first). Pages render labelled sample data in that case;
- * detail reads keep throwing, because a detail/edit page must never
- * show a sample product as if it were real.
+ * propagate first). Pages render labelled sample data in that case.
+ * Detail reads NEVER throw for data problems and never return sample
+ * data: readCatalogProduct returns a discriminated result (ok /
+ * not-found / unavailable) plus per-section degradation flags, so the
+ * edit page renders an honest error panel or a read-only form instead
+ * of the generic error boundary. The same non-throwing discipline
+ * applies to readProductMedia and readCategoryOptionsWithStatus.
  */
 
 import { revalidatePath } from "next/cache";
@@ -95,17 +99,6 @@ import {
 const LIST_FETCH_CAP = 500;
 
 // ------------------------------------------------------------------ helpers
-
-/** PostgREST one-to-one embeds arrive as an object; tolerate an array too. */
-function toOne<T extends z.ZodType>(schema: T) {
-  return z
-    .union([schema, z.array(schema).max(1)])
-    .nullable()
-    .optional()
-    .transform(
-      (v) => (Array.isArray(v) ? (v[0] ?? null) : (v ?? null)) as z.infer<T> | null,
-    );
-}
 
 function escapeLike(text: string): string {
   return `%${text.replace(/[\\%_]/g, "\\$&")}%`;
@@ -574,43 +567,81 @@ const categoryOptionSchema = z.object({
 
 export type CategoryOption = z.infer<typeof categoryOptionSchema>;
 
+export interface CategoryOptionsRead {
+  options: CategoryOption[];
+  /** True when neither category query succeeded. */
+  unavailable: boolean;
+  /** Option rows skipped as malformed; the set may be incomplete. */
+  skipped: number;
+}
+
+/**
+ * Flat category list for product-form selects (parents + children),
+ * reported instead of thrown: callers that can degrade (edit/create
+ * pages) render a notice — and the edit page a read-only form — when
+ * the option set is unavailable or incomplete, because saving with a
+ * missing option could silently unassign the product's category.
+ */
+export async function readCategoryOptionsWithStatus(): Promise<CategoryOptionsRead> {
+  const session = await staffSession();
+  let result: { data: unknown; error: unknown };
+  try {
+    result = await session.client
+      .from("categories")
+      .select("id,name,slug,parent_id,published,sort_position")
+      .order("sort_position", { ascending: true })
+      .order("name", { ascending: true })
+      .order("id", { ascending: true })
+      .limit(500);
+  } catch {
+    result = { data: null, error: new Error("Categories could not be read.") };
+  }
+  if (result.error) {
+    // sort_position arrives with migration 002; fall back to a name-ordered
+    // list so the form still renders on a pre-migration database.
+    let fallback: { data: unknown; error: unknown };
+    try {
+      fallback = await session.client
+        .from("categories")
+        .select("id,name,slug,parent_id,published")
+        .order("name", { ascending: true })
+        .order("id", { ascending: true })
+        .limit(500);
+    } catch {
+      fallback = { data: null, error: new Error("Categories could not be read.") };
+    }
+    if (fallback.error) {
+      return { options: [], unavailable: true, skipped: 0 };
+    }
+    // Per-row validation: one malformed option row is skipped, never a
+    // page crash; the skipped count tells the caller the set is partial.
+    const parsed = parseRows(
+      (Array.isArray(fallback.data) ? fallback.data : []).map((row) => ({
+        ...(row as Record<string, unknown>),
+        sort_position: 0,
+      })),
+      categoryOptionSchema
+        .omit({ sort_position: true })
+        .extend({ sort_position: z.number().int().default(0) }),
+    );
+    return { options: parsed.rows, unavailable: false, skipped: parsed.skipped };
+  }
+  const parsed = parseRows(result.data ?? [], categoryOptionSchema);
+  return { options: parsed.rows, unavailable: false, skipped: parsed.skipped };
+}
+
 /** Flat category list for product-form selects (parents + children). */
 export async function readCategoryOptions(options: {
   onUnavailable?: "throw" | "empty";
 } = {}): Promise<CategoryOption[]> {
-  const session = await staffSession();
-  const result = await session.client
-    .from("categories")
-    .select("id,name,slug,parent_id,published,sort_position")
-    .order("sort_position", { ascending: true })
-    .order("name", { ascending: true })
-    .order("id", { ascending: true })
-    .limit(500);
-  if (result.error) {
-    // sort_position arrives with migration 002; fall back to a name-ordered
-    // list so the form still renders on a pre-migration database.
-    const fallback = await session.client
-      .from("categories")
-      .select("id,name,slug,parent_id,published")
-      .order("name", { ascending: true })
-      .order("id", { ascending: true })
-      .limit(500);
-    if (fallback.error) {
-      // Lenient mode (list filter only): an empty option list degrades
-      // the filter without failing the page. Forms keep throwing.
-      if (options.onUnavailable === "empty") return [];
-      throw new Error("Categories could not be read.");
-    }
-    // Per-row validation: one malformed option row is skipped, never a
-    // page crash (the list page calls this with onUnavailable "empty").
-    return parseRows(
-      (fallback.data ?? []).map((row) => ({ ...row, sort_position: 0 })),
-      categoryOptionSchema
-        .omit({ sort_position: true })
-        .extend({ sort_position: z.number().int().default(0) }),
-    ).rows;
+  const read = await readCategoryOptionsWithStatus();
+  if (read.unavailable) {
+    // Lenient mode (list filter only): an empty option list degrades
+    // the filter without failing the page. Other callers keep throwing.
+    if (options.onUnavailable === "empty") return [];
+    throw new Error("Categories could not be read.");
   }
-  return parseRows(result.data ?? [], categoryOptionSchema).rows;
+  return read.options;
 }
 
 const productDetailSchema = z.object({
@@ -668,27 +699,53 @@ export interface CatalogProductDetail {
   canManage: boolean;
   /** False for cost-blind roles: every variant cost reads null. */
   canViewCosts: boolean;
+  /** True when the variants query failed: the form must render read-only. */
+  variantsUnavailable: boolean;
+  /** Variant rows skipped as malformed; untouched by saves (merge RPC). */
+  variantsSkipped: number;
+  /** True when the inventory query failed: stock fields show defaults. */
+  inventoryUnavailable: boolean;
+  /** Inventory rows skipped as malformed. */
+  inventorySkipped: number;
 }
+
+/**
+ * Result of reading one product for the edit page. A detail/edit page
+ * must never show a sample product, so failures are REPORTED, never
+ * thrown: "not-found" renders the 404, "unavailable" renders an honest
+ * error panel, and per-section flags let the page degrade gracefully.
+ * Session failures (requireStaff redirects, MFA) still propagate —
+ * only data problems are reported here.
+ */
+export type CatalogProductRead =
+  | { status: "ok"; detail: CatalogProductDetail }
+  | { status: "not-found" }
+  | { status: "unavailable" };
 
 export async function readCatalogProduct(
   id: string,
-): Promise<CatalogProductDetail | null> {
+): Promise<CatalogProductRead> {
   const session = await staffSession();
-  if (!z.uuid().safeParse(id).success) return null;
+  if (!z.uuid().safeParse(id).success) return { status: "not-found" };
   const canViewCosts = canViewProductCosts(session);
+  // NO embedded relations: products has TWO foreign keys to categories
+  // (category_id + secondary_category_id since migration 009), so a
+  // categories(name) embed is ambiguous and PostgREST rejects it on
+  // every call — that crashed the edit page on every load. Category
+  // names are read with separate queries, below.
   const productColumns =
     "id,name,slug,description,status,category_id,brand,highlights,tags,badges," +
     "seo_title,seo_description,meta_keywords,youtube_video_id,created_at,updated_at," +
-    "secondary_category_id,is_published,published_at,categories(name)";
+    "secondary_category_id,is_published,published_at";
   const productBaseColumns =
     "id,name,slug,description,status,category_id,brand,highlights,tags,badges," +
-    "seo_title,seo_description,meta_keywords,created_at,updated_at,categories(name)";
+    "seo_title,seo_description,meta_keywords,created_at,updated_at";
   const variantColumns =
     "id,size,color,price_minor,sale_price_minor,cost_price_minor,active,created_at";
   // The product and variants reads are independent (both keyed by the id
   // parameter), so they run in parallel. allSettled plus ordered checks
-  // keeps the original error semantics: product failures surface first,
-  // and a missing product still returns null before variants are read.
+  // keeps the original precedence: product failures surface first, and
+  // a missing product still reports not-found.
   const [productSettled, variantsSettled] = await Promise.allSettled([
     session.client
       .from("products")
@@ -702,24 +759,31 @@ export async function readCatalogProduct(
       .order("created_at", { ascending: true })
       .limit(101),
   ]);
-  if (productSettled.status === "rejected") throw productSettled.reason;
-  const product = productSettled.value;
+  // Product read: any failure (rejection, both selects erroring, or a
+  // malformed row) is "unavailable" — never a throw, never a sample.
   let productData: unknown;
-  if (product.error) {
+  if (
+    productSettled.status === "fulfilled" &&
+    !productSettled.value.error
+  ) {
+    if (!productSettled.value.data) return { status: "not-found" };
+    productData = productSettled.value.data;
+  } else {
     // Pre-migration fallback: the publication/hierarchy columns arrive
     // with migrations 008/009; without them the product reads as
     // unpublished with no secondary category.
-    const fallback = await session.client
-      .from("products")
-      .select(productBaseColumns)
-      .eq("id", id)
-      .maybeSingle();
-    if (fallback.error) {
-      throw new Error(
-        "Product details could not be read. If this persists, check that catalogue migration 20261115000200 has been applied.",
-      );
+    let fallback: { data: unknown; error: unknown } | null = null;
+    try {
+      fallback = await session.client
+        .from("products")
+        .select(productBaseColumns)
+        .eq("id", id)
+        .maybeSingle();
+    } catch {
+      fallback = null;
     }
-    if (!fallback.data) return null;
+    if (!fallback || fallback.error) return { status: "unavailable" };
+    if (!fallback.data) return { status: "not-found" };
     // The row is validated by the schema parse below; the cast only
     // recovers a spreadable object type from the client's select type.
     productData = {
@@ -731,67 +795,112 @@ export async function readCatalogProduct(
       // the product reads as having no video.
       youtube_video_id: null,
     };
-  } else {
-    if (!product.data) return null;
-    productData = product.data;
   }
-  const parsed = productDetailSchema
-    .extend({ categories: toOne(z.object({ name: z.string() })) })
-    .parse(productData);
-  const { categories, ...base } = parsed;
-  if (variantsSettled.status === "rejected") throw variantsSettled.reason;
-  const variants = variantsSettled.value;
-  if (variants.error) throw new Error("Product variants could not be read.");
-  const variantRows = z.array(detailVariantSchema).parse(variants.data ?? []);
-  // Inventory (keyed by the variant rows just read) and the secondary
-  // category name (keyed by the product row) are independent of each
-  // other, so they run in parallel. A missing secondary name is
-  // non-fatal: the form still shows the stored assignment.
-  const [inventory, secondary] = await Promise.all([
-    variantRows.length
-      ? session.client
-          .from("inventory")
-          .select("variant_id,on_hand,reserved,available,low_stock_threshold")
-          .in(
-            "variant_id",
-            variantRows.map((v) => v.id),
-          )
-      : Promise.resolve(null),
-    base.secondary_category_id
-      ? session.client
-          .from("categories")
-          .select("name")
-          .eq("id", base.secondary_category_id)
-          .maybeSingle()
-      : Promise.resolve(null),
-  ]);
-  if (inventory?.error) throw new Error("Product inventory could not be read.");
-  const inventoryByVariant = new Map(
-    z
-      .array(detailInventorySchema)
-      .parse(inventory?.data ?? [])
-      .map((row) => [row.variant_id, row]),
-  );
+  const parsed = productDetailSchema.safeParse(productData);
+  if (!parsed.success) return { status: "unavailable" };
+  const base = parsed.data;
+  // Variants: a failed query degrades the section (the page renders the
+  // form read-only); malformed rows are skipped, never a page crash.
+  // Skipped variants stay untouched on save: the update RPC merges.
+  let variantRows: z.infer<typeof detailVariantSchema>[] = [];
+  let variantsUnavailable = false;
+  let variantsSkipped = 0;
+  if (
+    variantsSettled.status === "rejected" ||
+    variantsSettled.value.error
+  ) {
+    variantsUnavailable = true;
+  } else {
+    const variantParsed = parseRows(
+      variantsSettled.value.data ?? [],
+      detailVariantSchema,
+    );
+    variantRows = variantParsed.rows;
+    variantsSkipped = variantParsed.skipped;
+  }
+  // Inventory (keyed by the variant rows just read) and the category
+  // names (keyed by the product row) are independent of each other, so
+  // they run in parallel. All three reads are non-fatal: a missing name
+  // is cosmetic (the form shows the stored assignment), and a failed
+  // inventory read only affects the displayed stock figures.
+  const [inventorySettled, primarySettled, secondarySettled] =
+    await Promise.allSettled([
+      variantRows.length
+        ? session.client
+            .from("inventory")
+            .select("variant_id,on_hand,reserved,available,low_stock_threshold")
+            .in(
+              "variant_id",
+              variantRows.map((v) => v.id),
+            )
+        : Promise.resolve(null),
+      base.category_id
+        ? session.client
+            .from("categories")
+            .select("name")
+            .eq("id", base.category_id)
+            .maybeSingle()
+        : Promise.resolve(null),
+      base.secondary_category_id
+        ? session.client
+            .from("categories")
+            .select("name")
+            .eq("id", base.secondary_category_id)
+            .maybeSingle()
+        : Promise.resolve(null),
+    ]);
+  const inventoryValue =
+    inventorySettled.status === "fulfilled" ? inventorySettled.value : null;
+  let inventoryByVariant = new Map<string, z.infer<typeof detailInventorySchema>>();
+  let inventoryUnavailable = false;
+  let inventorySkipped = 0;
+  if (inventorySettled.status === "rejected" || inventoryValue?.error) {
+    inventoryUnavailable = true;
+  } else {
+    const inventoryParsed = parseRows(
+      inventoryValue?.data ?? [],
+      detailInventorySchema,
+    );
+    inventorySkipped = inventoryParsed.skipped;
+    inventoryByVariant = new Map(
+      inventoryParsed.rows.map((row) => [row.variant_id, row]),
+    );
+  }
+  const nameSchema = z.object({ name: z.string() });
+  const primaryValue =
+    primarySettled.status === "fulfilled" ? primarySettled.value : null;
+  const categoryName =
+    primaryValue && !primaryValue.error && primaryValue.data
+      ? (nameSchema.safeParse(primaryValue.data).data?.name ?? null)
+      : null;
+  const secondaryValue =
+    secondarySettled.status === "fulfilled" ? secondarySettled.value : null;
   const secondaryName =
-    secondary && !secondary.error && secondary.data
-      ? (z.object({ name: z.string() }).safeParse(secondary.data).data?.name ??
-        null)
+    secondaryValue && !secondaryValue.error && secondaryValue.data
+      ? (nameSchema.safeParse(secondaryValue.data).data?.name ?? null)
       : null;
   return {
-    product: base,
-    categoryName: categories?.name ?? null,
-    secondaryCategoryName: secondaryName,
-    variants: variantRows.map((v) => ({
-      ...v,
-      // Server-side cost hiding: cost-blind roles receive null, never
-      // the real figure, in any configuration.
-      cost_price_minor: canViewCosts ? (v.cost_price_minor ?? null) : null,
-      inventory: inventoryByVariant.get(v.id) ?? null,
-    })),
-    canManage: session.roles.some(
-      (r) => r === "owner" || r === "product_manager",
-    ),
-    canViewCosts,
+    status: "ok",
+    detail: {
+      product: base,
+      categoryName,
+      secondaryCategoryName: secondaryName,
+      variants: variantRows.map((v) => ({
+        ...v,
+        // Server-side cost hiding: cost-blind roles receive null, never
+        // the real figure, in any configuration.
+        cost_price_minor: canViewCosts ? (v.cost_price_minor ?? null) : null,
+        inventory: inventoryByVariant.get(v.id) ?? null,
+      })),
+      canManage: session.roles.some(
+        (r) => r === "owner" || r === "product_manager",
+      ),
+      canViewCosts,
+      variantsUnavailable,
+      variantsSkipped,
+      inventoryUnavailable,
+      inventorySkipped,
+    },
   };
 }
 

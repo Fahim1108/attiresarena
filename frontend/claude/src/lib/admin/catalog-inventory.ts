@@ -34,6 +34,25 @@ import { areaRoles, DEFAULT_PAGE_SIZE } from "./constants";
 /** Upper bound on variant rows scanned for one inventory request. */
 const INVENTORY_FETCH_CAP = 1000;
 
+/**
+ * Per-row validation: one malformed row is skipped, never a page crash.
+ * The skipped count lets the page say honestly that some rows are missing.
+ */
+function parseRows<T>(
+  data: unknown,
+  schema: z.ZodType<T>,
+): { rows: T[]; skipped: number } {
+  if (!Array.isArray(data)) return { rows: [], skipped: 0 };
+  const rows: T[] = [];
+  let skipped = 0;
+  for (const row of data) {
+    const parsed = schema.safeParse(row);
+    if (parsed.success) rows.push(parsed.data);
+    else skipped += 1;
+  }
+  return { rows, skipped };
+}
+
 function toOne<T extends z.ZodType>(schema: T) {
   return z
     .union([schema, z.array(schema).max(1)])
@@ -103,6 +122,8 @@ export interface InventoryPageResult {
   totalPages: number;
   page: number;
   canAdjust: boolean;
+  /** Variant rows skipped as malformed; the page reports them honestly. */
+  skippedRows: number;
 }
 
 export interface InventoryFilters {
@@ -144,7 +165,10 @@ export async function readInventory(
     // Unavailable (not empty): the page renders labelled sample data.
     return null;
   }
-  const parsed = z.array(inventoryRowSchema).parse(result.data ?? []);
+  const { rows: parsed, skipped: skippedRows } = parseRows(
+    result.data ?? [],
+    inventoryRowSchema,
+  );
   const truncated = (result.count ?? 0) > INVENTORY_FETCH_CAP;
   const productIds = new Set<string>();
   let totalAvailable = 0;
@@ -216,6 +240,7 @@ export async function readInventory(
     totalPages,
     page,
     canAdjust,
+    skippedRows,
   };
 }
 
@@ -250,15 +275,12 @@ export async function readVariantOptions(): Promise<VariantOption[] | null> {
       }),
     ),
   });
-  return z
-    .array(schema)
-    .parse(result.data ?? [])
-    .map((row) => ({
-      variantId: row.id,
-      label: `${row.products?.name ?? "Unknown product"} — ${row.size} / ${row.color}`,
-      onHand: row.inventory?.on_hand ?? null,
-      available: row.inventory?.available ?? null,
-    }));
+  return parseRows(result.data ?? [], schema).rows.map((row) => ({
+    variantId: row.id,
+    label: `${row.products?.name ?? "Unknown product"} — ${row.size} / ${row.color}`,
+    onHand: row.inventory?.on_hand ?? null,
+    available: row.inventory?.available ?? null,
+  }));
 }
 
 const movementRowSchema = z.object({
@@ -304,7 +326,7 @@ export async function readMovementHistory(
     // Unavailable: the page shows an honest notice, never fabricated rows.
     return null;
   }
-  const movements = z.array(movementRowSchema).parse(result.data ?? []);
+  const movements = parseRows(result.data ?? [], movementRowSchema).rows;
   const variantIds = [...new Set(movements.map((m) => m.variant_id))];
   const labels = new Map<string, string>();
   if (variantIds.length > 0) {
@@ -319,7 +341,7 @@ export async function readMovementHistory(
         color: z.string(),
         products: toOne(z.object({ name: z.string() })),
       });
-      for (const row of z.array(schema).parse(variants.data ?? [])) {
+      for (const row of parseRows(variants.data ?? [], schema).rows) {
         labels.set(
           row.id,
           `${row.products?.name ?? "Unknown product"} — ${row.size} / ${row.color}`,

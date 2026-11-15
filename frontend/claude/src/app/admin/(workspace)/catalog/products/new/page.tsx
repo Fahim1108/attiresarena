@@ -5,9 +5,9 @@ import {
 import { areaRoles } from "@/lib/admin/constants";
 import {
   createCatalogProduct,
-  readCategoryOptions,
+  readCategoryOptionsWithStatus,
 } from "@/lib/admin/catalog-products";
-import { PageHeading } from "@/components/admin/ui";
+import { Notice, PageHeading } from "@/components/admin/ui";
 import { ProductForm } from "@/components/admin/catalog/product-form";
 import { StagedImageUploader } from "@/components/admin/catalog/staged-image-uploader";
 
@@ -15,7 +15,8 @@ export const metadata = { title: "Add product" };
 
 export default async function NewCatalogProductPage() {
   const session = await requireStaff(areaRoles("catalogue"));
-  const categories = await readCategoryOptions();
+  const categoryRead = await readCategoryOptionsWithStatus();
+  const categories = categoryRead.options;
 
   return (
     <main id="main" tabIndex={-1} className="aa-main">
@@ -24,6 +25,22 @@ export default async function NewCatalogProductPage() {
         title="Add product"
         description="Create a product with pricing, variants, badges and SEO. Photos can be staged below and are attached when you save."
       />
+      {categoryRead.unavailable ? (
+        <Notice kind="warning">
+          Category options could not be read. You can still create the
+          product and assign its categories afterwards from the edit
+          page.
+        </Notice>
+      ) : null}
+      {!categoryRead.unavailable && categoryRead.skipped > 0 ? (
+        <Notice kind="warning">
+          {categoryRead.skipped} categor
+          {categoryRead.skipped === 1 ? "y option" : "y options"} could not
+          be read, so the category list below may be incomplete. You can
+          still create the product and check its categories afterwards
+          from the edit page.
+        </Notice>
+      ) : null}
       <ProductForm
         mode="create"
         action={createCatalogProduct}
