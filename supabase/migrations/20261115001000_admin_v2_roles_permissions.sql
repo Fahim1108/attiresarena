@@ -78,11 +78,16 @@ grant select on public.user_permissions to authenticated;
 create policy user_permissions_staff_read on public.user_permissions for select to authenticated
   using ((select private.has_permission('users.manage')));
 
--- Extend has_permission additively: same anonymous guard and role check as
--- before, OR a per-user grant. Signature, volatility and grants unchanged.
+-- Extend has_permission additively: same MFA (AAL2) guard, anonymous guard
+-- and role check as before, OR a per-user grant. Signature, volatility and
+-- grants unchanged. The AAL2 conjunct is REQUIRED: migration
+-- 20261030000200 made every staff-only read MFA-gated at the database
+-- boundary, and dropping it would reopen staff reads to password-only
+-- (AAL1) sessions via direct PostgREST calls.
 create or replace function private.has_permission(required_permission text) returns boolean
 language sql stable security definer set search_path = '' as $$
- select not coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false) and (
+ select coalesce(auth.jwt()->>'aal','')='aal2'
+  and not coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false) and (
    exists (
      select 1 from public.user_roles ur
      join public.role_permissions rp on rp.role = ur.role
