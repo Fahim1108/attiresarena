@@ -460,7 +460,12 @@ revoke all on function public.admin_update_product(uuid, timestamptz, jsonb) fro
 grant execute on function public.admin_update_product(uuid, timestamptz, jsonb) to authenticated;
 
 -- --------------------------------------------------------- status-only RPC
-create function public.admin_set_product_status(target_id uuid, expected_updated_at timestamptz, new_status text)
+-- CREATE OR REPLACE (not plain CREATE): staging already has an
+-- admin_set_product_status with this signature from the unrecorded
+-- 20261104000100 migration, which exists in no repo file. The old
+-- function is orphaned (the only app caller is the new admin lib, which
+-- expects the semantics below), so replacing it is safe.
+create or replace function public.admin_set_product_status(target_id uuid, expected_updated_at timestamptz, new_status text)
 returns timestamptz language plpgsql security definer set search_path = '' as $$
 declare previous public.products; saved timestamptz;
 begin
