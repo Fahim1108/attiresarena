@@ -1,0 +1,23 @@
+/* Grouped bar chart (analytics best sellers). Bars grow from the
+   baseline with a transform scale (never an animated height); the
+   stagger delay comes from an inline style per bar. */
+
+.grow {
+  transform-origin: bottom;
+  animation: aa-bar-grow 350ms ease-out both;
+}
+
+@keyframes aa-bar-grow {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grow {
+    animation: none;
+  }
+}

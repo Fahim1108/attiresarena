@@ -386,29 +386,69 @@ export type CategoryNode<T extends CategoryFlat = CategoryFlat> = T & {
 /**
  * Build a depth-annotated tree from a flat, sort-ordered category list.
  * Generic so callers keep extra fields (e.g. signed image URLs) on nodes.
+ *
+ * Cycle- and orphan-safe: a category whose parent is missing, is itself,
+ * or sits in (or below) a parent cycle becomes a root, so every category
+ * renders exactly once and the children graph can never contain a cycle
+ * (a cyclic children graph would recurse forever in the list render).
+ * Depth is derived from the effective parent chain, independent of the
+ * input order. Duplicate ids keep the first row only.
  */
 export function buildCategoryTree<T extends CategoryFlat>(
   flat: readonly T[],
 ): CategoryNode<T>[] {
   const byId = new Map<string, CategoryNode<T>>();
+  const ordered: CategoryNode<T>[] = [];
   for (const c of flat) {
-    byId.set(c.id, { ...c, children: [], depth: 1 });
+    if (byId.has(c.id)) continue;
+    const node: CategoryNode<T> = { ...c, children: [], depth: 1 };
+    byId.set(c.id, node);
+    ordered.push(node);
+  }
+  // Effective parent per node: null for roots, dangling parents,
+  // self-parents, and any node whose raw parent chain revisits a node
+  // (in a cycle, or below one — attaching it could re-enter the cycle).
+  const effectiveParent = new Map<string, string | null>();
+  for (const node of ordered) {
+    const parentId = node.parent_id;
+    if (parentId === null || parentId === node.id || !byId.has(parentId)) {
+      effectiveParent.set(node.id, null);
+      continue;
+    }
+    const seen = new Set<string>([node.id]);
+    let current: string | null = parentId;
+    let cyclic = false;
+    while (current !== null) {
+      if (seen.has(current)) {
+        cyclic = true;
+        break;
+      }
+      seen.add(current);
+      current = byId.get(current)?.parent_id ?? null;
+    }
+    effectiveParent.set(node.id, cyclic ? null : parentId);
   }
   const roots: CategoryNode<T>[] = [];
-  for (const c of flat) {
-    const node = byId.get(c.id);
-    if (!node) continue;
-    if (c.parent_id === null) {
+  for (const node of ordered) {
+    const parentId = effectiveParent.get(node.id) ?? null;
+    if (parentId === null) {
       roots.push(node);
       continue;
     }
-    const parent = byId.get(c.parent_id);
-    if (!parent || parent === node) {
-      roots.push(node);
-      continue;
+    byId.get(parentId)?.children.push(node);
+  }
+  // Depth from the effective chain (acyclic by construction; the visited
+  // guard keeps this total even if the input is pathological).
+  for (const node of ordered) {
+    let depth = 1;
+    const seen = new Set<string>([node.id]);
+    let current = effectiveParent.get(node.id) ?? null;
+    while (current !== null && !seen.has(current)) {
+      seen.add(current);
+      depth += 1;
+      current = effectiveParent.get(current) ?? null;
     }
-    node.depth = parent.depth + 1;
-    parent.children.push(node);
+    node.depth = depth;
   }
   return roots;
 }

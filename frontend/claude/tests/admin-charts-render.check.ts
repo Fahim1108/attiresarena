@@ -26,7 +26,9 @@ describe("dashboard chart rendering", () => {
       }),
     );
     expect(pie).toContain("No orders in this period.");
-    expect(pie).not.toContain("<svg");
+    // No chart is drawn: the empty state carries a decorative glyph,
+    // so assert on the chart's role instead of the absence of <svg>.
+    expect(pie).not.toContain('role="img"');
     const series = renderToStaticMarkup(
       createElement(SeriesChart, {
         points: [{ label: "1 Nov", value: 0 }],
@@ -93,6 +95,41 @@ describe("dashboard chart rendering", () => {
     );
     expect(series).toContain("<svg");
     expect(series).toContain("X200");
+    expect(series).toContain("View chart data as a table");
+  });
+});
+
+describe("series chart readout", () => {
+  it("renders a smooth wave with a gradient fill and focusable points", () => {
+    const series = renderToStaticMarkup(
+      createElement(SeriesChart, {
+        points: [
+          { label: "1 Nov", value: 100 },
+          { label: "2 Nov", value: 200 },
+          { label: "3 Nov", value: 150 },
+        ],
+        formatValue: (v: number) => `X${v}`,
+        ariaLabel: "Revenue",
+      }),
+    );
+    expect(series).toContain("linearGradient");
+    expect(series).toContain(" C");
+    expect(series).toContain('tabindex="0"');
+    expect(series).toContain("2 Nov: X200");
+  });
+  it("keeps long series out of the tab order (data table stays the path)", () => {
+    const points = Array.from({ length: 40 }, (_, index) => ({
+      label: `Day ${index + 1}`,
+      value: 10 + index,
+    }));
+    const series = renderToStaticMarkup(
+      createElement(SeriesChart, {
+        points,
+        formatValue: (v: number) => String(v),
+        ariaLabel: "Revenue",
+      }),
+    );
+    expect(series).not.toContain('tabindex="0"');
     expect(series).toContain("View chart data as a table");
   });
 });

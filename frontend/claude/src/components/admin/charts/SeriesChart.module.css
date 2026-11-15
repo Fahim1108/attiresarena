@@ -1,0 +1,74 @@
+/* Wave/area chart (dashboard revenue, analytics daily sales). Theme
+   tokens come from globals.css (--aa-* RGB triplets): primary #6B0202,
+   text #171717, muted #74706C, border #EAEAEA. The entrance animation
+   runs on the wrapper div (transform/opacity only); point readouts
+   appear on hover and keyboard focus. */
+
+/* Single orchestrated entrance: the chart fades up once. The data
+   table below it is part of the same block, so it fades with it. */
+.enter {
+  animation: aa-series-enter 320ms ease-out both;
+}
+
+@keyframes aa-series-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Axis labels: 12 units on desktop. On phones the 640-unit viewBox
+   scales down hard, so the labels get 16 units there — the selector
+   below outranks the generic .aa-chart rule in admin-panel.css, and
+   the chart's visible SVG overflow keeps long values out of the
+   panel padding instead of clipping them. */
+.axis {
+  font-size: 12px;
+}
+
+@media (max-width: 40rem) {
+  .enter svg .axis {
+    font-size: 16px;
+  }
+}
+
+/* Focusable point groups: the dot itself carries the focus treatment
+   (a maroon ring) because SVG groups take no outline. The readout is
+   hidden until hover or focus, and carries a white halo so it stays
+   readable over gridlines and the area fill. */
+.point {
+  outline: none;
+}
+
+.point:focus-visible .dot {
+  stroke: #6B0202;
+  stroke-width: 3;
+}
+
+.readout {
+  opacity: 0;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 3.5px;
+  stroke-linejoin: round;
+  transition: opacity 150ms ease-out;
+}
+
+.point:hover .readout,
+.point:focus-visible .readout {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enter {
+    animation: none;
+  }
+  .readout {
+    transition: none;
+  }
+}

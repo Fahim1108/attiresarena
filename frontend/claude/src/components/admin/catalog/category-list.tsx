@@ -28,8 +28,13 @@ export function flattenCategoryOptions(
   exclude: ReadonlySet<string>,
 ): CategoryParentOption[] {
   const options: CategoryParentOption[] = [];
+  // The builder guarantees an acyclic tree; the visited guard keeps this
+  // walk total even if a cyclic tree ever arrives (no infinite recursion).
+  const visited = new Set<string>();
   const walk = (list: readonly CategoryTreeNode[]) => {
     for (const node of list) {
+      if (visited.has(node.id)) continue;
+      visited.add(node.id);
       if (!exclude.has(node.id)) {
         options.push({
           id: node.id,

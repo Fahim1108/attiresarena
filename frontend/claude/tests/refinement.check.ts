@@ -27,7 +27,7 @@ describe('non-payment storefront refinements',()=>{
  });
  it('marks only the supplied current stage and does not infer missing timestamps',()=>{
   const html=renderToStaticMarkup(createElement(OrderTimeline,{status:'shipped',events:[{status:'pending',label:'Order Placed',at:'2026-10-20T09:00:00Z'},{status:'shipped',label:'Shipped',at:'2026-10-22T09:00:00Z'}]}));
-  expect(html.match(/aria-current="step"/g)).toHaveLength(1);expect(html).toContain('Current stage');expect(html).toContain('Processing');
+  expect(html.match(/aria-current="step"/g)).toHaveLength(1);expect(html).toContain('Current stage');expect(html).toContain('Packed');expect(html).not.toContain('Processing');
  });
  it('stops current-stage animation for terminal orders',()=>{
   for(const status of ['delivered','cancelled','returned'] as const){const html=renderToStaticMarkup(createElement(OrderTimeline,{status,events:[]}));expect(html).toContain('Final status');expect(html).not.toContain('Current stage');}

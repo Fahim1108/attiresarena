@@ -74,16 +74,45 @@ async function signedUrl(
   path: string | null,
 ): Promise<string | null> {
   if (!path) return null;
-  const signed = await client.storage
-    .from(PRODUCT_MEDIA_BUCKET)
-    .createSignedUrl(path, 120);
-  return signed.error ? null : signed.data.signedUrl;
+  // A signing failure must degrade to "no image", never throw: this runs
+  // inside the categories page load, where a throw hits the error boundary.
+  try {
+    const signed = await client.storage
+      .from(PRODUCT_MEDIA_BUCKET)
+      .createSignedUrl(path, 120);
+    return signed.error ? null : signed.data.signedUrl;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Validate rows one by one: a single malformed row must never crash the
+ * page (the previous whole-array .parse() threw on ANY bad row, which
+ * the error boundary then swallowed as "Administration unavailable").
+ * Malformed rows are skipped and counted so the page can say so honestly.
+ */
+function parseCategoryRows<T>(
+  data: unknown,
+  schema: z.ZodType<T>,
+): { rows: T[]; malformedRows: number } {
+  const raw = Array.isArray(data) ? data : [];
+  const rows: T[] = [];
+  let malformedRows = 0;
+  for (const row of raw) {
+    const parsed = schema.safeParse(row);
+    if (parsed.success) rows.push(parsed.data);
+    else malformedRows += 1;
+  }
+  return { rows, malformedRows };
 }
 
 /** All categories, sort-ordered, with signed image/banner URLs. Null when unavailable. */
 export async function listCategories(): Promise<{
   categories: CategoryWithUrls[];
   canManage: boolean;
+  /** Rows skipped because they failed validation (never crashes the page). */
+  malformedRows: number;
 } | null> {
   const session = await requireStaff(areaRoles("catalogue"));
   const result = await session.client
@@ -97,6 +126,7 @@ export async function listCategories(): Promise<{
     .order("id", { ascending: true })
     .limit(500);
   let rows: CategoryFlat[];
+  let malformedRows = 0;
   if (result.error) {
     // Pre-migration fallback: base columns only, new fields defaulted.
     const fallback = await session.client
@@ -109,29 +139,29 @@ export async function listCategories(): Promise<{
       // Unavailable (not empty): the page renders labelled sample data.
       return null;
     }
-    rows = z
-      .array(
-        z.object({
-          id: z.uuid(),
-          parent_id: z.uuid().nullable(),
-          name: z.string(),
-          slug: z.string(),
-          published: z.boolean(),
-          updated_at: z.iso.datetime({ offset: true }),
-        }),
-      )
-      .parse(fallback.data ?? [])
-      .map((row) => ({
-        ...row,
-        description: "",
-        image_storage_path: null,
-        banner_storage_path: null,
-        seo_title: null,
-        seo_description: null,
-        sort_position: 0,
-      }));
+    const fallbackSchema = z.object({
+      id: z.uuid(),
+      parent_id: z.uuid().nullable(),
+      name: z.string(),
+      slug: z.string(),
+      published: z.boolean(),
+      updated_at: z.iso.datetime({ offset: true }),
+    });
+    const parsed = parseCategoryRows(fallback.data ?? [], fallbackSchema);
+    malformedRows = parsed.malformedRows;
+    rows = parsed.rows.map((row) => ({
+      ...row,
+      description: "",
+      image_storage_path: null,
+      banner_storage_path: null,
+      seo_title: null,
+      seo_description: null,
+      sort_position: 0,
+    }));
   } else {
-    rows = z.array(categoryRowSchema).parse(result.data ?? []);
+    const parsed = parseCategoryRows(result.data ?? [], categoryRowSchema);
+    rows = parsed.rows;
+    malformedRows = parsed.malformedRows;
   }
   const categories = await Promise.all(
     rows.map(async (row) => ({
@@ -145,6 +175,7 @@ export async function listCategories(): Promise<{
     canManage: session.roles.some(
       (r) => r === "owner" || r === "product_manager",
     ),
+    malformedRows,
   };
 }
 

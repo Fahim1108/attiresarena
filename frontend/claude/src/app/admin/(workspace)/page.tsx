@@ -54,8 +54,13 @@ import {
   hrefWithParams,
 } from "@/components/admin/ui";
 import { HorizontalBarList } from "@/components/admin/charts/HorizontalBarList";
+import {
+  CountUpValue,
+  type CountUpFormat,
+} from "@/components/admin/charts/CountUpValue";
 import { PieChart, PIE_PALETTE } from "@/components/admin/charts/PieChart";
 import { SeriesChart } from "@/components/admin/charts/SeriesChart";
+import { PeriodToggle } from "@/components/admin/PeriodToggle";
 import styles from "./dashboard.module.css";
 
 /**
@@ -93,23 +98,43 @@ function DeltaLine({
   delta: number | null;
   caption: string;
 }) {
-  if (delta === null || !Number.isFinite(delta)) {
-    return <span className="aa-kpi-delta">— {caption}</span>;
-  }
-  const arrow = delta > 0 ? "▲" : delta < 0 ? "▼" : "•";
   // The arrow glyph alone does not announce direction; name it for
   // screen readers. No up/down colour is applied: a rise is not always
-  // good news (e.g. cancelled orders), so colour must not imply it.
+  // good news (e.g. cancelled orders), so colour must not imply it —
+  // direction is carried by the arrow, the named direction, and the
+  // pill, in neutral ink for up, down and unchanged alike.
+  if (delta === null || !Number.isFinite(delta)) {
+    return (
+      <span className="aa-kpi-delta">
+        <span className={styles.deltaPill} aria-hidden="true">
+          —
+        </span>{" "}
+        {caption}
+      </span>
+    );
+  }
+  const arrow = delta > 0 ? "▲" : delta < 0 ? "▼" : "•";
   const direction =
     delta > 0 ? "Increased " : delta < 0 ? "Decreased " : "Unchanged ";
   return (
     <span className="aa-kpi-delta">
       <span className="aa-sr-only">{direction}</span>
-      <span aria-hidden="true">{arrow} </span>
-      {Math.abs(delta).toFixed(1)}% {caption}
+      <span className={styles.deltaPill} aria-hidden="true">
+        {arrow} {Math.abs(delta).toFixed(1)}%
+      </span>{" "}
+      {caption}
     </span>
   );
 }
+
+/**
+ * KPI value variants: most cards count up to a real number; a card
+ * whose section failed to load shows static text (an em dash) instead
+ * of animating a zero it does not mean.
+ */
+type KpiValue =
+  | { kind: "count-up"; value: number; format: CountUpFormat }
+  | { kind: "text"; text: string };
 
 function KpiCard({
   href,
@@ -122,7 +147,7 @@ function KpiCard({
   href: string;
   Icon: typeof Hourglass;
   label: string;
-  value: string;
+  value: KpiValue;
   delta: number | null;
   deltaCaption: string;
 }) {
@@ -130,9 +155,17 @@ function KpiCard({
     <Link className="aa-panel aa-kpi" href={href}>
       <div className="aa-section-heading">
         <span>{label}</span>
-        <Icon size={18} strokeWidth={1.5} aria-hidden="true" />
+        <span className="aa-kpi-icon">
+          <Icon size={18} strokeWidth={1.5} aria-hidden="true" />
+        </span>
       </div>
-      <strong>{value}</strong>
+      <strong>
+        {value.kind === "count-up" ? (
+          <CountUpValue value={value.value} format={value.format} />
+        ) : (
+          value.text
+        )}
+      </strong>
       <DeltaLine delta={delta} caption={deltaCaption} />
     </Link>
   );
@@ -254,19 +287,6 @@ export default async function AdminDashboard({
           <label htmlFor="dashboard-to">To</label>
           <input id="dashboard-to" type="date" name="to" defaultValue={range.to} required />
         </div>
-        <div className="aa-field">
-          <label htmlFor="dashboard-granularity">Revenue chart</label>
-          <select
-            id="dashboard-granularity"
-            name="granularity"
-            defaultValue={requested.success ? requested.data : ""}
-          >
-            <option value="">Automatic</option>
-            <option value="day">Daily</option>
-            <option value="week">Weekly</option>
-            <option value="month">Monthly</option>
-          </select>
-        </div>
         <button className="aa-button" type="submit">
           Apply
         </button>
@@ -291,6 +311,38 @@ export default async function AdminDashboard({
         </span>
       </form>
 
+      <div className={styles.toggleRow}>
+        <PeriodToggle
+          options={[
+            {
+              value: "auto",
+              label: "Automatic",
+              href: hrefWithParams("/admin", params, {
+                granularity: undefined,
+              }),
+            },
+            {
+              value: "day",
+              label: "Daily",
+              href: hrefWithParams("/admin", params, { granularity: "day" }),
+            },
+            {
+              value: "week",
+              label: "Weekly",
+              href: hrefWithParams("/admin", params, { granularity: "week" }),
+            },
+            {
+              value: "month",
+              label: "Monthly",
+              href: hrefWithParams("/admin", params, { granularity: "month" }),
+            },
+          ]}
+          activeValue={requested.success ? requested.data : undefined}
+          defaultValue="auto"
+          ariaLabel="Revenue chart granularity"
+        />
+      </div>
+
       {warnings.map((warning) => (
         <Notice key={warning} kind="warning">
           {warning}
@@ -302,7 +354,7 @@ export default async function AdminDashboard({
           href="/admin/catalog/products"
           Icon={Boxes}
           label="Total Products"
-          value={formatCount(data.totalProducts)}
+          value={{ kind: "count-up", value: data.totalProducts, format: "count" }}
           delta={periodDelta(data.productsCreatedCurrent, data.productsCreatedPrevious)}
           deltaCaption="new products vs previous period"
         />
@@ -310,7 +362,7 @@ export default async function AdminDashboard({
           href="/admin/sales/orders"
           Icon={Receipt}
           label="Total Orders"
-          value={formatCount(data.orderCount)}
+          value={{ kind: "count-up", value: data.orderCount, format: "count" }}
           delta={periodDelta(data.orderCount, data.orderCountPrevious)}
           deltaCaption="vs previous period"
         />
@@ -318,7 +370,7 @@ export default async function AdminDashboard({
           href="/admin/sales/orders"
           Icon={Banknote}
           label="Total Revenue"
-          value={formatMoney(data.revenueMinor)}
+          value={{ kind: "count-up", value: data.revenueMinor, format: "money" }}
           delta={periodDelta(data.revenueMinor, data.revenueMinorPrevious)}
           deltaCaption="vs previous period"
         />
@@ -326,7 +378,7 @@ export default async function AdminDashboard({
           href="/admin/sales/customers"
           Icon={Users}
           label="Total Customers"
-          value={formatCount(data.customerCount)}
+          value={{ kind: "count-up", value: data.customerCount, format: "count" }}
           delta={periodDelta(data.customerCount, data.customerCountPrevious)}
           deltaCaption="vs previous period"
         />
@@ -339,7 +391,11 @@ export default async function AdminDashboard({
             href={`/admin/sales/orders?status=${status}`}
             Icon={STATUS_ICONS[status]}
             label={ORDER_STATUS_LABELS[status]}
-            value={formatCount(data.statusCounts[status])}
+            value={{
+              kind: "count-up",
+              value: data.statusCounts[status],
+              format: "count",
+            }}
             delta={periodDelta(
               data.statusCounts[status],
               data.statusCountsPrevious[status],
@@ -351,7 +407,11 @@ export default async function AdminDashboard({
           href="/admin/sales/incomplete"
           Icon={FolderClock}
           label="Incomplete Orders"
-          value={failed("Incomplete orders") ? "—" : formatCount(data.incompleteCount)}
+          value={
+            failed("Incomplete orders")
+              ? { kind: "text", text: "—" }
+              : { kind: "count-up", value: data.incompleteCount, format: "count" }
+          }
           delta={null}
           deltaCaption="current total · abandoned checkouts with items"
         />
@@ -368,6 +428,7 @@ export default async function AdminDashboard({
             formatValue={formatMoneyShort}
             ariaLabel={`Revenue by ${granularity === "day" ? "day" : granularity === "week" ? "week" : "month"}`}
             emptyMessage="No revenue in this period."
+            emptyGuidance="Revenue appears here once orders are placed in the selected period."
           />
           <dl className={styles.summary}>
             <div>
@@ -408,6 +469,7 @@ export default async function AdminDashboard({
             formatValue={formatCount}
             ariaLabel="Orders by status in the selected period"
             emptyMessage="No orders in this period."
+            emptyGuidance="Orders placed in the selected period appear here by status."
           />
           {topStatus ? (
             <dl className={styles.summary}>
@@ -448,6 +510,7 @@ export default async function AdminDashboard({
               formatUnits={formatCount}
               formatRevenue={formatMoney}
               emptyMessage="No sales in this period."
+              emptyGuidance="Best sellers appear here once orders are placed."
             />
           )}
         </Panel>
@@ -475,6 +538,7 @@ export default async function AdminDashboard({
               formatUnits={formatCount}
               formatRevenue={formatMoney}
               emptyMessage="No sales in this period."
+              emptyGuidance="Least-selling products appear here once orders are placed."
             />
           )}
         </Panel>

@@ -73,13 +73,30 @@ export function effectivePermissions(
  */
 export async function getStaffMembers(): Promise<StaffList | null> {
   const session = await requireStaff(areaRoles("users"));
-  const [rolesResult, profilesResult, grantsResult, userGrantsResult] =
-    await Promise.all([
-      session.client.from("user_roles").select("user_id, role"),
-      session.client.from("profiles").select("id, display_name"),
-      session.client.from("role_permissions").select("role, permission"),
-      session.client.from("user_permissions").select("user_id, permission"),
-    ]);
+  // allSettled: a rejected query degrades exactly like an errored one
+  // (roles read failing means unavailable; the others fall back to
+  // defaults/empty), so a transient failure never crashes the page.
+  // NOTE: the live "role-permission data could not be loaded" state is
+  // NOT a code bug — no migration ever granted SELECT on
+  // role_permissions, so that read always fails (see migration
+  // 20261115001500, unapplied). Until it applies, the defaults fallback
+  // below is the honest behaviour.
+  const settled = await Promise.allSettled([
+    session.client.from("user_roles").select("user_id, role"),
+    session.client.from("profiles").select("id, display_name"),
+    session.client.from("role_permissions").select("role, permission"),
+    session.client.from("user_permissions").select("user_id, permission"),
+  ]);
+  const asResult = <T,>(
+    entry: PromiseSettledResult<T>,
+  ): T | { data: null; error: { message: string } } =>
+    entry.status === "fulfilled"
+      ? entry.value
+      : { data: null, error: { message: "Query failed." } };
+  const rolesResult = asResult(settled[0]);
+  const profilesResult = asResult(settled[1]);
+  const grantsResult = asResult(settled[2]);
+  const userGrantsResult = asResult(settled[3]);
   if (rolesResult.error) return null;
   const names = new Map<string, string>();
   if (!profilesResult.error) {
@@ -171,26 +188,50 @@ export interface RoleMatrix {
  */
 export async function getRolePermissionMatrix(): Promise<RoleMatrix> {
   const session = await requireStaff(areaRoles("users"));
-  const result = await session.client
-    .from("role_permissions")
-    .select("role, permission");
+  const defaults = (): RoleMatrix => {
+    const grants: Record<MatrixRole, PermissionName[]> = {
+      moderator: [],
+      editor: [],
+      admin: [],
+    };
+    for (const role of MATRIX_ROLES) {
+      grants[role] = [...ROLE_PERMISSION_DEFAULTS[role]];
+    }
+    return { grants, fromDefaults: true };
+  };
+  let result: { data: unknown; error: unknown };
+  try {
+    result = await session.client
+      .from("role_permissions")
+      .select("role, permission");
+  } catch {
+    // A rejected read degrades to defaults, like an errored one.
+    return defaults();
+  }
   const grants: Record<MatrixRole, PermissionName[]> = {
     moderator: [],
     editor: [],
     admin: [],
   };
   if (result.error) {
-    for (const role of MATRIX_ROLES) {
-      grants[role] = [...ROLE_PERMISSION_DEFAULTS[role]];
-    }
-    return { grants, fromDefaults: true };
+    return defaults();
   }
   const collected = new Map<MatrixRole, PermissionName[]>();
-  for (const row of result.data ?? []) {
-    if (!isMatrixRole(row.role) || !isPermissionName(row.permission)) continue;
-    const existing = collected.get(row.role) ?? [];
-    if (!existing.includes(row.permission)) existing.push(row.permission);
-    collected.set(row.role, existing);
+  const rows = Array.isArray(result.data) ? result.data : [];
+  for (const row of rows) {
+    if (
+      !row ||
+      typeof row !== "object" ||
+      !isMatrixRole((row as { role: unknown }).role) ||
+      !isPermissionName((row as { permission: unknown }).permission)
+    ) {
+      continue;
+    }
+    const role = (row as { role: MatrixRole }).role;
+    const permission = (row as { permission: PermissionName }).permission;
+    const existing = collected.get(role) ?? [];
+    if (!existing.includes(permission)) existing.push(permission);
+    collected.set(role, existing);
   }
   for (const role of MATRIX_ROLES) {
     grants[role] = ALL_PERMISSIONS.filter((permission) =>

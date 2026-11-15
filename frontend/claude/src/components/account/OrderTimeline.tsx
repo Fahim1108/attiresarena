@@ -6,7 +6,7 @@ import styles from './OrderTimeline.module.css';
 
 const stages: {status: OrderStatus; label: string}[] = [
   {status:'pending',label:'Order Placed'}, {status:'confirmed',label:'Order Confirmed'},
-  {status:'packed',label:'Processing'}, {status:'shipped',label:'Shipped'},
+  {status:'packed',label:'Packed'}, {status:'shipped',label:'Shipped'},
   {status:'out-for-delivery',label:'Out for Delivery'}, {status:'delivered',label:'Delivered'},
 ];
 

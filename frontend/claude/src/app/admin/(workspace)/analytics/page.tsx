@@ -1,9 +1,16 @@
-import Link from "next/link";
+import { Banknote, CircleDollarSign, Receipt, TrendingUp } from "lucide-react";
 import { PageHeading, Panel, Notice, EmptyState } from "@/components/admin/ui";
 import { CsvDownloadButton } from "@/components/admin/analytics/csv-download";
 import { BarChart } from "@/components/admin/charts/BarChart";
-import { DonutChart } from "@/components/admin/charts/DonutChart";
+import { CountUpValue } from "@/components/admin/charts/CountUpValue";
+import { DonutChart, DONUT_PALETTE } from "@/components/admin/charts/DonutChart";
 import { SeriesChart } from "@/components/admin/charts/SeriesChart";
+import { PeriodToggle } from "@/components/admin/PeriodToggle";
+import {
+  ORDER_STATUSES,
+  ORDER_STATUS_LABELS,
+  isOrderStatus,
+} from "@/lib/admin/constants";
 import {
   exportDailySalesCsv,
   getAnalyticsReport,
@@ -49,6 +56,35 @@ export default async function AnalyticsPage({
   const report = await getAnalyticsReport(params);
   const { range } = report;
 
+  // Presentation shaping only (the loader is untouched): order the
+  // status distribution by the fixed ORDER_STATUSES order, label it
+  // with the shared labels, colour it from the shared palette, and
+  // link each known status to its filtered order list. Unknown
+  // statuses (none are expected) keep their raw label and a neutral
+  // grey, so no data is ever dropped or renamed.
+  const statusOrder = new Map<string, number>(
+    ORDER_STATUSES.map((status, index) => [status, index]),
+  );
+  const donutSegments = [...report.statusDistribution]
+    .sort(
+      (a, b) =>
+        (statusOrder.get(a.label) ?? ORDER_STATUSES.length) -
+        (statusOrder.get(b.label) ?? ORDER_STATUSES.length),
+    )
+    .map((row) => {
+      const status = isOrderStatus(row.label) ? row.label : null;
+      const index = status === null ? -1 : (statusOrder.get(status) ?? -1);
+      return {
+        label: status === null ? row.label : ORDER_STATUS_LABELS[status],
+        value: row.value,
+        href:
+          status === null
+            ? undefined
+            : `/admin/sales/orders?status=${status}`,
+        color: index >= 0 ? (DONUT_PALETTE[index] ?? "#9A9494") : "#9A9494",
+      };
+    });
+
   return (
     <main id="main" tabIndex={-1} className="aa-main">
       <PageHeading
@@ -59,21 +95,16 @@ export default async function AnalyticsPage({
           <CsvDownloadButton action={exportDailySalesCsv} from={range.from} to={range.to} />
         }
       />
-      <div className="aa-toolbar" role="group" aria-label="Date presets">
-        {presets().map((preset) => (
-          <Link
-            key={preset.label}
-            className="aa-row-action"
-            href={`/admin/analytics?from=${preset.from}&to=${preset.to}`}
-            aria-current={
-              preset.from === range.from && preset.to === range.to
-                ? "true"
-                : undefined
-            }
-          >
-            {preset.label}
-          </Link>
-        ))}
+      <div className="aa-toolbar">
+        <PeriodToggle
+          options={presets().map((preset) => ({
+            value: `${preset.from}|${preset.to}`,
+            label: preset.label,
+            href: `/admin/analytics?from=${preset.from}&to=${preset.to}`,
+          }))}
+          activeValue={`${range.from}|${range.to}`}
+          ariaLabel="Date presets"
+        />
       </div>
       <form method="get" action="/admin/analytics" className="aa-toolbar">
         <div className="aa-field">
@@ -98,23 +129,51 @@ export default async function AnalyticsPage({
 
       <div className="aa-kpi-grid">
         <article className="aa-panel aa-kpi">
-          <span>Gross sales</span>
-          <strong>{formatMoney(report.grossSalesMinor)}</strong>
+          <div className="aa-section-heading">
+            <span>Gross sales</span>
+            <span className="aa-kpi-icon">
+              <Banknote size={18} strokeWidth={1.5} aria-hidden="true" />
+            </span>
+          </div>
+          <strong>
+            <CountUpValue value={report.grossSalesMinor} format="money" />
+          </strong>
           <span className="aa-kpi-delta">Order totals, excl. cancelled/returned</span>
         </article>
         <article className="aa-panel aa-kpi">
-          <span>Net revenue</span>
-          <strong>{formatMoney(report.netRevenueMinor)}</strong>
+          <div className="aa-section-heading">
+            <span>Net revenue</span>
+            <span className="aa-kpi-icon">
+              <TrendingUp size={18} strokeWidth={1.5} aria-hidden="true" />
+            </span>
+          </div>
+          <strong>
+            <CountUpValue value={report.netRevenueMinor} format="money" />
+          </strong>
           <span className="aa-kpi-delta">Subtotal minus discounts, excl. delivery</span>
         </article>
         <article className="aa-panel aa-kpi">
-          <span>Total orders</span>
-          <strong>{formatCount(report.totalOrders)}</strong>
+          <div className="aa-section-heading">
+            <span>Total orders</span>
+            <span className="aa-kpi-icon">
+              <Receipt size={18} strokeWidth={1.5} aria-hidden="true" />
+            </span>
+          </div>
+          <strong>
+            <CountUpValue value={report.totalOrders} format="count" />
+          </strong>
           <span className="aa-kpi-delta">Excl. cancelled/returned</span>
         </article>
         <article className="aa-panel aa-kpi">
-          <span>Average order value</span>
-          <strong>{formatMoney(report.averageOrderMinor)}</strong>
+          <div className="aa-section-heading">
+            <span>Average order value</span>
+            <span className="aa-kpi-icon">
+              <CircleDollarSign size={18} strokeWidth={1.5} aria-hidden="true" />
+            </span>
+          </div>
+          <strong>
+            <CountUpValue value={report.averageOrderMinor} format="money" />
+          </strong>
           <span className="aa-kpi-delta">Gross sales ÷ orders</span>
         </article>
       </div>
@@ -154,6 +213,8 @@ export default async function AnalyticsPage({
           points={report.dailySeries}
           formatValue={formatMoney}
           ariaLabel="Daily gross sales"
+          emptyMessage="No gross sales in this range."
+          emptyGuidance="Daily sales appear here once orders are placed in the selected range."
         />
       </Panel>
 
@@ -165,10 +226,12 @@ export default async function AnalyticsPage({
           />
         ) : (
           <DonutChart
-            segments={report.statusDistribution}
+            segments={donutSegments}
             centerLabel="Orders"
             formatValue={formatCount}
             ariaLabel="Orders by status"
+            emptyMessage="No orders in this range."
+            emptyGuidance="Orders placed in the selected range will appear here."
           />
         )}
       </Panel>
@@ -188,6 +251,8 @@ export default async function AnalyticsPage({
               }))}
               formatValue={formatMoney}
               ariaLabel="Best sellers by revenue"
+              emptyMessage="No sales in this range."
+              emptyGuidance="Best sellers appear once orders with items exist in the selected range."
             />
             <div className="aa-table-scroll">
               <table className="aa-table">
@@ -286,19 +351,27 @@ export default async function AnalyticsPage({
           <dl className="aa-fact-grid">
             <div>
               <dt>Variants tracked</dt>
-              <dd>{formatCount(report.inventory.totalVariants)}</dd>
+              <dd>
+                <CountUpValue value={report.inventory.totalVariants} format="count" />
+              </dd>
             </div>
             <div>
               <dt>In stock</dt>
-              <dd>{formatCount(report.inventory.inStock)}</dd>
+              <dd>
+                <CountUpValue value={report.inventory.inStock} format="count" />
+              </dd>
             </div>
             <div>
               <dt>Out of stock</dt>
-              <dd>{formatCount(report.inventory.outOfStock)}</dd>
+              <dd>
+                <CountUpValue value={report.inventory.outOfStock} format="count" />
+              </dd>
             </div>
             <div>
               <dt>Low stock</dt>
-              <dd>{formatCount(report.inventory.lowStock)}</dd>
+              <dd>
+                <CountUpValue value={report.inventory.lowStock} format="count" />
+              </dd>
             </div>
           </dl>
         )}
@@ -311,11 +384,15 @@ export default async function AnalyticsPage({
           <dl className="aa-fact-grid">
             <div>
               <dt>New customers (phone first seen in range)</dt>
-              <dd>{formatCount(report.customerTrends.newCustomers)}</dd>
+              <dd>
+                <CountUpValue value={report.customerTrends.newCustomers} format="count" />
+              </dd>
             </div>
             <div>
               <dt>Returning customers (phone ordered before)</dt>
-              <dd>{formatCount(report.customerTrends.returningCustomers)}</dd>
+              <dd>
+                <CountUpValue value={report.customerTrends.returningCustomers} format="count" />
+              </dd>
             </div>
           </dl>
         )}

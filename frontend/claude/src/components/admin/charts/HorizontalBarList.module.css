@@ -1,7 +1,7 @@
 /* Ranked horizontal bars (dashboard product panels). Theme tokens come
    from globals.css (--aa-* RGB triplets): primary #6B0202, text #171717,
-   muted #74706C. Bars use transform/opacity only if animated — they are
-   static, so no motion rules are needed. */
+   muted #74706C. Bars grow with a transform scale (never an animated
+   width); reduced motion shows them at full length immediately. */
 
 .list {
   list-style: none;
@@ -21,6 +21,21 @@
   align-items: center;
   gap: 0.35rem 0.6rem;
   min-width: 0;
+}
+
+.rank {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: rgb(var(--aa-selected));
+  color: rgb(var(--aa-primary));
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .name {
@@ -56,8 +71,12 @@
   overflow-wrap: anywhere;
 }
 
+.values strong {
+  font-weight: 700;
+}
+
 .track {
-  height: 0.65rem;
+  height: 0.75rem;
   margin-top: 0.45rem;
   background: #f1ecec;
   border-radius: 3px;
@@ -68,4 +87,21 @@
   height: 100%;
   background: rgb(var(--aa-primary));
   border-radius: 3px;
+  transform-origin: left;
+  animation: aa-bar-fill-grow 400ms ease-out both;
+}
+
+@keyframes aa-bar-fill-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fill {
+    animation: none;
+  }
 }

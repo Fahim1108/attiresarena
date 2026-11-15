@@ -68,6 +68,23 @@ export default async function CatalogProductsPage({
           for layout testing only. Sample rows cannot be edited, published
           or deleted, and no changes are saved.
         </Notice>
+      ) : result && (result.degraded.length > 0 || result.skippedRows > 0) ? (
+        <Notice kind="warning">
+          {result.degraded.length > 0 ? (
+            <>
+              Some product details could not be loaded (
+              {result.degraded.join(", ")}), so the affected columns show
+              no value. The products below are real and editable.{" "}
+            </>
+          ) : null}
+          {result.skippedRows > 0 ? (
+            <>
+              {result.skippedRows} product{result.skippedRows === 1 ? "" : "s"}{" "}
+              could not be read and {result.skippedRows === 1 ? "is" : "are"}{" "}
+              hidden below.
+            </>
+          ) : null}
+        </Notice>
       ) : saved === "created" ? (
         <Notice kind="success">Product created.</Notice>
       ) : null}

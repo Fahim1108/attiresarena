@@ -1,0 +1,106 @@
+/* Donut chart (analytics): ring + centre total + legend. Theme tokens
+   come from globals.css (--aa-* RGB triplets): primary #6B0202, text
+   #171717, muted #74706C, border #EAEAEA. Arcs stagger in with a
+   scale/fade; reduced motion shows them immediately. */
+
+.chartRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.25rem;
+  align-items: center;
+}
+
+.donut {
+  width: 11rem;
+  height: 11rem;
+  flex: 0 0 auto;
+  max-width: 100%;
+}
+
+/* Arc entrance: transform-box keeps the scale centred on the ring
+   (web interface guideline for SVG transforms). */
+.segment {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: aa-donut-segment-in 300ms ease-out both;
+}
+
+@keyframes aa-donut-segment-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.legend {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex: 1 1 11rem;
+  min-width: 0;
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.legend li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.legendRow,
+.legend a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.35rem;
+  margin-left: -0.35rem;
+  border-radius: 3px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.legend a:hover {
+  background: rgb(var(--aa-selected) / 0.6);
+  text-decoration: underline;
+}
+
+.legend a:focus-visible {
+  outline: 2px solid rgb(var(--aa-primary));
+  outline-offset: 2px;
+}
+
+/* Legend entries are links on touch screens: give them a full 44px row
+   so a segment can be tapped without hitting its neighbour. */
+@media (pointer: coarse) {
+  .legend a {
+    min-height: 44px;
+  }
+}
+
+.swatch {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+@media (max-width: 40rem) {
+  .donut {
+    width: 9.5rem;
+    height: 9.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .segment {
+    animation: none;
+  }
+}

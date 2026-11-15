@@ -1,10 +1,14 @@
 /**
  * Grouped bar chart (current period vs previous period), built with plain
  * divs and the existing aa-* chart classes. No chart dependency exists in
- * this repo and none is added. Numbers are always available as a data table
- * inside the <details> element, so the chart is never the only way to read
- * the values.
+ * this repo and none is added. Bars grow from the baseline with a short
+ * stagger; reduced motion shows them at full height immediately.
+ * Numbers are always available as a data table inside the <details>
+ * element, so the chart is never the only way to read the values.
  */
+
+import { ChartEmptyState } from "./ChartEmptyState";
+import styles from "./BarChart.module.css";
 
 export interface BarChartBar {
   label: string;
@@ -18,12 +22,15 @@ export function BarChart({
   formatValue = (value) => String(value),
   ariaLabel,
   emptyMessage = "No data in this period.",
+  emptyGuidance = "Data appears here once orders are placed in the selected period.",
   className,
 }: {
   bars: readonly BarChartBar[];
   formatValue?: (value: number) => string;
   ariaLabel: string;
   emptyMessage?: string;
+  /** Guidance shown under the empty-state title. */
+  emptyGuidance?: string;
   /** Extra class on the chart wrapper (e.g. a large dashboard variant). */
   className?: string;
 }) {
@@ -35,7 +42,7 @@ export function BarChart({
   if (bars.length === 0 || max <= 0) {
     return (
       <div className={className ? `aa-chart ${className}` : "aa-chart"}>
-        <p className="aa-muted">{emptyMessage}</p>
+        <ChartEmptyState title={emptyMessage} guidance={emptyGuidance} />
       </div>
     );
   }
@@ -62,14 +69,18 @@ export function BarChart({
             title={`${bar.label}: ${formatValue(bar.value)}${bar.compareValue !== undefined ? ` (previous: ${formatValue(bar.compareValue)})` : ""}`}
           >
             <div
-              className="aa-bar"
-              style={{ height: `${Math.max((bar.value / max) * 100, bar.value > 0 ? 2 : 0)}%` }}
+              className={`aa-bar ${styles.grow}`}
+              style={{
+                height: `${Math.max((bar.value / max) * 100, bar.value > 0 ? 2 : 0)}%`,
+                animationDelay: `${index * 40}ms`,
+              }}
             />
             {bar.compareValue !== undefined ? (
               <div
-                className="aa-bar aa-bar--compare"
+                className={`aa-bar aa-bar--compare ${styles.grow}`}
                 style={{
                   height: `${Math.max((bar.compareValue / max) * 100, bar.compareValue > 0 ? 2 : 0)}%`,
+                  animationDelay: `${index * 40}ms`,
                 }}
               />
             ) : null}

@@ -34,6 +34,11 @@ export const PIE_RADIUS = 96;
 /** Direct % labels are drawn only on slices at least this large. */
 export const PIE_DIRECT_LABEL_MIN_SHARE = 0.12;
 
+/** Donut geometry shares the pie's 0–200 viewBox and centre. */
+export const DONUT_CENTER = 100;
+export const DONUT_OUTER_RADIUS = 96;
+export const DONUT_INNER_RADIUS = 58;
+
 function piePoint(angleDegrees: number, radius: number): { x: number; y: number } {
   const radians = ((angleDegrees - 90) * Math.PI) / 180;
   return {
@@ -101,6 +106,96 @@ export function computePieSlices(
       labelX: round2(labelPoint.x),
       labelY: round2(labelPoint.y),
       isFullCircle: false,
+    };
+  });
+}
+
+/**
+ * Slice geometry for a donut ring (annular slices around a centre hole
+ * for the total). Ordering, filtering and angle rules match
+ * computePieSlices exactly: largest first from 12 o'clock, zero and
+ * negative values produce no slice, angles sum to 360°. Unlike the pie,
+ * a full-circle slice carries a real path: outer and inner circles in
+ * one path, drawn with fill-rule evenodd so the hole stays transparent
+ * (no assumption about the panel background). Direct labels sit on the
+ * ring mid-radius.
+ */
+export interface ComputedDonutSlice {
+  sourceIndex: number;
+  label: string;
+  value: number;
+  share: number;
+  startAngle: number;
+  endAngle: number;
+  /** SVG path for the ring slice (never empty when a slice exists). */
+  path: string;
+  labelX: number;
+  labelY: number;
+  isFullCircle: boolean;
+}
+
+export function computeDonutSlices(
+  segments: readonly PieSliceInput[],
+): ComputedDonutSlice[] {
+  const total = segments.reduce(
+    (sum, segment) => sum + Math.max(segment.value, 0),
+    0,
+  );
+  if (total <= 0) return [];
+  const ordered = segments
+    .map((segment, sourceIndex) => ({ segment, sourceIndex }))
+    .filter(({ segment }) => segment.value > 0)
+    .sort((a, b) => b.segment.value - a.segment.value);
+  let cursor = 0;
+  return ordered.map(({ segment, sourceIndex }) => {
+    const share = segment.value / total;
+    const startAngle = cursor;
+    const endAngle = cursor + share * 360;
+    cursor = endAngle;
+    const isFullCircle = share >= 1;
+    const midAngle = (startAngle + endAngle) / 2;
+    const labelPoint = piePoint(
+      midAngle,
+      (DONUT_OUTER_RADIUS + DONUT_INNER_RADIUS) / 2,
+    );
+    const base = {
+      sourceIndex,
+      label: segment.label,
+      value: segment.value,
+      share,
+      labelX: round2(labelPoint.x),
+      labelY: round2(labelPoint.y),
+      isFullCircle,
+    };
+    if (isFullCircle) {
+      const outer = DONUT_OUTER_RADIUS;
+      const inner = DONUT_INNER_RADIUS;
+      const c = DONUT_CENTER;
+      return {
+        ...base,
+        startAngle: 0,
+        endAngle: 360,
+        path:
+          `M${c},${c - outer} A${outer},${outer} 0 1,1 ${c},${c + outer} ` +
+          `A${outer},${outer} 0 1,1 ${c},${c - outer} Z ` +
+          `M${c},${c - inner} A${inner},${inner} 0 1,0 ${c},${c + inner} ` +
+          `A${inner},${inner} 0 1,0 ${c},${c - inner} Z`,
+      };
+    }
+    const outerStart = piePoint(startAngle, DONUT_OUTER_RADIUS);
+    const outerEnd = piePoint(endAngle, DONUT_OUTER_RADIUS);
+    const innerEnd = piePoint(endAngle, DONUT_INNER_RADIUS);
+    const innerStart = piePoint(startAngle, DONUT_INNER_RADIUS);
+    const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+    return {
+      ...base,
+      startAngle: round2(startAngle),
+      endAngle: round2(endAngle),
+      path:
+        `M${round2(outerStart.x)},${round2(outerStart.y)} ` +
+        `A${DONUT_OUTER_RADIUS},${DONUT_OUTER_RADIUS} 0 ${largeArc},1 ${round2(outerEnd.x)},${round2(outerEnd.y)} ` +
+        `L${round2(innerEnd.x)},${round2(innerEnd.y)} ` +
+        `A${DONUT_INNER_RADIUS},${DONUT_INNER_RADIUS} 0 ${largeArc},0 ${round2(innerStart.x)},${round2(innerStart.y)} Z`,
     };
   });
 }
@@ -179,4 +274,67 @@ export function barFractions(values: readonly number[]): number[] {
   const max = Math.max(0, ...values);
   if (max <= 0) return values.map(() => 0);
   return values.map((value) => Math.max(value, 0) / max);
+}
+
+/** A plotted point in SVG coordinates (already scaled by the caller). */
+export interface SeriesDot {
+  x: number;
+  y: number;
+}
+
+function round1(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+function dotText(dot: SeriesDot): string {
+  return `${round1(dot.x)},${round1(dot.y)}`;
+}
+
+/**
+ * Smooth wave path through the dots (Catmull-Rom splines converted to
+ * cubic Bézier segments, so the curve passes through every plotted
+ * point — the shape is smoothed, the values are not changed). One
+ * decimal place keeps SVG precision low without visible stepping.
+ * Fewer than three dots draw straight: a single dot is a move only,
+ * two dots are one straight segment.
+ */
+export function smoothLinePath(dots: readonly SeriesDot[]): string {
+  if (dots.length === 0) return "";
+  const first = dots[0];
+  if (!first) return "";
+  if (dots.length === 1) return `M${dotText(first)}`;
+  if (dots.length === 2) {
+    const second = dots[1];
+    if (!second) return `M${dotText(first)}`;
+    return `M${dotText(first)} L${dotText(second)}`;
+  }
+  let path = `M${dotText(first)}`;
+  for (let index = 0; index < dots.length - 1; index += 1) {
+    const p0 = dots[index - 1] ?? dots[index];
+    const p1 = dots[index];
+    const p2 = dots[index + 1];
+    const p3 = dots[index + 2] ?? dots[index + 1];
+    if (!p0 || !p1 || !p2 || !p3) continue;
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    path += ` C${round1(c1x)},${round1(c1y)} ${round1(c2x)},${round1(c2y)} ${dotText(p2)}`;
+  }
+  return path;
+}
+
+/**
+ * Area fill under a line path: the line, dropped to the baseline and
+ * closed. An empty line yields an empty area (callers render the empty
+ * state instead).
+ */
+export function areaPathFromLine(
+  linePath: string,
+  firstX: number,
+  lastX: number,
+  baseY: number,
+): string {
+  if (!linePath) return "";
+  return `${linePath} L${round1(lastX)},${round1(baseY)} L${round1(firstX)},${round1(baseY)} Z`;
 }

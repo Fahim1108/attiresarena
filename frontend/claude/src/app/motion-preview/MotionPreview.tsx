@@ -56,7 +56,7 @@ export function MotionPreview() {
         <OrderTimeline status="shipped" events={[
           {status:"pending",label:"Order Placed",at:"2026-10-20T09:00:00Z"},
           {status:"confirmed",label:"Order Confirmed",at:"2026-10-20T10:00:00Z"},
-          {status:"packed",label:"Processing",at:"2026-10-21T10:00:00Z"},
+          {status:"packed",label:"Packed",at:"2026-10-21T10:00:00Z"},
           {status:"shipped",label:"Shipped",at:"2026-10-22T10:00:00Z"},
         ]}/>
       </section>

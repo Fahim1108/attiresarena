@@ -1,0 +1,61 @@
+/* Segmented period toggle (dashboard granularity, analytics presets).
+   A pill of links: the active option is solid maroon, the rest sit on
+   the pale selected tint. Theme tokens come from globals.css (--aa-*
+   RGB triplets): primary #6B0202, text #171717, selected #F6EAEA. */
+
+.control {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  max-width: 100%;
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: rgb(var(--aa-selected));
+}
+
+.option,
+.optionActive {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.2;
+  text-decoration: none;
+  color: rgb(var(--aa-text));
+  touch-action: manipulation;
+  transition:
+    background-color 150ms ease-out,
+    color 150ms ease-out;
+}
+
+.option:hover {
+  background: rgb(var(--aa-surface));
+  text-decoration: none;
+}
+
+.optionActive {
+  background: rgb(var(--aa-primary));
+  color: #ffffff;
+}
+
+.optionActive:hover {
+  background: rgb(var(--aa-primary-dark));
+  text-decoration: none;
+}
+
+.option:focus-visible,
+.optionActive:focus-visible {
+  outline: 2px solid rgb(var(--aa-primary));
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .option,
+  .optionActive {
+    transition: none;
+  }
+}

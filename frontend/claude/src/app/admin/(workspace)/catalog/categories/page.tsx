@@ -43,6 +43,7 @@ export default async function CatalogCategoriesPage() {
   );
   const isSample = display.isSample;
   const canManage = live?.canManage ?? false;
+  const malformedRows = live?.malformedRows ?? 0;
   const tree = buildCategoryTree(display.items);
 
   return (
@@ -62,6 +63,12 @@ export default async function CatalogCategoriesPage() {
           Categories could not be loaded, so sample categories are shown
           for layout testing only. Sample rows cannot be edited, reordered
           or deleted, and no changes are saved.
+        </Notice>
+      ) : malformedRows > 0 ? (
+        <Notice kind="warning">
+          {malformedRows} categor{malformedRows === 1 ? "y" : "ies"} could
+          not be read and {malformedRows === 1 ? "is" : "are"} hidden below.
+          The categories shown are complete and editable.
         </Notice>
       ) : !canManage ? (
         <Notice kind="warning">

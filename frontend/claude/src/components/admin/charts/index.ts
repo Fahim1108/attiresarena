@@ -1,5 +1,11 @@
 /** Shared admin chart components (hand-built SVG/CSS; no chart dependency). */
 export { BarChart, type BarChartBar } from "./BarChart";
+export { ChartEmptyState } from "./ChartEmptyState";
+export {
+  CountUpValue,
+  formatCountUpValue,
+  type CountUpFormat,
+} from "./CountUpValue";
 export { DonutChart, DONUT_PALETTE, type DonutSegment } from "./DonutChart";
 export {
   HorizontalBarList,

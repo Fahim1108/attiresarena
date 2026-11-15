@@ -81,6 +81,7 @@ import {
   type PublicationVisibility,
   type StockFilter,
   type VariantInput,
+  type VariantStockRow,
 } from "./catalog-variants";
 import { readPublishedFeed } from "../../services/adapters/published-thrift";
 import type { StorefrontFeedHealth } from "../catalog-publication";
@@ -153,23 +154,52 @@ function revalidateStorefront(slug?: string | null): void {
 }
 
 // --------------------------------------------------------------------- reads
+//
+// The list reads are DECOUPLED: the products table is read on its own,
+// and each relation (category names, variants, inventory, media) is read
+// by a separate query that degrades independently. The previous single
+// PostgREST query embedded every relation at once, so any embedded
+// relation failure nulled the entire list and the page fell back to
+// labelled samples while other pages read real data fine. Now a failed
+// relation only degrades its own section (recorded in `degraded`), and
+// the products still list. Row validation is per-row and non-throwing:
+// a malformed row is skipped and counted, never a page crash.
 
-const listVariantSchema = z.object({
-  id: z.uuid(),
-  price_minor: z.number().int().nonnegative(),
-  sale_price_minor: z.number().int().nonnegative().nullable(),
-  active: z.boolean(),
-  inventory: toOne(
-    z.object({
-      on_hand: z.number().int().nonnegative(),
-      reserved: z.number().int().nonnegative(),
-      available: z.number().int().nonnegative(),
-      low_stock_threshold: z.number().int().nonnegative(),
-    }),
-  ),
-});
+/** Validate rows one by one; malformed rows are skipped and counted. */
+function parseRows<T>(
+  data: unknown,
+  schema: z.ZodType<T>,
+): { rows: T[]; skipped: number } {
+  if (!Array.isArray(data)) return { rows: [], skipped: 0 };
+  const rows: T[] = [];
+  let skipped = 0;
+  for (const row of data) {
+    const parsed = schema.safeParse(row);
+    if (parsed.success) rows.push(parsed.data);
+    else skipped += 1;
+  }
+  return { rows, skipped };
+}
 
-const listRowSchema = z.object({
+/**
+ * Read one relation, returning null when the query errors or rejects.
+ * A null result degrades only that relation; the caller records it.
+ */
+async function readRelationRows<T>(
+  query: PromiseLike<{ data: unknown; error: unknown }>,
+  schema: z.ZodType<T>,
+): Promise<T[] | null> {
+  let result: { data: unknown; error: unknown };
+  try {
+    result = await query;
+  } catch {
+    return null;
+  }
+  if (result.error) return null;
+  return parseRows(result.data, schema).rows;
+}
+
+const listBaseRowSchema = z.object({
   id: z.uuid(),
   name: z.string(),
   slug: z.string(),
@@ -180,23 +210,42 @@ const listRowSchema = z.object({
   published_at: z.iso.datetime({ offset: true }).nullable(),
   created_at: z.iso.datetime({ offset: true }),
   updated_at: z.iso.datetime({ offset: true }),
-  categories: toOne(z.object({ name: z.string() })),
   badges: z.array(z.string()),
-  product_variants: z.array(listVariantSchema),
-  product_media: z
-    .array(
-      z.object({
-        storage_path: z.string(),
-        alt_text: z.string(),
-        position: z.number().int(),
-      }),
-    )
-    .optional(),
 });
 
-const listRowBaseSchema = listRowSchema.omit({
+const listBaseRowPrePublicationSchema = listBaseRowSchema.omit({
   is_published: true,
   published_at: true,
+});
+
+const listRelationVariantSchema = z.object({
+  id: z.uuid(),
+  product_id: z.uuid(),
+  price_minor: z.number().int().nonnegative(),
+  sale_price_minor: z.number().int().nonnegative().nullable(),
+  active: z.boolean(),
+});
+
+const listRelationInventorySchema = z.object({
+  variant_id: z.uuid(),
+  on_hand: z.number().int().nonnegative(),
+  reserved: z.number().int().nonnegative(),
+  // Generated as on_hand - reserved; read as a plain int so a legacy
+  // over-reserved row degrades to out-of-stock instead of failing the row.
+  available: z.number().int(),
+  low_stock_threshold: z.number().int().nonnegative(),
+});
+
+const listRelationMediaSchema = z.object({
+  product_id: z.uuid(),
+  storage_path: z.string(),
+  alt_text: z.string(),
+  position: z.number().int(),
+});
+
+const listRelationCategorySchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
 });
 
 export interface CatalogListItem {
@@ -231,7 +280,14 @@ export interface CatalogListResult {
   page: number;
   truncated: boolean;
   canManage: boolean;
+  /** Relations that failed to load ("categories" | "variants" | "inventory" | "media"). */
+  degraded: string[];
+  /** Product rows skipped because they failed validation. */
+  skippedRows: number;
 }
+
+/** Upper bound on relation rows read for one list request. */
+const RELATION_FETCH_CAP = 10000;
 
 export async function listCatalogProducts(
   filters: CatalogListFilters,
@@ -240,21 +296,18 @@ export async function listCatalogProducts(
   const canManage = session.roles.some(
     (r) => r === "owner" || r === "product_manager",
   );
-  const buildQuery = (withPublication: boolean) => {
+  // Base products read only — no embedded relations (see the header note
+  // above parseRows). The publication columns arrive with migration 008;
+  // the fallback keeps pre-migration databases readable as unpublished.
+  const buildBaseQuery = (withPublication: boolean) => {
     let query = session.client
       .from("products")
       .select(
         "id,name,slug,description,status,category_id," +
           (withPublication ? "is_published,published_at," : "") +
-          "created_at,updated_at,badges," +
-          "categories(name)," +
-          "product_variants(id,price_minor,sale_price_minor,active,inventory(on_hand,reserved,available,low_stock_threshold))," +
-          "product_media(storage_path,alt_text,position)",
+          "created_at,updated_at,badges",
         { count: "exact" },
-      )
-      .limit(100, { referencedTable: "product_variants" })
-      .order("position", { referencedTable: "product_media" })
-      .limit(1, { referencedTable: "product_media" });
+      );
     if (filters.q) {
       const pattern = escapeLike(filters.q);
       query = query.or(`name.ilike.${pattern},slug.ilike.${pattern}`);
@@ -265,30 +318,140 @@ export async function listCatalogProducts(
       .order("id", { ascending: true })
       .limit(LIST_FETCH_CAP);
   };
-  const result = await buildQuery(true);
-  let rows: z.infer<typeof listRowSchema>[];
+  const main = await buildBaseQuery(true);
+  let baseRows: z.infer<typeof listBaseRowSchema>[];
   let totalCount: number;
-  if (result.error) {
-    // Pre-migration fallback: is_published/published_at arrive with
-    // migration 008. Without them every product reads as unpublished.
-    const fallback = await buildQuery(false);
+  let skippedRows = 0;
+  if (main.error) {
+    const fallback = await buildBaseQuery(false);
     if (fallback.error) {
       // Unavailable (not empty): the page renders labelled sample data.
       return null;
     }
-    rows = z
-      .array(listRowBaseSchema)
-      .parse(fallback.data ?? [])
-      .map((row) => ({ ...row, is_published: false, published_at: null }));
+    const parsed = parseRows(
+      fallback.data ?? [],
+      listBaseRowPrePublicationSchema,
+    );
+    skippedRows = parsed.skipped;
+    if ((fallback.data?.length ?? 0) > 0 && parsed.rows.length === 0) {
+      // Rows exist but none validate: report unavailable, not empty.
+      return null;
+    }
+    baseRows = parsed.rows.map((row) => ({
+      ...row,
+      is_published: false,
+      published_at: null,
+    }));
     totalCount = fallback.count ?? 0;
   } else {
-    rows = z.array(listRowSchema).parse(result.data ?? []);
-    totalCount = result.count ?? 0;
+    const parsed = parseRows(main.data ?? [], listBaseRowSchema);
+    skippedRows = parsed.skipped;
+    if ((main.data?.length ?? 0) > 0 && parsed.rows.length === 0) {
+      return null;
+    }
+    baseRows = parsed.rows;
+    totalCount = main.count ?? 0;
   }
   const truncated = totalCount > LIST_FETCH_CAP;
 
-  const enriched = rows.map((row) => {
-    const aggregate = aggregateVariantStock(row.product_variants);
+  // Relations: independent queries, each degrading on its own. Inventory
+  // depends on the variant ids, so it runs after the first wave.
+  const productIds = baseRows.map((row) => row.id);
+  const categoryIds = [
+    ...new Set(
+      baseRows
+        .map((row) => row.category_id)
+        .filter((id): id is string => id !== null),
+    ),
+  ];
+  const degraded: string[] = [];
+  const [categoryRows, variantRows, mediaRows] = await Promise.all([
+    categoryIds.length > 0
+      ? readRelationRows(
+          session.client
+            .from("categories")
+            .select("id,name")
+            .in("id", categoryIds),
+          listRelationCategorySchema,
+        )
+      : Promise.resolve([]),
+    productIds.length > 0
+      ? readRelationRows(
+          session.client
+            .from("product_variants")
+            .select("id,product_id,price_minor,sale_price_minor,active")
+            .in("product_id", productIds)
+            .limit(RELATION_FETCH_CAP),
+          listRelationVariantSchema,
+        )
+      : Promise.resolve([]),
+    productIds.length > 0
+      ? readRelationRows(
+          session.client
+            .from("product_media")
+            .select("product_id,storage_path,alt_text,position")
+            .in("product_id", productIds)
+            .order("product_id", { ascending: true })
+            .order("position", { ascending: true })
+            .limit(RELATION_FETCH_CAP),
+          listRelationMediaSchema,
+        )
+      : Promise.resolve([]),
+  ]);
+  if (categoryRows === null) degraded.push("categories");
+  if (variantRows === null) degraded.push("variants");
+  if (mediaRows === null) degraded.push("media");
+  const variants = variantRows ?? [];
+  const inventoryRows =
+    variants.length > 0
+      ? await readRelationRows(
+          session.client
+            .from("inventory")
+            .select(
+              "variant_id,on_hand,reserved,available,low_stock_threshold",
+            )
+            .in(
+              "variant_id",
+              variants.map((variant) => variant.id),
+            )
+            .limit(RELATION_FETCH_CAP),
+          listRelationInventorySchema,
+        )
+      : [];
+  if (inventoryRows === null) degraded.push("inventory");
+
+  const categoryNames = new Map(
+    (categoryRows ?? []).map((row) => [row.id, row.name]),
+  );
+  const inventoryByVariant = new Map(
+    (inventoryRows ?? []).map((row) => [row.variant_id, row]),
+  );
+  const variantsByProduct = new Map<string, VariantStockRow[]>();
+  for (const variant of variants) {
+    const list = variantsByProduct.get(variant.product_id) ?? [];
+    list.push({
+      price_minor: variant.price_minor,
+      sale_price_minor: variant.sale_price_minor,
+      active: variant.active,
+      inventory: inventoryByVariant.get(variant.id) ?? null,
+    });
+    variantsByProduct.set(variant.product_id, list);
+  }
+  // First row per product in (product_id, position) order is its thumbnail.
+  const mediaByProduct = new Map<
+    string,
+    { storage_path: string; alt_text: string }
+  >();
+  for (const media of mediaRows ?? []) {
+    if (!mediaByProduct.has(media.product_id)) {
+      mediaByProduct.set(media.product_id, media);
+    }
+  }
+
+  const enriched = baseRows.map((row) => {
+    const aggregate = aggregateVariantStock(
+      variantsByProduct.get(row.id) ?? [],
+    );
     return {
       row,
       aggregate,
@@ -297,6 +460,11 @@ export async function listCatalogProducts(
         row.status,
         aggregate.available > 0,
       ),
+      categoryName:
+        row.category_id !== null
+          ? (categoryNames.get(row.category_id) ?? null)
+          : null,
+      media: mediaByProduct.get(row.id) ?? null,
     };
   });
   const filtered = enriched.filter(({ aggregate, stockFilter }) => {
@@ -339,43 +507,60 @@ export async function listCatalogProducts(
     page * filters.pageSize,
   );
   const items: CatalogListItem[] = await Promise.all(
-    pageRows.map(async ({ row, aggregate, stockFilter, displayStatus }) => {
-      const media = row.product_media?.[0];
-      let thumbnailUrl: string | null = null;
-      if (media) {
-        const signed = await session.client.storage
-          .from("attires-product-drafts")
-          .createSignedUrl(media.storage_path, 120);
-        if (!signed.error) thumbnailUrl = signed.data.signedUrl;
-      }
-      return {
-        id: row.id,
-        name: row.name,
-        slug: row.slug,
-        status: row.status,
-        displayStatus,
-        isPublished: row.is_published,
-        publishedAt: row.published_at,
-        storefrontVisibility: publicationVisibility(
-          row.status,
-          row.is_published,
-        ),
-        categoryName: row.categories?.name ?? null,
-        badges: row.badges,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-        minPriceMinor: aggregate.minPriceMinor,
-        maxPriceMinor: aggregate.maxPriceMinor,
-        available: aggregate.available,
-        onHand: aggregate.onHand,
-        variantCount: aggregate.variantCount,
+    pageRows.map(
+      async ({
+        row,
+        aggregate,
         stockFilter,
-        thumbnailUrl,
-        thumbnailAlt: media?.alt_text || row.name,
-      };
-    }),
+        displayStatus,
+        categoryName,
+        media,
+      }) => {
+        let thumbnailUrl: string | null = null;
+        if (media) {
+          const signed = await session.client.storage
+            .from("attires-product-drafts")
+            .createSignedUrl(media.storage_path, 120);
+          if (!signed.error) thumbnailUrl = signed.data.signedUrl;
+        }
+        return {
+          id: row.id,
+          name: row.name,
+          slug: row.slug,
+          status: row.status,
+          displayStatus,
+          isPublished: row.is_published,
+          publishedAt: row.published_at,
+          storefrontVisibility: publicationVisibility(
+            row.status,
+            row.is_published,
+          ),
+          categoryName,
+          badges: row.badges,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          minPriceMinor: aggregate.minPriceMinor,
+          maxPriceMinor: aggregate.maxPriceMinor,
+          available: aggregate.available,
+          onHand: aggregate.onHand,
+          variantCount: aggregate.variantCount,
+          stockFilter,
+          thumbnailUrl,
+          thumbnailAlt: media?.alt_text || row.name,
+        };
+      },
+    ),
   );
-  return { items, total, totalPages, page, truncated, canManage };
+  return {
+    items,
+    total,
+    totalPages,
+    page,
+    truncated,
+    canManage,
+    degraded,
+    skippedRows,
+  };
 }
 
 const categoryOptionSchema = z.object({
@@ -416,17 +601,16 @@ export async function readCategoryOptions(options: {
       if (options.onUnavailable === "empty") return [];
       throw new Error("Categories could not be read.");
     }
-    return z
-      .array(
-        categoryOptionSchema.omit({ sort_position: true }).extend({
-          sort_position: z.number().int().default(0),
-        }),
-      )
-      .parse(
-        (fallback.data ?? []).map((row) => ({ ...row, sort_position: 0 })),
-      );
+    // Per-row validation: one malformed option row is skipped, never a
+    // page crash (the list page calls this with onUnavailable "empty").
+    return parseRows(
+      (fallback.data ?? []).map((row) => ({ ...row, sort_position: 0 })),
+      categoryOptionSchema
+        .omit({ sort_position: true })
+        .extend({ sort_position: z.number().int().default(0) }),
+    ).rows;
   }
-  return z.array(categoryOptionSchema).parse(result.data ?? []);
+  return parseRows(result.data ?? [], categoryOptionSchema).rows;
 }
 
 const productDetailSchema = z.object({

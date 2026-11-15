@@ -1,9 +1,13 @@
 import Link from "next/link";
+import { ChartEmptyState } from "./ChartEmptyState";
+import styles from "./DonutChart.module.css";
 
 /**
- * Donut chart built with SVG circles. The legend next to it lists every
- * segment with its number and share, so the chart is never the only way to
- * read the values. Legend entries link through when `href` is given.
+ * Donut chart built with SVG circles. The centre shows the total and
+ * the legend next to it lists every segment with its number and
+ * share, so the chart is never the only way to read the values.
+ * Legend entries link through when `href` is given. Arcs animate in
+ * with a short stagger; reduced motion shows them immediately.
  */
 
 export interface DonutSegment {
@@ -13,15 +17,23 @@ export interface DonutSegment {
   color?: string;
 }
 
-/** Eight distinguishable tones; the first is the brand maroon (#6B0202). */
+/**
+ * Colourful status palette, in ORDER_STATUSES order (pending,
+ * confirmed, packed, shipped, out-for-delivery, delivered, cancelled,
+ * returned). Every tone pairs with a direct-label ink at 4.5:1 or
+ * better (see tests/admin-charts-visual.check.ts); the brand maroon
+ * (#6B0202) marks Delivered, the outcome the chart leads towards.
+ * The pie reuses this palette so a status keeps the same colour
+ * wherever it is charted.
+ */
 export const DONUT_PALETTE = [
-  "#6B0202",
   "#C08A2C",
-  "#2E7D32",
   "#1F7A6D",
-  "#5B6B7A",
   "#7B4B94",
-  "#C2571B",
+  "#2E7D32",
+  "#B04A12",
+  "#6B0202",
+  "#B42318",
   "#9A9494",
 ] as const;
 
@@ -34,6 +46,7 @@ export function DonutChart({
   formatValue = (value) => String(value),
   ariaLabel,
   emptyMessage = "No data in this period.",
+  emptyGuidance = "Data appears here once orders are placed in the selected period.",
   className,
 }: {
   segments: readonly DonutSegment[];
@@ -41,6 +54,8 @@ export function DonutChart({
   formatValue?: (value: number) => string;
   ariaLabel: string;
   emptyMessage?: string;
+  /** Guidance shown under the empty-state title. */
+  emptyGuidance?: string;
   /** Extra class on the chart wrapper (e.g. a large dashboard variant). */
   className?: string;
 }) {
@@ -48,7 +63,7 @@ export function DonutChart({
   if (segments.length === 0 || total <= 0) {
     return (
       <div className={className ? `aa-chart ${className}` : "aa-chart"}>
-        <p className="aa-muted">{emptyMessage}</p>
+        <ChartEmptyState title={emptyMessage} guidance={emptyGuidance} />
       </div>
     );
   }
@@ -70,9 +85,9 @@ export function DonutChart({
   });
   return (
     <div className={className ? `aa-chart ${className}` : "aa-chart"}>
-      <div className="aa-donut-wrap">
+      <div className={styles.chartRow}>
         <svg
-          className="aa-donut"
+          className={styles.donut}
           viewBox="0 0 140 140"
           role="img"
           aria-label={`${ariaLabel}. Total ${formatValue(total)}.`}
@@ -81,20 +96,25 @@ export function DonutChart({
           {arcs
             .filter((arc) => arc.segment.value > 0)
             .map((arc, index) => (
-              <circle
-                key={`${arc.segment.label}-${index}`}
-                cx="70"
-                cy="70"
-                r={RADIUS}
-                fill="none"
-                stroke={arc.color}
-                strokeWidth="26"
-                strokeDasharray={arc.dashArray}
-                strokeDashoffset={arc.dashOffset}
-                transform="rotate(-90 70 70)"
-              >
-                <title>{`${arc.segment.label}: ${formatValue(arc.segment.value)}`}</title>
-              </circle>
+              // The rotation lives on the <g>: a CSS transform on the
+              // circle itself would override the transform attribute
+              // and the arcs would start at 3 o'clock, not 12.
+              <g key={`${arc.segment.label}-${index}`} transform="rotate(-90 70 70)">
+                <circle
+                  className={styles.segment}
+                  style={{ animationDelay: `${index * 45}ms` }}
+                  cx="70"
+                  cy="70"
+                  r={RADIUS}
+                  fill="none"
+                  stroke={arc.color}
+                  strokeWidth="26"
+                  strokeDasharray={arc.dashArray}
+                  strokeDashoffset={arc.dashOffset}
+                >
+                  <title>{`${arc.segment.label}: ${formatValue(arc.segment.value)}`}</title>
+                </circle>
+              </g>
             ))}
           <text x="70" y="66" textAnchor="middle" fontSize="20" fontWeight="600" fill="#171717">
             {formatValue(total)}
@@ -103,20 +123,26 @@ export function DonutChart({
             {centerLabel}
           </text>
         </svg>
-        <ul className="aa-legend" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        <ul className={styles.legend}>
           {segments.map((segment, index) => {
             const color =
               segment.color ?? DONUT_PALETTE[index % DONUT_PALETTE.length] ?? "#9A9494";
             const share = total > 0 ? Math.round((segment.value / total) * 100) : 0;
             const text = (
               <>
-                <span className="aa-swatch" style={{ background: color }} aria-hidden="true" />
-                {segment.label} · {formatValue(segment.value)} ({share}%)
+                <span className={styles.swatch} style={{ background: color }} aria-hidden="true" />
+                <span>
+                  {segment.label} · {formatValue(segment.value)} ({share}%)
+                </span>
               </>
             );
             return (
               <li key={`${segment.label}-${index}`}>
-                {segment.href ? <Link href={segment.href}>{text}</Link> : text}
+                {segment.href ? (
+                  <Link href={segment.href}>{text}</Link>
+                ) : (
+                  <span className={styles.legendRow}>{text}</span>
+                )}
               </li>
             );
           })}

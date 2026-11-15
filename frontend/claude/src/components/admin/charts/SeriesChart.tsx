@@ -1,12 +1,25 @@
-import { seriesGridTicks, seriesLabelIndexes } from "./geometry";
+import { useId } from "react";
+import {
+  areaPathFromLine,
+  seriesGridTicks,
+  seriesLabelIndexes,
+  smoothLinePath,
+  type SeriesDot,
+} from "./geometry";
+import { ChartEmptyState } from "./ChartEmptyState";
+import styles from "./SeriesChart.module.css";
 
 /**
- * SVG line/area chart for a trend series with an optional
- * previous-period comparison series. Horizontal gridlines carry value
- * labels on the left axis and the x-axis labels up to six evenly spaced
- * buckets, so the shape can be read without opening the data table.
- * Numbers are always available as a data table inside the <details>
- * element, so the chart is never the only way to read the values.
+ * SVG wave/area chart for a trend series with an optional
+ * previous-period comparison series. The line is a smoothed spline
+ * through the real plotted points (the values are unchanged, only the
+ * joins are rounded) over a maroon gradient fill. Horizontal
+ * gridlines carry value labels on the left axis and the x-axis labels
+ * up to six evenly spaced buckets, so the shape can be read without
+ * opening the data table. Each plotted point shows its exact value
+ * on hover or keyboard focus, and numbers are always available as a
+ * data table inside the <details> element, so the chart is never the
+ * only way to read the values.
  */
 
 export interface SeriesPoint {
@@ -16,11 +29,14 @@ export interface SeriesPoint {
 
 const WIDTH = 640;
 const HEIGHT = 280;
-// Left room for value labels: "৳1,234,567" at 11px needs ~62px.
+// Left room for value labels: "৳1,234,567" at 12px needs ~68px.
 const PAD_LEFT = 76;
 const PAD_RIGHT = 12;
 const PAD_TOP = 16;
 const PAD_BOTTOM = 30;
+/** Per-point keyboard stops only for short series; longer series keep
+ * the data table as the keyboard path instead of dozens of tab stops. */
+const FOCUSABLE_DOTS_MAX = 31;
 
 function xFor(index: number, count: number): number {
   const innerWidth = WIDTH - PAD_LEFT - PAD_RIGHT;
@@ -36,21 +52,17 @@ function yFor(value: number, max: number): number {
 function pointsToPath(
   points: readonly SeriesPoint[],
   max: number,
-): { line: string; area: string; dots: { x: number; y: number }[] } {
+): { line: string; area: string; dots: SeriesDot[] } {
   const dots = points.map((point, index) => ({
     x: xFor(index, points.length),
     y: yFor(point.value, max),
   }));
-  const line = dots
-    .map((dot, index) => `${index === 0 ? "M" : "L"}${dot.x.toFixed(1)},${dot.y.toFixed(1)}`)
-    .join(" ");
+  const line = smoothLinePath(dots);
   const first = dots[0];
   const last = dots[dots.length - 1];
   const base = PAD_TOP + (HEIGHT - PAD_TOP - PAD_BOTTOM);
   const area =
-    first && last
-      ? `${line} L${last.x.toFixed(1)},${base} L${first.x.toFixed(1)},${base} Z`
-      : "";
+    first && last ? areaPathFromLine(line, first.x, last.x, base) : "";
   return { line, area, dots };
 }
 
@@ -60,6 +72,7 @@ export function SeriesChart({
   formatValue = (value) => String(value),
   ariaLabel,
   emptyMessage = "No data in this period.",
+  emptyGuidance = "Data appears here once orders are placed in the selected period.",
   className,
 }: {
   points: readonly SeriesPoint[];
@@ -67,9 +80,14 @@ export function SeriesChart({
   formatValue?: (value: number) => string;
   ariaLabel: string;
   emptyMessage?: string;
+  /** Guidance shown under the empty-state title. */
+  emptyGuidance?: string;
   /** Extra class on the chart wrapper (e.g. a large dashboard variant). */
   className?: string;
 }) {
+  // Strip every non-identifier character: useId() output contains
+  // colons, which must not appear in an SVG url(#…) reference.
+  const gradientId = `aa-series-area-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const max = Math.max(
     0,
     ...points.map((point) => point.value),
@@ -78,18 +96,26 @@ export function SeriesChart({
   if (points.length === 0 || max <= 0) {
     return (
       <div className={className ? `aa-chart ${className}` : "aa-chart"}>
-        <p className="aa-muted">{emptyMessage}</p>
+        <ChartEmptyState title={emptyMessage} guidance={emptyGuidance} />
       </div>
     );
   }
   const current = pointsToPath(points, max);
   const compare = comparePoints ? pointsToPath(comparePoints, max) : null;
   const ticks = seriesGridTicks(max);
-  const labelIndexes = seriesLabelIndexes(points.length);
+  const labelIndexes = seriesLabelIndexes(
+    points.length,
+    points.length > FOCUSABLE_DOTS_MAX ? 5 : 6,
+  );
   const showDots = points.length <= 62;
+  const focusableDots = points.length <= FOCUSABLE_DOTS_MAX;
   const numericText = { fontVariantNumeric: "tabular-nums" } as const;
   return (
-    <div className={className ? `aa-chart ${className}` : "aa-chart"}>
+    <div
+      className={
+        className ? `aa-chart ${styles.enter} ${className}` : `aa-chart ${styles.enter}`
+      }
+    >
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         width="100%"
@@ -97,6 +123,12 @@ export function SeriesChart({
         role="img"
         aria-label={`${ariaLabel}. Highest value ${formatValue(max)}.`}
       >
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#6B0202" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="#6B0202" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
         {ticks.map((tick) => (
           <g key={tick}>
             <line
@@ -108,9 +140,10 @@ export function SeriesChart({
               strokeWidth="1"
             />
             <text
+              className={styles.axis}
               x={PAD_LEFT - 8}
               y={yFor(tick, max)}
-              fontSize="11"
+              fontSize="12"
               fill="#74706C"
               textAnchor="end"
               dominantBaseline="middle"
@@ -120,7 +153,7 @@ export function SeriesChart({
             </text>
           </g>
         ))}
-        <path d={current.area} fill="rgb(107 2 2 / 0.15)" />
+        <path d={current.area} fill={`url(#${gradientId})`} />
         {compare ? (
           <path
             d={compare.line}
@@ -141,19 +174,51 @@ export function SeriesChart({
           strokeLinecap="round"
         />
         {showDots
-          ? current.dots.map((dot, index) => (
-              <circle
-                key={index}
-                cx={dot.x}
-                cy={dot.y}
-                r="3.5"
-                fill="#6B0202"
-                stroke="#FFFFFF"
-                strokeWidth="1.5"
-              >
-                <title>{`${points[index]?.label ?? ""}: ${formatValue(points[index]?.value ?? 0)}`}</title>
-              </circle>
-            ))
+          ? current.dots.map((dot, index) => {
+              const point = points[index];
+              const readout = `${point?.label ?? ""}: ${formatValue(point?.value ?? 0)}`;
+              const anchor =
+                index === 0
+                  ? "start"
+                  : index === points.length - 1
+                    ? "end"
+                    : "middle";
+              const readoutY = dot.y - 14 < 12 ? dot.y + 22 : dot.y - 14;
+              const circle = (
+                <circle
+                  className={styles.dot}
+                  cx={dot.x}
+                  cy={dot.y}
+                  r="3.5"
+                  fill="#6B0202"
+                  stroke="#FFFFFF"
+                  strokeWidth="1.5"
+                >
+                  <title>{readout}</title>
+                </circle>
+              );
+              if (!focusableDots) {
+                return <g key={index}>{circle}</g>;
+              }
+              return (
+                <g key={index} className={styles.point} tabIndex={0}>
+                  {circle}
+                  <text
+                    className={styles.readout}
+                    x={dot.x}
+                    y={readoutY}
+                    fontSize="12"
+                    fontWeight="600"
+                    fill="#171717"
+                    textAnchor={anchor}
+                    aria-hidden="true"
+                    style={numericText}
+                  >
+                    {readout}
+                  </text>
+                </g>
+              );
+            })
           : null}
         {labelIndexes.map((index) => {
           const point = points[index];
@@ -167,9 +232,10 @@ export function SeriesChart({
           return (
             <text
               key={index}
+              className={styles.axis}
               x={xFor(index, points.length)}
               y={HEIGHT - 10}
-              fontSize="11"
+              fontSize="12"
               fill="#74706C"
               textAnchor={anchor}
               style={numericText}
