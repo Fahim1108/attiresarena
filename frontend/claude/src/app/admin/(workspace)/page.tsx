@@ -53,9 +53,9 @@ import {
   StatusBadge,
   hrefWithParams,
 } from "@/components/admin/ui";
-import { BarChart } from "@/components/admin/charts/BarChart";
-import { DonutChart, DONUT_PALETTE } from "@/components/admin/charts/DonutChart";
-import { ProductThumbnail } from "@/components/admin/access/ProductThumbnail";
+import { HorizontalBarList } from "@/components/admin/charts/HorizontalBarList";
+import { PieChart, PIE_PALETTE } from "@/components/admin/charts/PieChart";
+import { SeriesChart } from "@/components/admin/charts/SeriesChart";
 import styles from "./dashboard.module.css";
 
 /**
@@ -211,8 +211,18 @@ export default async function AdminDashboard({
     data.revenueBuckets,
     data.revenueBucketsPrevious,
   );
+  // The line chart takes the two series separately; positions stay
+  // paired exactly as withComparisonSeries paired them.
+  const revenuePoints = revenueSeries.map((bucket) => ({
+    label: bucket.label,
+    value: bucket.value,
+  }));
+  const revenueComparePoints = revenueSeries.map((bucket) => ({
+    label: bucket.label,
+    value: bucket.compareValue,
+  }));
   const revenueSummary = summarizeRevenue(data.revenueBuckets);
-  // Largest status slice for the summary under the donut; null when the
+  // Largest status slice for the summary under the pie; null when the
   // period has no orders at all.
   let topStatus: { status: OrderStatus; count: number } | null = null;
   for (const status of ORDER_STATUSES) {
@@ -352,12 +362,12 @@ export default async function AdminDashboard({
           title="Revenue"
           description={`${GRANULARITY_LABELS[granularity]} totals in the selected period, with the previous period alongside. Revenue is the sum of order totals excluding cancelled and returned orders, including delivery charges.`}
         >
-          <BarChart
-            bars={revenueSeries}
+          <SeriesChart
+            points={revenuePoints}
+            comparePoints={revenueComparePoints}
             formatValue={formatMoneyShort}
             ariaLabel={`Revenue by ${granularity === "day" ? "day" : granularity === "week" ? "week" : "month"}`}
             emptyMessage="No revenue in this period."
-            className={styles.chartLarge}
           />
           <dl className={styles.summary}>
             <div>
@@ -387,18 +397,17 @@ export default async function AdminDashboard({
           </dl>
         </Panel>
         <Panel title="Orders by status" description="Click a status to open the matching orders.">
-          <DonutChart
+          <PieChart
             segments={ORDER_STATUSES.map((status, index) => ({
               label: ORDER_STATUS_LABELS[status],
               value: data.statusCounts[status],
               href: `/admin/sales/orders?status=${status}`,
-              color: DONUT_PALETTE[index % DONUT_PALETTE.length],
+              color: PIE_PALETTE[index % PIE_PALETTE.length],
             }))}
-            centerLabel="orders"
+            totalLabel="orders"
             formatValue={formatCount}
             ariaLabel="Orders by status in the selected period"
             emptyMessage="No orders in this period."
-            className={styles.donutLarge}
           />
           {topStatus ? (
             <dl className={styles.summary}>
@@ -433,35 +442,45 @@ export default async function AdminDashboard({
               description="Best sellers appear here once orders are placed."
             />
           ) : (
-            <div className="aa-table-scroll">
-              <table className="aa-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Product</th>
-                    <th scope="col">Units sold</th>
-                    <th scope="col">Revenue</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.bestSellers.map((item) => (
-                    <tr key={item.productId}>
-                      <th scope="row">
-                        <span className={styles.productCell}>
-                          <ProductThumbnail url={item.imageUrl} alt={item.imageAlt} />
-                          <Link href={`/admin/catalog/products/${item.productId}`}>
-                            {item.productName}
-                          </Link>
-                        </span>
-                      </th>
-                      <td>{formatCount(item.units)}</td>
-                      <td>{formatMoney(item.revenueMinor)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <HorizontalBarList
+              items={data.bestSellers}
+              valueKey="revenueMinor"
+              formatUnits={formatCount}
+              formatRevenue={formatMoney}
+              emptyMessage="No sales in this period."
+            />
           )}
         </Panel>
+        <Panel
+          title="Least-selling products"
+          description="Fewest units sold in the selected period, among products with at least one sale. Excludes cancelled and returned orders."
+          actions={
+            <Link className="aa-row-action" href="/admin/catalog/products">
+              View all products <ArrowUpRight size={15} aria-hidden="true" />
+            </Link>
+          }
+        >
+          {failed("Best sellers") ? (
+            <p className="aa-muted">Least-selling products could not be loaded.</p>
+          ) : data.leastSellers.length === 0 ? (
+            <EmptyState
+              icon={<Package size={24} strokeWidth={1.4} aria-hidden="true" />}
+              title="No sales in this period"
+              description="Least-selling products appear here once orders are placed."
+            />
+          ) : (
+            <HorizontalBarList
+              items={data.leastSellers}
+              valueKey="units"
+              formatUnits={formatCount}
+              formatRevenue={formatMoney}
+              emptyMessage="No sales in this period."
+            />
+          )}
+        </Panel>
+      </div>
+
+      <div className="aa-dashboard-grid aa-dashboard-grid--equal">
         <Panel
           title="Recent orders"
           actions={
@@ -502,23 +521,23 @@ export default async function AdminDashboard({
                           ? `#${order.order_number}`
                           : `Order ${order.id.slice(0, 8)}`}
                       </th>
-                      <td>
+                      <td data-label="Customer">
                         <span className="aa-cell-main">{order.customer_name}</span>
                         <span className="aa-cell-sub">{order.phone}</span>
                       </td>
-                      <td>
+                      <td data-label="Date">
                         <time dateTime={order.placed_at}>
                           {formatDateTime(order.placed_at)}
                         </time>
                       </td>
-                      <td>{formatMoney(order.total_minor)}</td>
-                      <td>
+                      <td data-label="Amount">{formatMoney(order.total_minor)}</td>
+                      <td data-label="Payment">
                         {PAYMENT_METHOD_LABELS[order.payment_method] ?? order.payment_method}
                         <span className="aa-cell-sub">
                           {PAYMENT_STATUS_LABELS[order.payment_status] ?? order.payment_status}
                         </span>
                       </td>
-                      <td>
+                      <td data-label="Status">
                         {(ORDER_STATUSES as readonly string[]).includes(order.status) ? (
                           <StatusBadge tone={ORDER_STATUS_TONES[order.status as OrderStatus]}>
                             {ORDER_STATUS_LABELS[order.status as OrderStatus]}
@@ -527,7 +546,7 @@ export default async function AdminDashboard({
                           order.status
                         )}
                       </td>
-                      <td className="aa-cell-actions">
+                      <td data-label="Actions" className="aa-cell-actions">
                         <Link className="aa-row-action" href={`/admin/sales/orders/${order.id}`} aria-label={`View order ${order.order_number !== null ? `#${order.order_number}` : order.id.slice(0, 8)}`}>
                           View
                         </Link>
@@ -539,9 +558,6 @@ export default async function AdminDashboard({
             </div>
           )}
         </Panel>
-      </div>
-
-      <div className="aa-dashboard-grid aa-dashboard-grid--equal">
         <Panel
           title="Low-stock alerts"
           description="Variants at or below their low-stock threshold, lowest stock first."
@@ -578,11 +594,11 @@ export default async function AdminDashboard({
                           {row.productName}
                         </Link>
                       </th>
-                      <td>
+                      <td data-label="Variant">
                         {row.size} · {row.color}
                       </td>
-                      <td>{formatCount(row.available)}</td>
-                      <td>{formatCount(row.lowStockThreshold)}</td>
+                      <td data-label="Available">{formatCount(row.available)}</td>
+                      <td data-label="Threshold">{formatCount(row.lowStockThreshold)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -590,18 +606,19 @@ export default async function AdminDashboard({
             </div>
           )}
         </Panel>
-        <Panel title="Catalog" description="Products, variants, images, and stock are managed in the catalog.">
-          <p>
-            Add products, edit variants, and track stock from the catalog
-            pages.
-          </p>
-          <div className="aa-editor-actions">
-            <Link className="aa-button" href="/admin/catalog/products">
-              Manage products <ArrowUpRight size={15} aria-hidden="true" />
-            </Link>
-          </div>
-        </Panel>
       </div>
+
+      <Panel title="Catalog" description="Products, variants, images, and stock are managed in the catalog.">
+        <p>
+          Add products, edit variants, and track stock from the catalog
+          pages.
+        </p>
+        <div className="aa-editor-actions">
+          <Link className="aa-button" href="/admin/catalog/products">
+            Manage products <ArrowUpRight size={15} aria-hidden="true" />
+          </Link>
+        </div>
+      </Panel>
 
       <Notice kind="info">
         Revenue is the sum of order totals excluding cancelled and returned

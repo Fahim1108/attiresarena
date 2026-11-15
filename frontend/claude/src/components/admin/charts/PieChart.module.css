@@ -1,0 +1,86 @@
+/* Pie chart (dashboard): full pie + legend + total line. Theme tokens
+   come from globals.css (--aa-* RGB triplets): primary #6B0202, text
+   #171717, muted #74706C, border #EAEAEA. */
+
+.wrap {
+  width: 100%;
+}
+
+.chartRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.25rem;
+  align-items: center;
+}
+
+.pie {
+  width: 13rem;
+  height: 13rem;
+  flex: 0 0 auto;
+  max-width: 100%;
+}
+
+.legend {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex: 1 1 11rem;
+  min-width: 0;
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.legend li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.legend a {
+  color: inherit;
+  border-radius: 3px;
+}
+
+/* Legend entries are links on touch screens: give them a full 44px row
+   so a segment can be tapped without hitting its neighbour. */
+@media (pointer: coarse) {
+  .legend a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+
+.legend a:hover {
+  text-decoration: underline;
+}
+
+.legend a:focus-visible {
+  outline: 2px solid rgb(var(--aa-primary));
+  outline-offset: 2px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 2px;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+}
+
+.total {
+  margin: 0.85rem 0 0;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgb(var(--aa-border));
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 40rem) {
+  .pie {
+    width: 11rem;
+    height: 11rem;
+  }
+}

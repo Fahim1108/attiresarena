@@ -154,23 +154,23 @@ export default async function OrdersPage({
             <tbody>
               {orders.map((order) => (
                 <tr key={order.id}>
-                  <td>
+                  <td data-label="Order">
                     <span className="aa-cell-main">
                       {order.order_number ? `#${order.order_number}` : "Order"}
                     </span>
                     <span className="aa-cell-sub">{formatDateTime(order.placed_at)}</span>
                   </td>
-                  <td>
+                  <td data-label="Customer">
                     <span className="aa-cell-main">{order.customer_name}</span>
                     <span className="aa-cell-sub">{order.phone}</span>
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <StatusBadge tone={ORDER_STATUS_TONES[order.status]}>
                       {ORDER_STATUS_LABELS[order.status]}
                     </StatusBadge>
                   </td>
-                  <td>{PAYMENT_STATUS_LABELS[order.payment_status] ?? order.payment_status}</td>
-                  <td className={styles.money}>{formatMoney(order.total_minor)}</td>
+                  <td data-label="Payment">{PAYMENT_STATUS_LABELS[order.payment_status] ?? order.payment_status}</td>
+                  <td data-label="Total" className={styles.money}>{formatMoney(order.total_minor)}</td>
                 </tr>
               ))}
             </tbody>

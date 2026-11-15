@@ -7,6 +7,16 @@
   min-width: 0;
 }
 
+/* Admin-only muted-text token. #74706C measured 4.91:1 on white but only
+   4.18:1 on the selected tint, and reads faint at 11-13px. #5F5A57
+   measures 6.80:1 on white and 5.79:1 on the tint. Theme tokens in
+   theme.ts are untouched: ThemeStyle injects on :root, so this override
+   applies inside .aa-admin only, for both plain CSS and Tailwind
+   text-ink-muted (both resolve the same variable). */
+.aa-admin {
+  --aa-text-muted: 95 90 87;
+}
+
 /* Screen-reader-only text, in every admin theme. (The staging-only
    workspace stylesheet defines this too; production must not render
    sr-only content visibly.) */
@@ -108,7 +118,7 @@
   font: inherit;
   font-size: 0.92rem;
   padding: 0.55rem 0.7rem;
-  border: 1px solid rgb(var(--aa-border));
+  border: 1px solid #8f8985;
   border-radius: var(--aa-radius-control);
   background: rgb(var(--aa-surface));
   color: rgb(var(--aa-text));
@@ -119,7 +129,8 @@
 .aa-field input:focus,
 .aa-field select:focus,
 .aa-field textarea:focus {
-  outline: 2px solid rgb(var(--aa-primary) / 0.45);
+  border-color: rgb(var(--aa-primary));
+  outline: 2px solid rgb(var(--aa-primary));
   outline-offset: 1px;
 }
 .aa-field .aa-hint { font-size: 0.8rem; color: rgb(var(--aa-text-muted)); }
@@ -134,11 +145,276 @@
   gap: 0.6rem;
   margin-top: 1.25rem;
 }
-.aa-row-action--danger { color: #7a1010; }
 .aa-button[data-danger] { background: #7a1010; }
+/* Danger submits keep their danger color on hover: without this, the
+   workspace hover rule repaints them maroon (#4C0101). */
+.aa-admin .aa-button[data-danger]:hover { background: #5d0c0c; border-color: #5d0c0c; color: #fff; }
+
+/* Row actions: every table/card action is a visible bordered button.
+   Before this, <button class="aa-row-action"> inherited the solid maroon
+   button fill while the workspace rule set maroon text: 1.00:1,
+   invisible labels (Delete, Duplicate, Publish, Cancel). The explicit
+   background/border below restore a 12.85:1 label on white, with a
+   4.10:1 border. Links and buttons share the treatment. */
+.aa-admin button.aa-row-action,
+.aa-admin a.aa-row-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 40px;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid #a86e6e;
+  border-radius: var(--aa-radius-control);
+  background: #fff;
+  color: #6b0202;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-decoration: none;
+  box-shadow: 0 1px 2px rgba(64, 0, 0, 0.06);
+  cursor: pointer;
+}
+.aa-admin button.aa-row-action:hover,
+.aa-admin a.aa-row-action:hover {
+  background: #f6eaea;
+  border-color: #6b0202;
+  color: #6b0202;
+  text-decoration: none;
+}
+.aa-admin button.aa-row-action--danger,
+.aa-admin a.aa-row-action--danger {
+  background: #fdf6f6;
+  border-color: #b57a7a;
+  color: #7a1010;
+}
+.aa-admin button.aa-row-action--danger:hover,
+.aa-admin a.aa-row-action--danger:hover {
+  background: #fbe9e9;
+  border-color: #7a1010;
+  color: #7a1010;
+}
+.aa-admin button.aa-row-action:disabled {
+  background: #efe3e3;
+  border-color: #b98f8f;
+  color: #6b0202;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Icon-only controls (e.g. list item move/remove): a visible bordered
+   button shape with a dark icon, never bare muted glyphs. */
+.aa-admin .aa-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 1px solid #8f8985;
+  border-radius: var(--aa-radius-control);
+  background: #fff;
+  color: #171717;
+  box-shadow: 0 1px 2px rgba(64, 0, 0, 0.06);
+  cursor: pointer;
+}
+.aa-admin button.aa-icon-button:hover {
+  border-color: #6b0202;
+  background: #f6eaea;
+  color: #6b0202;
+}
+.aa-admin button.aa-icon-button--danger:hover {
+  border-color: #7a1010;
+  background: #fdf6f6;
+  color: #7a1010;
+}
+.aa-admin button.aa-icon-button:disabled {
+  background: #f7f4f4;
+  border-color: #d8d2cf;
+  color: #5f5a57;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.aa-admin button.aa-icon-button[aria-pressed="true"] {
+  border-color: #6b0202;
+  background: #f6eaea;
+  color: #6b0202;
+}
+
+/* Text disclosure rows (panel section titles): left-aligned text actions
+   whose Tailwind styling loses to the admin button base (which would
+   render them as solid maroon blocks with centered text). Hidden
+   sections keep the muted + struck-through state via data-enabled. */
+.aa-admin button.aa-disclosure {
+  background: transparent;
+  border-color: transparent;
+  color: #171717;
+  box-shadow: none;
+  justify-content: flex-start;
+  text-align: left;
+  padding: 0.45rem 0.5rem;
+  font-weight: 500;
+}
+.aa-admin button.aa-disclosure:hover {
+  background: #f6eaea;
+  border-color: transparent;
+  color: #6b0202;
+}
+.aa-admin button.aa-disclosure[data-enabled="false"] {
+  color: #5f5a57;
+  text-decoration: line-through;
+}
+
+/* Segmented controls whose Tailwind styling loses to the admin button
+   base (every <button> in .aa-admin inherits the solid maroon fill):
+   restore light bordered treatments with a visible selected state.
+   Scoped by container element because the two tab sets differ by design:
+   nav tablists are pills (Appearance Editor sections), div tablists are
+   underline tabs (mobile view switcher, product workspace tabs). The
+   only button radiogroup in admin is the preview-device switcher. */
+.aa-admin nav[role="tablist"] [role="tab"] {
+  background: #fff;
+  border: 1px solid #8f8985;
+  color: #171717;
+  box-shadow: none;
+  font-weight: 500;
+}
+.aa-admin nav[role="tablist"] [role="tab"][aria-selected="true"] {
+  background: #6b0202;
+  border-color: #6b0202;
+  color: #fff;
+  font-weight: 600;
+}
+.aa-admin nav[role="tablist"] [role="tab"]:hover {
+  border-color: #6b0202;
+  background: #f6eaea;
+  color: #6b0202;
+}
+.aa-admin nav[role="tablist"] [role="tab"][aria-selected="true"]:hover {
+  background: #4c0101;
+  border-color: #4c0101;
+  color: #fff;
+}
+.aa-admin div[role="tablist"] [role="tab"] {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: #4a4643;
+  box-shadow: none;
+  font-weight: 500;
+}
+.aa-admin div[role="tablist"] [role="tab"][aria-selected="true"] {
+  background: rgb(var(--aa-selected) / 0.5);
+  border-bottom-color: #6b0202;
+  color: #6b0202;
+  font-weight: 600;
+}
+.aa-admin div[role="tablist"] [role="tab"]:hover {
+  background: rgb(var(--aa-selected) / 0.5);
+  color: #6b0202;
+}
+.aa-admin [role="radiogroup"] button {
+  background: #fff;
+  border: 1px solid #8f8985;
+  color: #171717;
+  box-shadow: none;
+  font-weight: 500;
+}
+.aa-admin [role="radiogroup"] button[aria-checked="true"] {
+  background: #f6eaea;
+  border-color: #6b0202;
+  color: #6b0202;
+  font-weight: 600;
+}
+.aa-admin [role="radiogroup"] button:hover {
+  border-color: #6b0202;
+  background: #f6eaea;
+  color: #6b0202;
+}
+
+/* Switch controls (fields.tsx Toggle, the only role="switch" in the
+   codebase): the admin button base would stretch the 24px track to a
+   44px maroon block. Restore the track geometry; the unchecked track
+   is #8F8985 (3.45:1) instead of the near-invisible ink/20. The
+   component's ::after hit area keeps a 44px touch target. */
+.aa-admin button[role="switch"] {
+  min-height: 24px;
+  height: 24px;
+  width: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  box-shadow: none;
+}
+.aa-admin button[role="switch"][aria-checked="false"] {
+  background: #8f8985;
+}
+.aa-admin button[role="switch"][aria-checked="true"] {
+  background: #6b0202;
+}
+
+/* Pagination: page controls are visible bordered buttons; the current
+   page is a solid maroon button; unavailable prev/next stays legible.
+   The row wraps so a long page list never overflows a phone screen. */
+.aa-admin .aa-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+.aa-admin .aa-pagination a,
+.aa-admin .aa-pagination span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid #a86e6e;
+  border-radius: var(--aa-radius-control);
+  background: #fff;
+  color: #6b0202;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 1px 2px rgba(64, 0, 0, 0.06);
+}
+.aa-admin .aa-pagination a:hover {
+  background: #f6eaea;
+  border-color: #6b0202;
+  text-decoration: none;
+}
+.aa-admin .aa-pagination span[aria-current="page"] {
+  background: #6b0202;
+  border-color: #6b0202;
+  color: #fff;
+}
+.aa-admin .aa-pagination span[aria-hidden="true"] {
+  background: #f7f4f4;
+  border-color: #d8d2cf;
+  color: #5f5a57;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+/* Coarse pointers: row actions, pagination, and icon buttons reach the
+   full 44px touch target (primary/secondary buttons are already 44px). */
+@media (pointer: coarse) {
+  .aa-admin button.aa-row-action,
+  .aa-admin a.aa-row-action,
+  .aa-admin .aa-pagination a,
+  .aa-admin .aa-pagination span,
+  .aa-admin .aa-icon-button {
+    min-height: 44px;
+  }
+  .aa-admin .aa-icon-button {
+    min-width: 44px;
+  }
+}
 
 /* Tables: the scroll container scrolls, the page never overflows sideways. */
-.aa-table-scroll { overflow-x: auto; margin: 0 -0.1rem; }
+.aa-table-scroll { overflow-x: auto; margin: 0 -0.1rem; overscroll-behavior-x: contain; }
 .aa-table-scroll:focus-visible { outline: 2px solid rgb(var(--aa-primary)); outline-offset: -2px; }
 .aa-table { width: 100%; min-width: 40rem; border-collapse: collapse; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
 .aa-table th,
@@ -158,7 +434,7 @@
   margin-bottom: 1.25rem;
 }
 .aa-kpi { display: block; }
-.aa-kpi strong { display: block; font-size: 1.55rem; line-height: 1.2; margin-top: 0.25rem; font-variant-numeric: tabular-nums; }
+.aa-kpi strong { display: block; font-size: 1.55rem; line-height: 1.2; margin-top: 0.25rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .aa-kpi .aa-kpi-delta { font-size: 0.82rem; color: rgb(var(--aa-text-muted)); }
 .aa-kpi .aa-kpi-delta--up { color: #1d4d22; }
 .aa-kpi .aa-kpi-delta--down { color: #7a1010; }
@@ -194,10 +470,10 @@ a.aa-kpi:hover { border-color: rgb(var(--aa-primary) / 0.5); }
 }
 
 /* Dialog */
-.aa-dialog { border: 1px solid rgb(var(--aa-border)); border-radius: var(--aa-radius-card); padding: 1.25rem; max-width: 26rem; width: calc(100% - 2rem); }
+.aa-dialog { border: 1px solid rgb(var(--aa-border)); border-radius: var(--aa-radius-card); padding: 1.25rem; max-width: 26rem; width: calc(100% - 2rem); max-height: calc(100svh - 2rem); overflow-y: auto; overscroll-behavior: contain; }
 .aa-dialog::backdrop { background: rgb(0 0 0 / 0.45); }
 .aa-dialog h2 { margin-top: 0; }
-.aa-dialog-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1rem; }
+.aa-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.6rem; margin-top: 1rem; }
 
 /* Detail facts */
 .aa-fact-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem 1.25rem; }
@@ -207,6 +483,8 @@ a.aa-kpi:hover { border-color: rgb(var(--aa-primary) / 0.5); }
 /* Tabs */
 .aa-tabs { display: flex; flex-wrap: wrap; gap: 0.25rem; border-bottom: 1px solid rgb(var(--aa-border)); margin-bottom: 1rem; }
 .aa-tabs a { padding: 0.55rem 0.9rem; text-decoration: none; color: rgb(var(--aa-text-muted)); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.aa-admin .aa-tabs a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 500; }
+.aa-admin .aa-tabs a:hover { background: rgb(var(--aa-selected) / 0.5); color: rgb(var(--aa-text)); }
 .aa-tabs a[aria-current="page"] { color: rgb(var(--aa-text)); font-weight: 600; border-bottom-color: rgb(var(--aa-primary)); }
 
 /* Responsive */
@@ -221,6 +499,116 @@ a.aa-kpi:hover { border-color: rgb(var(--aa-primary) / 0.5); }
   .aa-form-grid--3 { grid-template-columns: 1fr; }
   .aa-kpi-grid { grid-template-columns: 1fr 1fr; }
   .aa-fact-grid { grid-template-columns: 1fr; }
+}
+
+/* Mobile pass (390px primary): no iOS zoom traps, 44px coarse-pointer
+   targets in the drawer and check rows, readable chart text, and
+   labelled card tables. Production admin never gets the workspace
+   stylesheet's mobile rules (those are scoped to .aa-admin--workspace),
+   so the phone rules that matter live here, in .aa-admin scope. */
+@media (max-width: 767px) {
+  /* Text entry at 16px: anything smaller makes iOS Safari zoom on focus. */
+  .aa-admin input,
+  .aa-admin select,
+  .aa-admin textarea {
+    font-size: 16px;
+  }
+}
+@media (pointer: coarse) {
+  .aa-admin .aa-drawer nav a {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .aa-admin .aa-nav-group summary {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .aa-admin .aa-check-row label {
+    min-height: 44px;
+  }
+}
+/* Drawer clears the home indicator; its own scroll never chains to the page. */
+.aa-admin .aa-drawer {
+  padding-bottom: calc(22px + env(safe-area-inset-bottom));
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 40rem) {
+  .aa-kpi strong { font-size: 1.35rem; }
+  /* Tables without labelled cells keep the contained scroll, narrower. */
+  .aa-table { min-width: 34rem; }
+  /* Hand-built SVG charts scale from a 640-unit viewBox: at phone widths
+     the 11-unit axis labels render near 6px. 14 units plus visible
+     overflow keeps the labels legible without clipping long values into
+     the panel padding. The full data table stays one tap away. */
+  .aa-chart svg { overflow: visible; }
+  .aa-chart svg text { font-size: 14px; }
+  /* Card tables: a table whose cells carry data-label attributes
+     (copied from their column header) reflows into stacked labelled
+     cards instead of a sideways scroll. The thead is visually hidden
+     but stays in the accessibility tree; the row header becomes the
+     card title; empty-state rows (colspan, no label) span full width.
+     Tables without data-labels are untouched: unlabelled stacked cells
+     would lose their column meaning. */
+  .aa-table:has(td[data-label]) { position: relative; min-width: 0; display: block; border-collapse: separate; }
+  .aa-table:has(td[data-label]) thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .aa-table:has(td[data-label]) tbody,
+  .aa-table:has(td[data-label]) tbody tr,
+  .aa-table:has(td[data-label]) tbody th,
+  .aa-table:has(td[data-label]) tbody td {
+    display: block;
+  }
+  .aa-table:has(td[data-label]) tbody tr {
+    border: 1px solid rgb(var(--aa-border));
+    border-radius: var(--aa-radius-card);
+    background: rgb(var(--aa-surface));
+    padding: 0.25rem 0.9rem 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+  .aa-table:has(td[data-label]) tbody tr:last-child { margin-bottom: 0; }
+  .aa-table:has(td[data-label]) tbody th[scope="row"] {
+    padding: 0.6rem 0 0.4rem;
+    border-bottom: 1px solid rgb(var(--aa-border));
+    font-size: 1rem;
+  }
+  .aa-table:has(td[data-label]) tbody td {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.75rem;
+    padding: 0.45rem 0;
+    border-bottom: 0;
+  }
+  .aa-table:has(td[data-label]) tbody td:not(:last-child) {
+    border-bottom: 1px solid rgb(var(--aa-border) / 0.6);
+  }
+  .aa-table:has(td[data-label]) tbody td[data-label]:not([data-label=""])::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    max-width: 45%;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgb(var(--aa-text-muted));
+  }
+  .aa-table:has(td[data-label]) tbody td.aa-cell-actions {
+    white-space: normal;
+    text-align: left;
+  }
+  .aa-table:has(td[data-label]) tbody td[colspan] { display: block; }
 }
 
 /* Invoice printing: only the invoice sheet prints. */

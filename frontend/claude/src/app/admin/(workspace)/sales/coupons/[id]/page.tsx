@@ -177,10 +177,10 @@ export default async function CouponDetailPage({
                     <th scope="row">
                       <time dateTime={redemption.redeemed_at}>{formatDateTime(redemption.redeemed_at)}</time>
                     </th>
-                    <td>
+                    <td data-label="Customer">
                       {redemption.phone ?? (redemption.user_id ? "Signed-in account" : "—")}
                     </td>
-                    <td>
+                    <td data-label="Order">
                       {redemption.order_id ? (
                         <Link href={`/admin/sales/orders/${redemption.order_id}`}>View order</Link>
                       ) : (

@@ -298,8 +298,8 @@ export function ProductListTable({
                     </span>
                   </span>
                 </th>
-                <td>{item.categoryName ?? "—"}</td>
-                <td>
+                <td data-label="Category">{item.categoryName ?? "—"}</td>
+                <td data-label="Price">
                   {item.minPriceMinor === null
                     ? "—"
                     : item.maxPriceMinor !== null &&
@@ -307,7 +307,7 @@ export function ProductListTable({
                       ? `${formatMoney(item.minPriceMinor)} – ${formatMoney(item.maxPriceMinor)}`
                       : formatMoney(item.minPriceMinor)}
                 </td>
-                <td>
+                <td data-label="Stock">
                   {item.available}{" "}
                   <span className="aa-cell-sub">
                     {item.stockFilter === "out-of-stock"
@@ -317,12 +317,12 @@ export function ProductListTable({
                         : "In stock"}
                   </span>
                 </td>
-                <td>
+                <td data-label="Status">
                   <StatusBadge tone={displayTone(item.displayStatus)}>
                     {PRODUCT_DISPLAY_LABELS[item.displayStatus]}
                   </StatusBadge>
                 </td>
-                <td>
+                <td data-label="Storefront">
                   <PublicationActions
                     productId={item.id}
                     productName={item.name}
@@ -330,7 +330,7 @@ export function ProductListTable({
                     canManage={canManage && !isSample}
                   />
                 </td>
-                <td className="aa-cell-actions">
+                <td data-label="Actions" className="aa-cell-actions">
                   {isSample ? (
                     <span className="aa-cell-sub">
                       Actions disabled for sample rows

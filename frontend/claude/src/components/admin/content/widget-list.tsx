@@ -51,20 +51,20 @@ export function WidgetList({
                     <span className="aa-cell-sub">{widget.subtitle}</span>
                   ) : null}
                 </th>
-                <td>{WIDGET_TYPE_LABELS[widget.type]}</td>
-                <td>{WIDGET_PLACEMENT_LABELS[widget.placement]}</td>
-                <td>
+                <td data-label="Type">{WIDGET_TYPE_LABELS[widget.type]}</td>
+                <td data-label="Placement">{WIDGET_PLACEMENT_LABELS[widget.placement]}</td>
+                <td data-label="Ends">
                   {widget.ends_at ? formatDateTime(widget.ends_at) : "—"}
                 </td>
-                <td>{widget.sort_position}</td>
-                <td>
+                <td data-label="Order">{widget.sort_position}</td>
+                <td data-label="Status">
                   <StatusBadge
                     tone={!widget.active || ended ? "neutral" : "success"}
                   >
                     {!widget.active ? "Inactive" : ended ? "Ended" : "Active"}
                   </StatusBadge>
                 </td>
-                <td className="aa-cell-actions">
+                <td data-label="Actions" className="aa-cell-actions">
                   <Link
                     className="aa-row-action"
                     href={editHref(widget.id)}

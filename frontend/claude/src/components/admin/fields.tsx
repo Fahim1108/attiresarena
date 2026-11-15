@@ -21,7 +21,7 @@ export function Group({ title, description, children, actions }: { title: string
 
 export function TextField({ label, value, onChange, placeholder, multiline }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; multiline?: boolean }) {
   const id = useId();
-  const cls = "w-full rounded-control border border-line bg-surface px-3 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10";
+  const cls = "w-full rounded-control border border-line bg-surface px-3 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary";
   return (
     <div className="space-y-1">
       <label htmlFor={id} className="block text-[11px] font-medium uppercase tracking-wide text-ink-muted">
@@ -75,7 +75,7 @@ export function Toggle({ label, checked, onChange, description }: { label: strin
         aria-checked={checked}
         aria-label={label}
         onClick={() => onChange(!checked)}
-        className={cn("relative h-6 w-11 shrink-0 rounded-full transition-colors", checked ? "bg-primary" : "bg-ink/20")}
+        className={cn("relative h-6 w-11 shrink-0 rounded-full transition-colors after:absolute after:-inset-y-2.5 after:inset-x-0 after:content-['']", checked ? "bg-primary" : "bg-[#8f8985]")}
       >
         <span className={cn("absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform", checked ? "translate-x-[22px]" : "translate-x-0.5")} />
       </button>
@@ -90,7 +90,7 @@ export function SelectField<T extends string>({ label, value, onChange, options 
       <label htmlFor={id} className="block text-[11px] font-medium uppercase tracking-wide text-ink-muted">
         {label}
       </label>
-      <select id={id} value={value} onChange={(e) => onChange(e.target.value as T)} className="h-9 w-full rounded-control border border-line bg-surface px-2.5 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10">
+      <select id={id} value={value} onChange={(e) => onChange(e.target.value as T)} className="h-9 w-full rounded-control border border-line bg-surface px-2.5 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary">
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
@@ -102,17 +102,16 @@ export function SelectField<T extends string>({ label, value, onChange, options 
 }
 
 export function ItemControls({ index, count, onMove, onRemove, label }: { index: number; count: number; onMove: (from: number, to: number) => void; onRemove?: () => void; label: string }) {
-  const btn = "flex h-8 w-8 items-center justify-center rounded text-ink-muted hover:bg-ink/5 hover:text-ink disabled:opacity-30";
   return (
     <div className="flex items-center gap-1">
-      <button type="button" className={btn} disabled={index === 0} onClick={() => onMove(index, index - 1)} aria-label={`Move ${label} up`}>
+      <button type="button" className="aa-icon-button" disabled={index === 0} onClick={() => onMove(index, index - 1)} aria-label={`Move ${label} up`}>
         <ArrowUp className="h-3.5 w-3.5" />
       </button>
-      <button type="button" className={btn} disabled={index === count - 1} onClick={() => onMove(index, index + 1)} aria-label={`Move ${label} down`}>
+      <button type="button" className="aa-icon-button" disabled={index === count - 1} onClick={() => onMove(index, index + 1)} aria-label={`Move ${label} down`}>
         <ArrowDown className="h-3.5 w-3.5" />
       </button>
       {onRemove && (
-        <button type="button" className={cn(btn, "hover:text-danger")} onClick={onRemove} aria-label={`Remove ${label}`}>
+        <button type="button" className="aa-icon-button aa-icon-button--danger" onClick={onRemove} aria-label={`Remove ${label}`}>
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       )}

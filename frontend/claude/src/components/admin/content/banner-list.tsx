@@ -45,15 +45,15 @@ export function BannerList({
                   <span className="aa-cell-sub">{banner.subtitle}</span>
                 ) : null}
               </th>
-              <td>{banner.placement === "hero" ? "Hero" : "Promotional"}</td>
-              <td>{banner.link_url ?? "—"}</td>
-              <td>{formatDateTime(banner.created_at)}</td>
-              <td>
+              <td data-label="Placement">{banner.placement === "hero" ? "Hero" : "Promotional"}</td>
+              <td data-label="Link">{banner.link_url ?? "—"}</td>
+              <td data-label="Updated">{formatDateTime(banner.created_at)}</td>
+              <td data-label="Visibility">
                 <StatusBadge tone={banner.visible ? "success" : "neutral"}>
                   {banner.visible ? "Visible" : "Hidden"}
                 </StatusBadge>
               </td>
-              <td className="aa-cell-actions">
+              <td data-label="Actions" className="aa-cell-actions">
                 <Link className="aa-row-action" href={editHref(banner.id)} aria-label={`Edit banner ${banner.title}`}>
                   Edit
                 </Link>{" "}

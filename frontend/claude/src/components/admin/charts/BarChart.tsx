@@ -113,9 +113,9 @@ export function BarChart({
               {bars.map((bar, index) => (
                 <tr key={`${bar.label}-${index}`}>
                   <th scope="row">{bar.label}</th>
-                  <td>{formatValue(bar.value)}</td>
+                  <td data-label="Current">{formatValue(bar.value)}</td>
                   {hasComparison ? (
-                    <td>
+                    <td data-label="Previous">
                       {bar.compareValue !== undefined
                         ? formatValue(bar.compareValue)
                         : "—"}

@@ -203,23 +203,23 @@ export default async function IncompletePage({
                         <span className="aa-cell-sub">{session.email}</span>
                       ) : null}
                     </th>
-                    <td>
+                    <td data-label="Items">
                       {names.join(", ")}
                       {items.length > 2 ? ` +${items.length - 2} more` : ""}
                       <span className="aa-cell-sub">
                         {itemCount} item{itemCount === 1 ? "" : "s"}
                       </span>
                     </td>
-                    <td>{formatMoney(valueMinor)}</td>
-                    <td>{progressLabel}</td>
-                    <td>{formatDateTime(session.last_activity_at)}</td>
-                    <td>{formatDateTime(session.abandoned_at)}</td>
-                    <td>
+                    <td data-label="Value">{formatMoney(valueMinor)}</td>
+                    <td data-label="Progress">{progressLabel}</td>
+                    <td data-label="Last activity">{formatDateTime(session.last_activity_at)}</td>
+                    <td data-label="Abandoned">{formatDateTime(session.abandoned_at)}</td>
+                    <td data-label="Recovery">
                       <StatusBadge tone={RECOVERY_TONES[session.recovery_status] ?? "neutral"}>
                         {RECOVERY_STATUS_LABELS[session.recovery_status]}
                       </StatusBadge>
                     </td>
-                    <td className="aa-cell-actions">
+                    <td data-label="Details" className="aa-cell-actions">
                       {isSample ? (
                         "—"
                       ) : (

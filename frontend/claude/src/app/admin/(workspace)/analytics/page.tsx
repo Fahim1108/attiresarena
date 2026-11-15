@@ -202,8 +202,8 @@ export default async function AnalyticsPage({
                   {report.bestSellers.map((item) => (
                     <tr key={item.productName}>
                       <th scope="row" className="aa-cell-main">{item.productName}</th>
-                      <td>{formatCount(item.quantity)}</td>
-                      <td>{formatMoney(item.revenueMinor)}</td>
+                      <td data-label="Quantity">{formatCount(item.quantity)}</td>
+                      <td data-label="Revenue">{formatMoney(item.revenueMinor)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -232,7 +232,7 @@ export default async function AnalyticsPage({
                 {report.salesByCategory.map((row) => (
                   <tr key={row.category}>
                     <th scope="row" className="aa-cell-main">{row.category}</th>
-                    <td>{formatMoney(row.revenueMinor)}</td>
+                    <td data-label="Revenue">{formatMoney(row.revenueMinor)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -266,7 +266,7 @@ export default async function AnalyticsPage({
                 {report.couponPerformance.map((row) => (
                   <tr key={row.code}>
                     <th scope="row" className="aa-cell-main">{row.code}</th>
-                    <td>{formatCount(row.redemptions)}</td>
+                    <td data-label="Redemptions">{formatCount(row.redemptions)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -134,12 +134,12 @@ export default async function OrderDetailPage({
                       <span className="aa-cell-main">{item.product_name}</span>
                     </span>
                   </th>
-                  <td>
+                  <td data-label="Variant">
                     {item.size} · {item.color}
                   </td>
-                  <td>{item.quantity}</td>
-                  <td>{formatMoney(item.unit_price_minor)}</td>
-                  <td>{formatMoney(item.line_total_minor)}</td>
+                  <td data-label="Qty">{item.quantity}</td>
+                  <td data-label="Unit price">{formatMoney(item.unit_price_minor)}</td>
+                  <td data-label="Line total">{formatMoney(item.line_total_minor)}</td>
                 </tr>
               ))}
             </tbody>

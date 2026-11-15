@@ -156,14 +156,14 @@ export default async function CustomerProfilePage({
                       </Link>
                     )}
                   </th>
-                  <td>{formatDateTime(order.placed_at)}</td>
-                  <td>
+                  <td data-label="Placed">{formatDateTime(order.placed_at)}</td>
+                  <td data-label="Status">
                     <StatusBadge tone={ORDER_STATUS_TONES[order.status]}>
                       {ORDER_STATUS_LABELS[order.status]}
                     </StatusBadge>
                   </td>
-                  <td>{formatMoney(order.total_minor)}</td>
-                  <td className="aa-cell-actions">
+                  <td data-label="Total">{formatMoney(order.total_minor)}</td>
+                  <td data-label="Details" className="aa-cell-actions">
                     {isSample ? (
                       "—"
                     ) : (

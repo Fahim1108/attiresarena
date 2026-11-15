@@ -7,7 +7,7 @@ import { CartProvider } from "@/context/CartContext";
 import { StorefrontProvider } from "@/context/StorefrontContext";
 import { ToastProvider } from "@/context/ToastContext";
 import { WishlistProvider } from "@/context/WishlistContext";
-import { getStorefrontContent, parseMarketingSettings, resolveStorefrontMetadata } from "@/lib/store-settings";
+import { applyFooterOverride, getStorefrontContent, parseMarketingSettings, resolveStorefrontMetadata } from "@/lib/store-settings";
 import { getInitialCart, getStorefrontSettings, getProducts } from "@/services";
 import "@fontsource-variable/cormorant-garamond";
 import "@fontsource-variable/inter";
@@ -39,6 +39,10 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const [settings, initialCart, catalogue, content] = await Promise.all([getStorefrontSettings(), getInitialCart(), getProducts({pageSize:500}), getStorefrontContent()]);
   const marketing = parseMarketingSettings(content?.settings ?? null);
+  // Stored footer values (social links, contact details, about text) replace
+  // the static footer field by field; without stored values this returns the
+  // static footer unchanged, so the storefront renders exactly as before.
+  const footer = applyFooterOverride(settings.footer, content?.settings ?? null);
   return (
     <html lang="en" >
       <head>
@@ -49,7 +53,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <CustomCodeSlot code={marketing.headCode} label="header" />
         <MarketingScripts marketing={marketing} />
         <aside className="design-preview-notice" aria-label="Design preview notice">Our collection is being prepared. Ordering is not yet available.</aside>
-        <StorefrontProvider settings={settings}>
+        <StorefrontProvider settings={{ ...settings, footer }}>
           <ToastProvider>
             <WishlistProvider approvedProductIds={catalogue.items.map(p=>p.id)}>
               <CartProvider approvedProducts={catalogue.items} initialItems={initialCart} approvedVariantIds={catalogue.items.flatMap(p=>p.variants.filter(v=>v.stock>0).map(v=>v.id))}>

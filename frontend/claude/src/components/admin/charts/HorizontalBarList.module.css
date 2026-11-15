@@ -1,0 +1,71 @@
+/* Ranked horizontal bars (dashboard product panels). Theme tokens come
+   from globals.css (--aa-* RGB triplets): primary #6B0202, text #171717,
+   muted #74706C. Bars use transform/opacity only if animated — they are
+   static, so no motion rules are needed. */
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.row {
+  min-width: 0;
+}
+
+.rowHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+  min-width: 0;
+}
+
+.name {
+  flex: 1 1 8rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: inherit;
+  font-weight: 500;
+  border-radius: 3px;
+}
+
+/* Bar names are links: a full 44px row on touch screens. */
+@media (pointer: coarse) {
+  .name {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+
+.name:hover {
+  text-decoration: underline;
+}
+
+.name:focus-visible {
+  outline: 2px solid rgb(var(--aa-primary));
+  outline-offset: 2px;
+}
+
+.values {
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.track {
+  height: 0.65rem;
+  margin-top: 0.45rem;
+  background: #f1ecec;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  background: rgb(var(--aa-primary));
+  border-radius: 3px;
+}

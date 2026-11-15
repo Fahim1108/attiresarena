@@ -1,29 +1,9 @@
 /* Dashboard-only styles (Admin Panel v2). The shared aa-* classes in
-   admin-panel.css are untouched; the :global selectors below only resize
-   chart internals inside dashboard chart wrappers. Theme tokens come from
-   globals.css (--aa-* RGB triplets): primary #6B0202, border #EAEAEA. */
-
-/* Prominent charts: taller bars and a larger donut than the shared
-   defaults, so the graphs — not the KPI grid — anchor the page. */
-.chartLarge :global(.aa-bars) {
-  height: 15rem;
-}
-
-.donutLarge :global(.aa-donut) {
-  width: 12rem;
-  height: 12rem;
-}
-
-@media (max-width: 40rem) {
-  .chartLarge :global(.aa-bars) {
-    height: 12rem;
-  }
-
-  .donutLarge :global(.aa-donut) {
-    width: 10rem;
-    height: 10rem;
-  }
-}
+   admin-panel.css are untouched. Chart sizing lives in the chart
+   components themselves (SeriesChart viewBox, PieChart.module.css,
+   HorizontalBarList.module.css); this module only holds the data
+   summary shown next to the charts. Theme tokens come from globals.css
+   (--aa-* RGB triplets): primary #6B0202, border #EAEAEA. */
 
 /* Visible data summary adjacent to a chart: the numbers behind the
    visual, always on screen (the chart's <details> table stays as the
@@ -50,17 +30,5 @@
   margin: 0.15rem 0 0;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-}
-
-/* Best-seller product cell: thumbnail + name, wrapping safely. */
-.productCell {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  min-width: 0;
-}
-
-.productCell a {
   overflow-wrap: anywhere;
 }

@@ -149,19 +149,19 @@ export default async function CustomersPage({
                     )}
                     <span className="aa-cell-sub">{customer.phone}</span>
                   </th>
-                  <td>{customer.email ?? "—"}</td>
-                  <td>{customer.orderCount}</td>
-                  <td>{formatMoney(customer.totalSpentMinor)}</td>
-                  <td>{formatDateTime(customer.lastOrderAt)}</td>
-                  <td>{customer.hasAccount ? "Account" : "Guest"}</td>
-                  <td>
+                  <td data-label="Email">{customer.email ?? "—"}</td>
+                  <td data-label="Orders">{customer.orderCount}</td>
+                  <td data-label="Total spent">{formatMoney(customer.totalSpentMinor)}</td>
+                  <td data-label="Last order">{formatDateTime(customer.lastOrderAt)}</td>
+                  <td data-label="Account">{customer.hasAccount ? "Account" : "Guest"}</td>
+                  <td data-label="Blocked">
                     {customer.blocked ? (
                       <StatusBadge tone="danger">Blocked</StatusBadge>
                     ) : (
                       "—"
                     )}
                   </td>
-                  <td className="aa-cell-actions">
+                  <td data-label="Profile" className="aa-cell-actions">
                     {isSample ? (
                       "—"
                     ) : (

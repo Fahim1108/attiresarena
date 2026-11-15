@@ -233,14 +233,14 @@ export default async function CatalogInventoryPage({
                     {row.active ? "Active variant" : "Inactive variant"}
                   </span>
                 </th>
-                <td>
+                <td data-label="Size / Color">
                   {row.size} / {row.color}
                 </td>
-                <td>{row.onHand ?? "—"}</td>
-                <td>{row.reserved ?? "—"}</td>
-                <td>{row.available ?? "—"}</td>
-                <td>{row.lowStockThreshold ?? "—"}</td>
-                <td>{stockBadge(row.stockState)}</td>
+                <td data-label="On hand">{row.onHand ?? "—"}</td>
+                <td data-label="Reserved">{row.reserved ?? "—"}</td>
+                <td data-label="Available">{row.available ?? "—"}</td>
+                <td data-label="Low-stock threshold">{row.lowStockThreshold ?? "—"}</td>
+                <td data-label="Status">{stockBadge(row.stockState)}</td>
               </tr>
             ))}
             {display.items.length === 0 ? (
@@ -291,7 +291,7 @@ export default async function CatalogInventoryPage({
                   {movements.rows.map((movement) => (
                     <tr key={movement.id}>
                       <th scope="row">{movement.variantLabel}</th>
-                      <td
+                      <td data-label="Change"
                         style={{
                           color: movement.delta > 0 ? "#1d4d22" : "#7a1010",
                           fontWeight: 600,
@@ -299,14 +299,14 @@ export default async function CatalogInventoryPage({
                       >
                         {movement.delta > 0 ? `+${movement.delta}` : movement.delta}
                       </td>
-                      <td>{movement.onHandAfter}</td>
-                      <td>{movement.reason}</td>
-                      <td>
+                      <td data-label="On hand after">{movement.onHandAfter}</td>
+                      <td data-label="Reason">{movement.reason}</td>
+                      <td data-label="Actor">
                         {movement.actorId
                           ? `Staff ${movement.actorId.slice(0, 8)}…`
                           : "Unknown"}
                       </td>
-                      <td>{formatDateTime(movement.createdAt)}</td>
+                      <td data-label="Date">{formatDateTime(movement.createdAt)}</td>
                     </tr>
                   ))}
                   {movements.rows.length === 0 ? (

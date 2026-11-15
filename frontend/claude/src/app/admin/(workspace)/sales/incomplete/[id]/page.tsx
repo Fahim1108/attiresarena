@@ -144,14 +144,14 @@ export default async function IncompleteDetailPage({
                         <span className="aa-cell-main">{item.products?.name ?? "Product"}</span>
                       </span>
                     </th>
-                    <td>
+                    <td data-label="Variant">
                       {item.product_variants
                         ? `${item.product_variants.size} · ${item.product_variants.color}`
                         : "—"}
                     </td>
-                    <td>{item.quantity}</td>
-                    <td>{formatMoney(item.unit_price_minor)}</td>
-                    <td>{formatMoney(item.unit_price_minor * item.quantity)}</td>
+                    <td data-label="Qty">{item.quantity}</td>
+                    <td data-label="Unit price">{formatMoney(item.unit_price_minor)}</td>
+                    <td data-label="Line total">{formatMoney(item.unit_price_minor * item.quantity)}</td>
                   </tr>
                 ))}
               </tbody>

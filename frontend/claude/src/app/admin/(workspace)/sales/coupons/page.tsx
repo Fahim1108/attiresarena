@@ -106,22 +106,22 @@ export default async function CouponsPage() {
                       </Link>
                     )}
                   </th>
-                  <td>{couponValueLabel(coupon)}</td>
-                  <td>{windowLabel(coupon)}</td>
-                  <td>
+                  <td data-label="Discount">{couponValueLabel(coupon)}</td>
+                  <td data-label="Window">{windowLabel(coupon)}</td>
+                  <td data-label="Usage">
                     {coupon.usageCount}
                     {coupon.total_usage_limit !== null ? ` / ${coupon.total_usage_limit}` : ""}
                     <span className="aa-cell-sub">uses</span>
                   </td>
-                  <td>{coupon.first_order_only ? "Yes" : "No"}</td>
-                  <td>
+                  <td data-label="First order only">{coupon.first_order_only ? "Yes" : "No"}</td>
+                  <td data-label="Status">
                     {coupon.active ? (
                       <StatusBadge tone="success">Active</StatusBadge>
                     ) : (
                       <StatusBadge tone="neutral">Inactive</StatusBadge>
                     )}
                   </td>
-                  <td className="aa-cell-actions">
+                  <td data-label="Actions" className="aa-cell-actions">
                     {isSample ? (
                       "—"
                     ) : (

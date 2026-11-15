@@ -44,6 +44,17 @@
   button {
     touch-action: manipulation;
   }
+  /* No iOS zoom traps: text entry stays at 16px below the md breakpoint.
+     Classed controls (Field, SearchBar, SortSelect, price filters) carry
+     their own text-base/md:text-sm rules because utilities beat this
+     element selector; this backstop covers unclassed controls. */
+  @media (max-width: 767px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
   body {
     @apply bg-page font-sans text-ink antialiased;
     text-rendering: optimizeLegibility;
@@ -52,7 +63,7 @@
     background: rgb(var(--aa-primary) / 0.15);
   }
   :focus-visible {
-    outline: 2px solid rgb(var(--aa-primary) / 0.5);
+    outline: 2px solid rgb(var(--aa-primary));
     outline-offset: 2px;
   }
   @media (prefers-reduced-motion: reduce) {

@@ -175,7 +175,7 @@ export function VariantEditor({
                     i === 0 ? (
                       <th scope="row" key={i}>{cell}</th>
                     ) : (
-                      <td key={i}>{cell}</td>
+                      <td key={i} data-label={officialShirtSizeGuide.columns[i] ?? ""}>{cell}</td>
                     ),
                   )}
                 </tr>

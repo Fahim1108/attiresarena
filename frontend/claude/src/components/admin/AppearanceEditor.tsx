@@ -192,7 +192,7 @@ export function AppearanceEditor({ initial }: { initial: StorefrontSettings }) {
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-line bg-surface px-3 py-2">
             <div className="flex gap-1" role="radiogroup" aria-label="Preview device">
               {DEVICES.map(({ id, label, width, Icon }) => (
-                <button key={id} type="button" role="radio" aria-checked={device === id} aria-label={`${label} · ${width}px`} onClick={() => setDevice(id)} title={`${label} · ${width}px`} className={cn("flex h-8 items-center gap-1.5 rounded-control px-2.5 text-xs", device === id ? "bg-selected text-primary" : "text-ink-muted hover:bg-ink/5")}>
+                <button key={id} type="button" role="radio" aria-checked={device === id} aria-label={`${label} · ${width}px`} onClick={() => setDevice(id)} title={`${label} · ${width}px`} className={cn("flex h-8 items-center gap-1.5 rounded-control px-2.5 text-xs [@media(pointer:coarse)]:h-11", device === id ? "bg-selected text-primary" : "text-ink-muted hover:bg-ink/5")}>
                   <Icon className="h-4 w-4" aria-hidden /> <span className="hidden xl:inline">{label}</span>
                 </button>
               ))}
@@ -217,7 +217,7 @@ export function AppearanceEditor({ initial }: { initial: StorefrontSettings }) {
       </Modal>
 
       <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Import settings JSON" footer={<div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setImportOpen(false)}>Cancel</Button><Button onClick={importJson}>Apply to preview</Button></div>}>
-        <textarea value={importText} onChange={(e) => setImportText(e.target.value)} rows={12} className="w-full rounded-control border border-line p-3 font-mono text-xs focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10" placeholder='{"theme": {...}, "homepage": [...]}' aria-label="Settings JSON" />
+        <textarea value={importText} onChange={(e) => setImportText(e.target.value)} rows={12} className="w-full rounded-control border border-line p-3 font-mono text-xs focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary" placeholder='{"theme": {...}, "homepage": [...]}' aria-label="Settings JSON" />
         {importError && <p role="alert" className="mt-2 text-xs text-danger">{importError}</p>}
       </Modal>
     </div>
