@@ -1,9 +1,13 @@
 import Link from "next/link";
 import { formatDateTime, formatMoney } from "@/lib/admin/format";
-import { exportCustomersCsv, readCustomers } from "@/lib/admin/customers";
+import { customerFilters, exportCustomersCsv, readCustomers } from "@/lib/admin/customers";
+import { resolveDisplayData } from "@/lib/admin/sample-data";
+import { SAMPLE_CUSTOMERS } from "@/lib/admin/sample-sales";
 import { PageHeading, Pagination, Notice, StatusBadge, hrefWithParams } from "@/components/admin/ui";
+import { SampleBadge } from "@/components/admin/SampleBadge";
 import { CustomersExportButton } from "@/components/admin/sales/CustomersExportButton";
 import { SalesNav } from "@/components/admin/sales/SalesNav";
+import styles from "@/components/admin/sales/sales-refresh.module.css";
 
 export const metadata = { title: "Customers" };
 
@@ -13,7 +17,18 @@ export default async function CustomersPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const { customers, totalCustomers, filters, truncated, narrowed } = await readCustomers(params);
+  const result = await readCustomers(params);
+  const filters = result?.filters ?? customerFilters(params);
+  // Null means unavailable: show labeled sample rows with no profile links
+  // and no export (sample data must never be exported as if it were real).
+  // A live empty list stays an honest empty state.
+  const { items: customers, isSample } = resolveDisplayData(
+    result?.customers ?? null,
+    SAMPLE_CUSTOMERS,
+  );
+  const totalCustomers = result?.totalCustomers ?? customers.length;
+  const truncated = result?.truncated ?? false;
+  const narrowed = result?.narrowed ?? false;
   const totalPages = Math.max(1, Math.ceil(totalCustomers / filters.pageSize));
 
   return (
@@ -23,42 +38,57 @@ export default async function CustomersPage({
         title="Customers"
         description="Customers are derived from order records grouped by phone. There is no separate customer registry."
         actions={
-          <CustomersExportButton
-            exportFilters={{ q: filters.q, sort: filters.sort }}
-            exportAction={exportCustomersCsv}
-          />
+          isSample ? undefined : (
+            <CustomersExportButton
+              exportFilters={{ q: filters.q, sort: filters.sort }}
+              exportAction={exportCustomersCsv}
+            />
+          )
         }
       />
       <SalesNav current="customers" />
 
-      <form className="aa-toolbar" action="/admin/sales/customers" method="get">
-        <div className="aa-field aa-field--grow">
-          <label htmlFor="customers-q">Search name, phone or email</label>
-          <input id="customers-q" name="q" type="search" maxLength={120} defaultValue={filters.q} />
+      {isSample ? (
+        <div className={styles.sampleBanner} role="status">
+          <SampleBadge />
+          <span>
+            Live customer data is unavailable — the order records could not be
+            read. These sample rows are for testing the layout only. No
+            changes can be made, and no sample data is saved.
+          </span>
         </div>
-        <div className="aa-field">
-          <label htmlFor="customers-sort">Sort</label>
-          <select id="customers-sort" name="sort" defaultValue={filters.sort}>
-            <option value="spent">Most spent</option>
-            <option value="orders">Most orders</option>
-            <option value="recent">Most recent order</option>
-          </select>
-        </div>
-        <div className="aa-field">
-          <label htmlFor="customers-size">Per page</label>
-          <select id="customers-size" name="pageSize" defaultValue={String(filters.pageSize)}>
-            <option value="25">25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-          </select>
-        </div>
-        <button type="submit" className="aa-button">
-          Apply filters
-        </button>
-        <Link className="aa-secondary" href="/admin/sales/customers">
-          Clear
-        </Link>
-      </form>
+      ) : null}
+
+      {!isSample ? (
+        <form className="aa-toolbar" action="/admin/sales/customers" method="get">
+          <div className="aa-field aa-field--grow">
+            <label htmlFor="customers-q">Search name, phone or email</label>
+            <input id="customers-q" name="q" type="search" maxLength={120} defaultValue={filters.q} />
+          </div>
+          <div className="aa-field">
+            <label htmlFor="customers-sort">Sort</label>
+            <select id="customers-sort" name="sort" defaultValue={filters.sort}>
+              <option value="spent">Most spent</option>
+              <option value="orders">Most orders</option>
+              <option value="recent">Most recent order</option>
+            </select>
+          </div>
+          <div className="aa-field">
+            <label htmlFor="customers-size">Per page</label>
+            <select id="customers-size" name="pageSize" defaultValue={String(filters.pageSize)}>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <button type="submit" className="aa-button">
+            Apply filters
+          </button>
+          <Link className="aa-secondary" href="/admin/sales/customers">
+            Clear
+          </Link>
+        </form>
+      ) : null}
 
       {truncated ? (
         <Notice kind="warning">
@@ -72,8 +102,16 @@ export default async function CustomersPage({
         </Notice>
       ) : null}
       <p role="status">
-        {totalCustomers} customer{totalCustomers === 1 ? "" : "s"} · Page {filters.page} of{" "}
-        {totalPages}
+        {isSample ? (
+          <>
+            {customers.length} sample customer{customers.length === 1 ? "" : "s"} shown
+          </>
+        ) : (
+          <>
+            {totalCustomers} customer{totalCustomers === 1 ? "" : "s"} · Page {filters.page} of{" "}
+            {totalPages}
+          </>
+        )}
       </p>
 
       {customers.length === 0 ? (
@@ -99,12 +137,16 @@ export default async function CustomersPage({
               {customers.map((customer) => (
                 <tr key={customer.phone}>
                   <th scope="row">
-                    <Link
-                      href={`/admin/sales/customers/${encodeURIComponent(customer.phone)}`}
-                      className="aa-cell-main"
-                    >
-                      {customer.name}
-                    </Link>
+                    {isSample ? (
+                      <span className="aa-cell-main">{customer.name}</span>
+                    ) : (
+                      <Link
+                        href={`/admin/sales/customers/${encodeURIComponent(customer.phone)}`}
+                        className="aa-cell-main"
+                      >
+                        {customer.name}
+                      </Link>
+                    )}
                     <span className="aa-cell-sub">{customer.phone}</span>
                   </th>
                   <td>{customer.email ?? "—"}</td>
@@ -120,13 +162,17 @@ export default async function CustomersPage({
                     )}
                   </td>
                   <td className="aa-cell-actions">
-                    <Link
-                      className="aa-row-action"
-                      href={`/admin/sales/customers/${encodeURIComponent(customer.phone)}`}
-                      aria-label={`View profile for ${customer.name}`}
-                    >
-                      View
-                    </Link>
+                    {isSample ? (
+                      "—"
+                    ) : (
+                      <Link
+                        className="aa-row-action"
+                        href={`/admin/sales/customers/${encodeURIComponent(customer.phone)}`}
+                        aria-label={`View profile for ${customer.name}`}
+                      >
+                        View
+                      </Link>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -135,11 +181,13 @@ export default async function CustomersPage({
         </div>
       )}
 
-      <Pagination
-        page={filters.page}
-        totalPages={totalPages}
-        hrefFor={(page) => hrefWithParams("/admin/sales/customers", params, { page: String(page) })}
-      />
+      {!isSample ? (
+        <Pagination
+          page={filters.page}
+          totalPages={totalPages}
+          hrefFor={(page) => hrefWithParams("/admin/sales/customers", params, { page: String(page) })}
+        />
+      ) : null}
     </main>
   );
 }

@@ -301,7 +301,7 @@ const SEARCH_CAP = 150;
 async function searchOrderIds(
   client: StaffClient,
   q: string,
-): Promise<{ ids: string[]; narrowed: boolean }> {
+): Promise<{ ids: string[]; narrowed: boolean } | null> {
   const pattern = escapeLikePattern(q);
   const numeric = /^\d{1,5}$/.test(q) ? Number(q) : null;
   const [byName, byPhone, byEmail, byNumber] = await Promise.all([
@@ -313,12 +313,16 @@ async function searchOrderIds(
       : client.from("orders").select("id").eq("order_number", numeric).limit(SEARCH_LIMIT),
   ]);
   if (byName.error || byPhone.error || byEmail.error || byNumber.error) {
-    throw new Error("Order search could not be completed. No changes were made.");
+    // Unavailable (table/RPC missing, query failed): the caller degrades
+    // honestly instead of throwing into the error boundary.
+    return null;
   }
   const idSchema = z.object({ id: z.uuid() });
   const ids = new Set<string>();
   for (const result of [byName, byPhone, byEmail, byNumber]) {
-    for (const row of idSchema.array().parse(result.data)) ids.add(row.id);
+    const parsed = idSchema.array().safeParse(result.data);
+    if (!parsed.success) return null;
+    for (const row of parsed.data) ids.add(row.id);
   }
   const narrowed =
     [byName.data, byPhone.data, byEmail.data, byNumber.data].some(
@@ -352,10 +356,18 @@ function applyOrderQuery(
   return query;
 }
 
+/**
+ * Reads return null when the live data is UNAVAILABLE (missing table/RPC,
+ * failed query, or malformed rows) so pages can degrade honestly with
+ * labeled sample data instead of throwing into the error boundary. A live
+ * empty result is still returned as an empty list. notFound() is kept for
+ * genuinely missing records, and requireStaff redirects are never caught.
+ */
 export async function readOrders(params: Record<string, string | string[] | undefined>) {
   const session = await requireStaff(areaRoles("orders"));
   const filters = orderFilters(params);
   const scope = filters.q ? await searchOrderIds(session.client, filters.q) : null;
+  if (filters.q && scope === null) return null;
   if (scope && scope.ids.length === 0) {
     return { orders: [] as OrderRow[], count: 0, filters, narrowed: scope.narrowed };
   }
@@ -363,9 +375,11 @@ export async function readOrders(params: Record<string, string | string[] | unde
     from: (filters.page - 1) * filters.pageSize,
     to: filters.page * filters.pageSize - 1,
   });
-  if (result.error) throw new Error("Orders could not be read. No changes were made.");
+  if (result.error) return null;
+  const parsed = orderRowSchema.array().safeParse(result.data);
+  if (!parsed.success) return null;
   return {
-    orders: orderRowSchema.array().parse(result.data),
+    orders: parsed.data,
     count: result.count ?? 0,
     filters,
     narrowed: scope?.narrowed ?? false,
@@ -380,9 +394,11 @@ export async function readOrderDetail(id: string) {
     .select(ORDER_COLUMNS)
     .eq("id", id)
     .maybeSingle();
-  if (orderResult.error) throw new Error("Order details could not be read.");
+  if (orderResult.error) return null;
   if (!orderResult.data) notFound();
-  const order = orderRowSchema.parse(orderResult.data);
+  const orderParsed = orderRowSchema.safeParse(orderResult.data);
+  if (!orderParsed.success) return null;
+  const order = orderParsed.data;
 
   const itemsResult = await session.client
     .from("order_items")
@@ -391,8 +407,10 @@ export async function readOrderDetail(id: string) {
     .order("created_at", { ascending: true })
     .order("id", { ascending: true })
     .limit(100);
-  if (itemsResult.error) throw new Error("Order items could not be read.");
-  const items = orderItemRowSchema.array().parse(itemsResult.data);
+  if (itemsResult.error) return null;
+  const itemsParsed = orderItemRowSchema.array().safeParse(itemsResult.data);
+  if (!itemsParsed.success) return null;
+  const items = itemsParsed.data;
   const covers = await productCoverUrls(
     session.client,
     items.map((item) => item.product_id),
@@ -409,13 +427,15 @@ export async function readOrderDetail(id: string) {
     .eq("action", "order.status_changed")
     .order("created_at", { ascending: false })
     .limit(100);
-  if (historyResult.error) throw new Error("Order history could not be read.");
+  if (historyResult.error) return null;
   const historyRow = z.object({
     id: z.uuid(),
     changes: z.unknown(),
     created_at: z.iso.datetime({ offset: true }),
   });
-  const history: OrderHistoryEntry[] = historyRow.array().parse(historyResult.data).map((row) => {
+  const historyParsed = historyRow.array().safeParse(historyResult.data);
+  if (!historyParsed.success) return null;
+  const history: OrderHistoryEntry[] = historyParsed.data.map((row) => {
     const changes = auditChangeSchema.safeParse(row.changes);
     return {
       id: row.id,
@@ -426,6 +446,46 @@ export async function readOrderDetail(id: string) {
   });
 
   return { order, items: itemsWithImages, history };
+}
+
+/* ------------------------------------------------------------------ */
+/* Notifications feed: recent orders as notices (owner item 14)        */
+/*                                                                     */
+/* Any signed-in staff member may read the feed; RLS decides which     */
+/* rows are visible, so staff without orders.read honestly see none.   */
+/* Null means unavailable (same contract as the other reads).          */
+/* ------------------------------------------------------------------ */
+
+export interface OrderNotice {
+  id: string;
+  order_number: number | null;
+  customer_name: string;
+  status: OrderStatus;
+  total_minor: number;
+  placed_at: string;
+}
+
+const orderNoticeSchema = z.object({
+  id: z.uuid(),
+  order_number: z.number().int().nullable(),
+  customer_name: z.string(),
+  status: z.enum(ORDER_STATUSES),
+  total_minor: z.number().int(),
+  placed_at: z.iso.datetime({ offset: true }),
+});
+
+export async function readOrderNotices(limit = 20): Promise<OrderNotice[] | null> {
+  const session = await requireStaff();
+  const bounded = Math.max(1, Math.min(50, Math.floor(limit) || 20));
+  const result = await session.client
+    .from("orders")
+    .select("id,order_number,customer_name,status,total_minor,placed_at")
+    .order("placed_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(bounded);
+  if (result.error) return null;
+  const parsed = orderNoticeSchema.array().safeParse(result.data);
+  return parsed.success ? parsed.data : null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -523,7 +583,11 @@ export async function bulkTransitionOrders(
     status: z.enum(ORDER_STATUSES),
     updated_at: z.iso.datetime({ offset: true }),
   });
-  const byId = new Map(currentRow.array().parse(current.data).map((row) => [row.id, row]));
+  const currentParsed = currentRow.array().safeParse(current.data);
+  if (!currentParsed.success) {
+    return actionError("The selected orders could not be read. No changes were made.");
+  }
+  const byId = new Map(currentParsed.data.map((row) => [row.id, row]));
   const label = (id: string): string => {
     const row = byId.get(id);
     return row?.order_number ? `#${row.order_number}` : "an order";
@@ -587,6 +651,9 @@ export async function exportOrdersCsv(input: {
   const session = await requireStaff(areaRoles("orders"));
   const filters = orderFilters({ ...input, page: "1", pageSize: String(EXPORT_LIMIT) });
   const scope = filters.q ? await searchOrderIds(session.client, filters.q) : null;
+  if (filters.q && scope === null) {
+    return { ok: false, error: "Orders could not be exported. Try again." };
+  }
   if (scope && scope.ids.length === 0) {
     return {
       ok: true,
@@ -603,7 +670,11 @@ export async function exportOrdersCsv(input: {
   if (result.error) {
     return { ok: false, error: "Orders could not be exported. Try again." };
   }
-  const rows = orderRowSchema.array().parse(result.data);
+  const parsed = orderRowSchema.array().safeParse(result.data);
+  if (!parsed.success) {
+    return { ok: false, error: "Orders could not be exported. Try again." };
+  }
+  const rows = parsed.data;
   const total = result.count ?? rows.length;
   const date = new Date().toISOString().slice(0, 10);
   return {

@@ -16,6 +16,8 @@ import {
   type CatalogListItem,
 } from "@/lib/admin/catalog-products";
 import { EmptyState, StatusBadge } from "../ui";
+import { PublicationActions } from "./publication-actions";
+import styles from "./catalogue-v2.module.css";
 
 function displayTone(
   status: CatalogListItem["displayStatus"],
@@ -62,9 +64,12 @@ function Thumbnail({ item }: { item: CatalogListItem }) {
 export function ProductListTable({
   items,
   canManage,
+  isSample = false,
 }: {
   items: CatalogListItem[];
   canManage: boolean;
+  /** Sample rows carry no working mutations: no selection, no links, no actions. */
+  isSample?: boolean;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -72,6 +77,7 @@ export function ProductListTable({
   const [busy, setBusy] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const allowSelection = canManage && !isSample;
 
   if (items.length === 0) {
     return (
@@ -165,7 +171,7 @@ export function ProductListTable({
         </p>
       ) : null}
 
-      {canManage && selected.size > 0 ? (
+      {allowSelection && selected.size > 0 ? (
         <div
           className="aa-panel"
           style={{
@@ -235,7 +241,7 @@ export function ProductListTable({
         <table className="aa-table">
           <thead>
             <tr>
-              {canManage ? (
+              {allowSelection ? (
                 <th scope="col">
                   <input
                     type="checkbox"
@@ -250,6 +256,7 @@ export function ProductListTable({
               <th scope="col">Price</th>
               <th scope="col">Stock</th>
               <th scope="col">Status</th>
+              <th scope="col">Storefront</th>
               <th scope="col">
                 <span className="aa-cell-actions">Actions</span>
               </th>
@@ -258,7 +265,7 @@ export function ProductListTable({
           <tbody>
             {items.map((item) => (
               <tr key={item.id}>
-                {canManage ? (
+                {allowSelection ? (
                   <td>
                     <input
                       type="checkbox"
@@ -279,6 +286,15 @@ export function ProductListTable({
                         {item.slug} · {item.variantCount} variant
                         {item.variantCount === 1 ? "" : "s"}
                       </span>
+                      {item.badges.length > 0 ? (
+                        <span className={styles.badgeRow}>
+                          {item.badges.map((badge) => (
+                            <span key={badge} className={styles.badgePill}>
+                              {badge}
+                            </span>
+                          ))}
+                        </span>
+                      ) : null}
                     </span>
                   </span>
                 </th>
@@ -306,7 +322,21 @@ export function ProductListTable({
                     {PRODUCT_DISPLAY_LABELS[item.displayStatus]}
                   </StatusBadge>
                 </td>
+                <td>
+                  <PublicationActions
+                    productId={item.id}
+                    productName={item.name}
+                    visibility={item.storefrontVisibility}
+                    canManage={canManage && !isSample}
+                  />
+                </td>
                 <td className="aa-cell-actions">
+                  {isSample ? (
+                    <span className="aa-cell-sub">
+                      Actions disabled for sample rows
+                    </span>
+                  ) : (
+                    <>
                   <Link
                     href={`/admin/catalog/products/${item.id}`}
                     className="aa-row-action"
@@ -369,6 +399,8 @@ export function ProductListTable({
                       )}
                     </>
                   ) : null}
+                    </>
+                  )}
                 </td>
               </tr>
             ))}

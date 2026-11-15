@@ -53,6 +53,57 @@ export function isRecoveryStatus(value: unknown): value is RecoveryStatus {
   return typeof value === "string" && (RECOVERY_STATUSES as readonly string[]).includes(value);
 }
 
+export interface IncompleteStats {
+  /** Total matching abandoned checkouts (the loader's exact count). */
+  totalAbandoned: number;
+  /** Pending + contacted rows on the loaded page. */
+  pendingRecovery: number;
+  /** Recovered rows on the loaded page. */
+  recovered: number;
+  /**
+   * Basket value of pending + contacted rows on the loaded page only.
+   * Recovered value already became orders and lost value will not recover,
+   * so neither counts as potential revenue. Page-scoped by design: the
+   * loader returns one page, and inventing a total would be dishonest.
+   */
+  potentialRevenueMinor: number;
+  /** Rows on the loaded page. */
+  pageCount: number;
+}
+
+/**
+ * 4-stat header from the EXISTING loader data only: the loaded page rows
+ * plus the loader's exact matching count. No new query. The UI must label
+ * the page-scoped figures as such and must never show potential revenue
+ * from sample rows (revenue is real data only).
+ */
+export function incompleteStats(
+  views: readonly {
+    session: { recovery_status: RecoveryStatus };
+    valueMinor: number;
+  }[],
+  totalCount: number,
+): IncompleteStats {
+  let pendingRecovery = 0;
+  let recovered = 0;
+  let potentialRevenueMinor = 0;
+  for (const view of views) {
+    if (view.session.recovery_status === "pending" || view.session.recovery_status === "contacted") {
+      pendingRecovery += 1;
+      potentialRevenueMinor += view.valueMinor;
+    } else if (view.session.recovery_status === "recovered") {
+      recovered += 1;
+    }
+  }
+  return {
+    totalAbandoned: totalCount,
+    pendingRecovery,
+    recovered,
+    potentialRevenueMinor,
+    pageCount: views.length,
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /* Row schemas. token_hash is NEVER selected.                          */
 /* ------------------------------------------------------------------ */
@@ -165,7 +216,7 @@ const SEARCH_CAP = 150;
 async function searchSessionIds(
   client: StaffClient,
   q: string,
-): Promise<{ ids: string[]; narrowed: boolean }> {
+): Promise<{ ids: string[]; narrowed: boolean } | null> {
   const pattern = escapeLikePattern(q);
   const [byName, byPhone, byEmail] = await Promise.all([
     client.from("checkout_sessions").select("id").ilike("customer_name", pattern).limit(SEARCH_LIMIT),
@@ -173,12 +224,15 @@ async function searchSessionIds(
     client.from("checkout_sessions").select("id").ilike("email", pattern).limit(SEARCH_LIMIT),
   ]);
   if (byName.error || byPhone.error || byEmail.error) {
-    throw new Error("Checkout search could not be completed. No changes were made.");
+    // Unavailable: the caller degrades honestly instead of throwing.
+    return null;
   }
   const idSchema = z.object({ id: z.uuid() });
   const ids = new Set<string>();
   for (const result of [byName, byPhone, byEmail]) {
-    for (const row of idSchema.array().parse(result.data)) ids.add(row.id);
+    const parsed = idSchema.array().safeParse(result.data);
+    if (!parsed.success) return null;
+    for (const row of parsed.data) ids.add(row.id);
   }
   const narrowed =
     [byName.data, byPhone.data, byEmail.data].some((rows) => (rows?.length ?? 0) >= SEARCH_LIMIT) ||
@@ -194,12 +248,20 @@ export interface IncompleteSessionView {
   progressLabel: string;
 }
 
+/**
+ * Reads return null when the live data is UNAVAILABLE (missing table/RPC,
+ * failed query, or malformed rows) so pages can degrade honestly with
+ * labeled sample data instead of throwing into the error boundary. The
+ * strict definition is unchanged: ONLY abandoned sessions with items and
+ * no linked order. notFound() is kept for genuinely missing records.
+ */
 export async function readIncompleteSessions(
   params: Record<string, string | string[] | undefined>,
 ) {
   const session = await requireStaff(areaRoles("recovery"));
   const filters = incompleteFilters(params);
   const scope = filters.q ? await searchSessionIds(session.client, filters.q) : null;
+  if (filters.q && scope === null) return null;
   if (scope && scope.ids.length === 0) {
     return { sessions: [] as IncompleteSessionView[], count: 0, filters, narrowed: scope.narrowed };
   }
@@ -221,11 +283,13 @@ export async function readIncompleteSessions(
     (filters.page - 1) * filters.pageSize,
     filters.page * filters.pageSize - 1,
   );
-  if (result.error) throw new Error("Incomplete checkouts could not be read. No changes were made.");
+  if (result.error) return null;
   const rowSchema = checkoutSessionRowSchema.extend({
     checkout_items: checkoutItemRowSchema.array(),
   });
-  const sessions: IncompleteSessionView[] = rowSchema.array().parse(result.data).map((row) => {
+  const parsed = rowSchema.array().safeParse(result.data);
+  if (!parsed.success) return null;
+  const sessions: IncompleteSessionView[] = parsed.data.map((row) => {
     const { checkout_items, ...sessionRow } = row;
     return {
       session: sessionRow,
@@ -246,9 +310,11 @@ export async function readIncompleteDetail(id: string) {
     .select(SESSION_COLUMNS)
     .eq("id", id)
     .maybeSingle();
-  if (sessionResult.error) throw new Error("Checkout details could not be read.");
+  if (sessionResult.error) return null;
   if (!sessionResult.data) notFound();
-  const checkout = checkoutSessionRowSchema.parse(sessionResult.data);
+  const checkoutParsed = checkoutSessionRowSchema.safeParse(sessionResult.data);
+  if (!checkoutParsed.success) return null;
+  const checkout = checkoutParsed.data;
 
   const itemsResult = await session.client
     .from("checkout_items")
@@ -256,8 +322,10 @@ export async function readIncompleteDetail(id: string) {
     .eq("checkout_session_id", id)
     .order("created_at", { ascending: true })
     .limit(50);
-  if (itemsResult.error) throw new Error("Checkout items could not be read.");
-  const items = checkoutItemRowSchema.array().parse(itemsResult.data);
+  if (itemsResult.error) return null;
+  const itemsParsed = checkoutItemRowSchema.array().safeParse(itemsResult.data);
+  if (!itemsParsed.success) return null;
+  const items = itemsParsed.data;
   const covers = await productCoverUrls(
     session.client,
     items.map((item) => item.product_id),
@@ -274,8 +342,10 @@ export async function readIncompleteDetail(id: string) {
     .eq("checkout_session_id", id)
     .order("created_at", { ascending: false })
     .limit(100);
-  if (logResult.error) throw new Error("Recovery history could not be read.");
-  const log = recoveryLogRowSchema.array().parse(logResult.data);
+  if (logResult.error) return null;
+  const logParsed = recoveryLogRowSchema.array().safeParse(logResult.data);
+  if (!logParsed.success) return null;
+  const log = logParsed.data;
 
   return {
     session: checkout,

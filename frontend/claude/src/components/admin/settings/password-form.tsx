@@ -18,6 +18,22 @@ export function PasswordForm({
     <form action={formAction}>
       <FormMessage state={state} />
       <div className="aa-form-grid">
+        <div className="aa-field aa-field--full">
+          <label htmlFor="current-password">Current password</label>
+          <input
+            id="current-password"
+            name="currentPassword"
+            type={showPasswords ? "text" : "password"}
+            autoComplete="current-password"
+            spellCheck={false}
+            maxLength={128}
+            required
+          />
+          <p className="aa-hint">
+            Your current password is checked first. If it is wrong, nothing
+            is changed.
+          </p>
+        </div>
         <div className="aa-field">
           <label htmlFor="new-password">New password</label>
           <input

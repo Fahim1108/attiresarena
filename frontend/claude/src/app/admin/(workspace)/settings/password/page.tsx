@@ -14,9 +14,10 @@ export default async function PasswordSettingsPage() {
         description="Change your own staff account password."
       />
       <Notice kind="info">
-        Your session is already verified with your authenticator, so no
-        current password is asked here. After changing, sign in again on
-        other devices with the new password.
+        Enter your current password first — it is checked before anything
+        changes, and a wrong current password leaves your password
+        untouched. After changing, sign in again on other devices with the
+        new password.
       </Notice>
       <Panel title="New password">
         <PasswordForm action={changeOwnPassword} />

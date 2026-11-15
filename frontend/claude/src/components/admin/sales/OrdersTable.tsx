@@ -12,6 +12,8 @@ import {
 import { formatDateTime, formatMoney } from "@/lib/admin/format";
 import { StatusBadge } from "@/components/admin/ui";
 import { FormMessage, SubmitButton } from "@/components/admin/ui-client";
+import { OrderStatusForm } from "./OrderStatusForm";
+import styles from "./order-cards.module.css";
 import {
   downloadCsv,
   type CsvExportResult,
@@ -54,13 +56,17 @@ export function OrdersTable({
   exportFilters,
   bulkAction,
   exportAction,
+  statusAction,
 }: {
   rows: OrderListRow[];
   exportFilters: { q: string; status: string; payment: string; from: string; to: string; sort: string };
   bulkAction: SalesAction;
   exportAction: OrdersExportAction;
+  /** Per-order status-change action (transitionOrder), reused by expanded cards. */
+  statusAction: SalesAction;
 }) {
   const [selected, setSelected] = useState<string[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [target, setTarget] = useState<OrderStatus | "">("");
   const [exportState, setExportState] = useState<{
     busy: boolean;
@@ -125,6 +131,15 @@ export function OrdersTable({
         <button type="button" className="aa-secondary" onClick={runExport} disabled={exportState.busy}>
           {exportState.busy ? "Exporting…" : "Export CSV"}
         </button>
+        <label className={styles.selectAll}>
+          <input
+            type="checkbox"
+            aria-label="Select all orders on this page"
+            checked={rows.length > 0 && selected.length === rows.length}
+            onChange={(event) => toggleAll(event.target.checked)}
+          />
+          Select all
+        </label>
         {selected.length > 0 ? (
           <span role="status">
             {selected.length} selected
@@ -176,74 +191,84 @@ export function OrdersTable({
       {rows.length === 0 ? (
         <p className="aa-panel">No orders match these filters.</p>
       ) : (
-        <div className="aa-table-scroll">
-          <table className="aa-table">
-            <thead>
-              <tr>
-                <th scope="col">
-                  <span className="aa-hint">Select</span>
-                  <input
-                    type="checkbox"
-                    aria-label="Select all orders on this page"
-                    checked={rows.length > 0 && selected.length === rows.length}
-                    onChange={(event) => toggleAll(event.target.checked)}
-                  />
-                </th>
-                <th scope="col">Order</th>
-                <th scope="col">Customer</th>
-                <th scope="col">Status</th>
-                <th scope="col">Payment</th>
-                <th scope="col">Total</th>
-                <th scope="col">
-                  <span>Details</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id}>
-                  <td>
+        <ul className={styles.cards}>
+          {rows.map((row) => {
+            const expanded = expandedId === row.id;
+            const label = row.order_number ? `#${row.order_number}` : "Order";
+            return (
+              <li key={row.id} className={styles.card}>
+                <div className={styles.cardHeader}>
+                  <span className={styles.cardSelect}>
                     <input
                       type="checkbox"
                       aria-label={`Select order ${row.order_number ?? row.id}`}
                       checked={selected.includes(row.id)}
                       onChange={(event) => toggle(row.id, event.target.checked)}
                     />
-                  </td>
-                  <td>
-                    <Link
-                      href={`/admin/sales/orders/${row.id}`}
-                      className="aa-cell-main"
-                    >
-                      {row.order_number ? `#${row.order_number}` : "Order"}
-                    </Link>
-                    <span className="aa-cell-sub">{formatDateTime(row.placed_at)}</span>
-                  </td>
-                  <td>
-                    <span className="aa-cell-main">{row.customer_name}</span>
-                    <span className="aa-cell-sub">{row.phone}</span>
-                  </td>
-                  <td>
-                    <StatusBadge tone={ORDER_STATUS_TONES[row.status]}>
-                      {ORDER_STATUS_LABELS[row.status]}
-                    </StatusBadge>
-                  </td>
-                  <td>{PAYMENT_STATUS_LABELS[row.payment_status] ?? row.payment_status}</td>
-                  <td>{formatMoney(row.total_minor)}</td>
-                  <td className="aa-cell-actions">
-                    <Link
-                      className="aa-row-action"
-                      href={`/admin/sales/orders/${row.id}`}
-                      aria-label={`View order ${row.order_number ? `#${row.order_number}` : row.id}`}
-                    >
-                      View
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </span>
+                  <Link
+                    href={`/admin/sales/orders/${row.id}`}
+                    className={styles.cardOrder}
+                  >
+                    {label}
+                  </Link>
+                  <span className={styles.cardCustomer}>{row.customer_name}</span>
+                  <StatusBadge tone={ORDER_STATUS_TONES[row.status]}>
+                    {ORDER_STATUS_LABELS[row.status]}
+                  </StatusBadge>
+                  <span className={styles.cardTotal}>{formatMoney(row.total_minor)}</span>
+                  <button
+                    type="button"
+                    className={styles.expandButton}
+                    aria-expanded={expanded}
+                    aria-controls={`order-card-${row.id}`}
+                    onClick={() => setExpandedId(expanded ? null : row.id)}
+                  >
+                    {expanded ? "Hide details" : "Show details"}
+                  </button>
+                </div>
+                {expanded ? (
+                  <div className={styles.cardBody} id={`order-card-${row.id}`}>
+                    <dl className={styles.cardFacts}>
+                      <div>
+                        <dt>Phone</dt>
+                        <dd>{row.phone}</dd>
+                      </div>
+                      <div>
+                        <dt>Placed</dt>
+                        <dd>{formatDateTime(row.placed_at)}</dd>
+                      </div>
+                      <div>
+                        <dt>Payment</dt>
+                        <dd>{PAYMENT_STATUS_LABELS[row.payment_status] ?? row.payment_status}</dd>
+                      </div>
+                    </dl>
+                    <OrderStatusForm
+                      orderId={row.id}
+                      currentStatus={row.status}
+                      expectedUpdatedAt={row.updated_at}
+                      action={statusAction}
+                      idPrefix={`order-${row.id}`}
+                    />
+                    <div className={styles.cardActions}>
+                      <Link
+                        className="aa-row-action"
+                        href={`/admin/sales/orders/${row.id}`}
+                        aria-label={`View order ${row.order_number ? `#${row.order_number}` : row.id}`}
+                      >
+                        View order details
+                      </Link>
+                    </div>
+                    <p className={styles.cardNote}>
+                      Line items and invoice printing live on the order details
+                      page.
+                    </p>
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
       )}
 
       <dialog

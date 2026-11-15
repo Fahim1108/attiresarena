@@ -1,0 +1,127 @@
+/* Admin Panel v2 form additions. Theme tokens only (see globals.css vars);
+   6px radius; no hover-reveal behaviour anywhere in this module. */
+
+.groupGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0.5rem 0 0.25rem;
+}
+
+@media (max-width: 640px) {
+  .groupGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.group {
+  border: 1px solid rgb(var(--aa-border));
+  border-radius: 6px;
+  padding: 0.75rem 0.9rem 0.9rem;
+  margin: 0;
+  min-width: 0;
+}
+
+.groupTitle {
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0 0.35rem;
+  color: rgb(var(--aa-text));
+}
+
+.groupNote {
+  font-size: 0.8rem;
+  color: rgb(var(--aa-text-muted));
+  margin: 0.35rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.checkList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.checkList label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  font-weight: 400;
+  line-height: 1.45;
+  min-height: 24px;
+  cursor: pointer;
+}
+
+.checkList input[type="checkbox"] {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  accent-color: rgb(var(--aa-primary));
+}
+
+.checkList input[type="checkbox"]:focus-visible {
+  outline: 2px solid rgb(var(--aa-primary));
+  outline-offset: 2px;
+}
+
+.checkList input[type="checkbox"]:disabled + span {
+  color: rgb(var(--aa-text-muted));
+}
+
+.roleTag {
+  font-size: 0.8rem;
+  color: rgb(var(--aa-text-muted));
+}
+
+.riskNote {
+  border: 1px solid #e5b8b8;
+  border-left: 4px solid #7a1010;
+  border-radius: 6px;
+  background: #fdf6f6;
+  padding: 0.75rem 0.9rem;
+  margin: 0 0 1rem;
+  color: rgb(var(--aa-text));
+  overflow-wrap: anywhere;
+}
+
+.riskNote strong {
+  color: #7a1010;
+}
+
+.codeInput {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  min-height: 7rem;
+  width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.statusLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.statusLine p {
+  margin: 0;
+}
+
+.sectionDivider {
+  border: 0;
+  border-top: 1px solid rgb(var(--aa-border));
+  margin: 1.25rem 0;
+}
+
+.inlineActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.75rem;
+}

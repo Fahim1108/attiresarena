@@ -1,0 +1,299 @@
+/* Admin Panel v2 catalogue styles (CSS Modules only — admin-panel.css and
+   workspace.css are untouched). Theme tokens come from globals.css:
+   primary #6B0202, 6px radius, Cormorant Garamond + Inter. */
+
+/* ---- Storefront feed health (admin products page, diagnostics) ---- */
+
+.feedHealth {
+  border: 1px solid rgb(var(--aa-border));
+  border-radius: var(--aa-radius-card);
+  background: rgb(var(--aa-surface));
+  padding: 0.9rem 1rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.feedHealthHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.feedHealthTitle {
+  font-weight: 700;
+  color: rgb(var(--aa-text));
+}
+
+.feedHealthRows {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  font-size: 0.875rem;
+  color: rgb(var(--aa-text));
+}
+
+.feedHealthRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.6rem;
+  align-items: baseline;
+}
+
+.feedHealthLabel {
+  color: rgb(var(--aa-text-muted));
+}
+
+.feedHealthValue {
+  font-weight: 600;
+}
+
+.feedHealthWarning {
+  color: rgb(var(--aa-primary));
+  font-weight: 600;
+}
+
+.feedHealthFootnote {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: rgb(var(--aa-text-muted));
+}
+
+/* ---- Category hierarchy ---- */
+
+.levelBadge {
+  display: inline-block;
+  border: 1px solid rgb(var(--aa-border));
+  border-radius: var(--aa-radius-control);
+  background: rgb(var(--aa-selected));
+  color: rgb(var(--aa-text));
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+  padding: 0.1rem 0.45rem;
+  white-space: nowrap;
+}
+
+/* ---- Publication ---- */
+
+.publicationActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.publicationMessage {
+  margin: 0;
+  font-size: 0.8125rem;
+  flex-basis: 100%;
+}
+
+.publicationMessageError {
+  color: rgb(var(--aa-primary));
+  font-weight: 600;
+}
+
+/* ---- Compressor toggle card + switch (reference: auto-compress card) ---- */
+
+.compressCard {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid rgb(var(--aa-border));
+  border-radius: var(--aa-radius-card);
+  background: rgb(var(--aa-surface));
+  padding: 0.8rem 1rem;
+  margin-top: 1rem;
+}
+
+.compressCardText {
+  min-width: 0;
+}
+
+.compressCardTitle {
+  margin: 0 0 0.2rem;
+  font-weight: 600;
+}
+
+.switch {
+  flex-shrink: 0;
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.switchInput {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.switchTrack {
+  display: inline-flex;
+  align-items: center;
+  width: 2.75rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: rgb(var(--aa-border));
+  padding: 0.15rem;
+  transition: background 0.2s ease;
+}
+
+.switchKnob {
+  display: block;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  background: rgb(var(--aa-surface));
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  transition: transform 0.2s ease;
+}
+
+.switchInput:checked + .switchTrack {
+  background: rgb(var(--aa-primary));
+}
+
+.switchInput:checked + .switchTrack .switchKnob {
+  transform: translateX(1.25rem);
+}
+
+.switchInput:focus-visible + .switchTrack {
+  outline: 2px solid rgb(var(--aa-primary));
+  outline-offset: 2px;
+}
+
+/* ---- Image uploaders (gallery + staged pre-upload, shared) ---- */
+
+.dropzone {
+  border: 2px dashed rgb(var(--aa-border));
+  border-radius: var(--aa-radius-card);
+  padding: 2rem 1.25rem;
+  margin-top: 1rem;
+  text-align: center;
+  background: rgb(var(--aa-surface));
+  cursor: pointer;
+}
+
+.dropzoneActive {
+  border-color: rgb(var(--aa-primary));
+  background: rgb(var(--aa-selected));
+}
+
+.dropzoneTitle {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.queueList {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.queueItem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  border: 1px solid rgb(var(--aa-border));
+  border-radius: var(--aa-radius-card);
+  padding: 0.6rem;
+  background: rgb(var(--aa-surface));
+}
+
+.queueThumb {
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid rgb(var(--aa-border));
+  background: #f7f4f4;
+  flex-shrink: 0;
+}
+
+.queueMain {
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.queueName {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.queueStatus {
+  margin: 0;
+}
+
+.queueAlt {
+  flex-basis: 100%;
+}
+
+/* ---- Gallery grid (edit-page image manager) ---- */
+
+.galleryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 1rem;
+}
+
+.galleryCard {
+  border: 1px solid rgb(var(--aa-border));
+  border-radius: var(--aa-radius-card);
+  padding: 0.75rem;
+  min-width: 0;
+  background: rgb(var(--aa-surface));
+}
+
+.galleryImage {
+  object-fit: contain;
+  max-width: 100%;
+  height: auto;
+  background: #f7f4f4;
+  border-radius: var(--aa-radius-card);
+}
+
+.cardTitle {
+  margin: 0.5rem 0;
+}
+
+.actionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* ---- Product table badge pills (reference: badges beside stock) ---- */
+
+.badgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+}
+
+.badgePill {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--aa-radius-control);
+  background: rgb(var(--aa-selected));
+  color: rgb(var(--aa-primary));
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+/* ---- Category list toolbar (reorder hint + normalize) ---- */
+
+.listToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+

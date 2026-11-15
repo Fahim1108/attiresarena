@@ -80,6 +80,13 @@ export interface Product {
 
 export interface Category {
   available?: boolean;
+  /**
+   * True when the catalogue data call failed (feed unavailable), as
+   * opposed to a genuinely empty catalogue. Only the live adapter sets
+   * it; category pages use it to show an honest unavailable state for
+   * the Shirts listing instead of "coming soon" during an outage.
+   */
+  catalogueUnavailable?: boolean;
   id: ID;
   slug: string;
   name: string;

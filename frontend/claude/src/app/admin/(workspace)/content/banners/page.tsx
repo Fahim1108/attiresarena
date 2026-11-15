@@ -1,4 +1,5 @@
 import { PageHeading, Panel, Notice } from "@/components/admin/ui";
+import { LayoutTabs } from "@/components/admin/LayoutTabs";
 import { BannerList } from "@/components/admin/content/banner-list";
 import { BannerForm } from "@/components/admin/content/forms";
 import { getBanners, saveBanner } from "@/lib/admin/content";
@@ -20,6 +21,7 @@ export default async function BannersPage({
         title="Banners"
         description="Hero and promotional banners. Images are stored privately and shown here via signed URLs."
       />
+      <LayoutTabs current="hero-slider" />
       <Notice kind="info">
         Banner order and visibility are stored here. Hero slides on the
         storefront render through the shared storefront settings, which this

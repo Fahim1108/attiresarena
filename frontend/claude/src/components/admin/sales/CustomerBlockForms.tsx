@@ -88,7 +88,9 @@ export function CustomerBlockForms({
       </div>
       <FormMessage state={blockState} />
       <div className="aa-form-actions">
-        <SubmitButton pendingLabel="Blocking…">Block customer</SubmitButton>
+        <SubmitButton pendingLabel="Blocking…" danger>
+          Block customer
+        </SubmitButton>
       </div>
     </form>
   );

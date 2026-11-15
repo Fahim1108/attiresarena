@@ -1,5 +1,5 @@
 import { ShirtStyles } from "@/components/home/ShirtStyles";
-import { SearchX } from "lucide-react";
+import { SearchX, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import { ProductGrid } from "@/components/product/ProductGrid";
 import { Breadcrumbs, ButtonLink, EmptyState } from "@/components/ui";
@@ -17,7 +17,7 @@ interface CatalogViewProps {
   description?: string;
   breadcrumbs: { label: string; href?: string }[];
   query: ProductQueryInput;
-  result: Paginated<Product> & { facets: CatalogFacets };
+  result: Paginated<Product> & { facets: CatalogFacets; catalogueUnavailable?: boolean };
   brands: Brand[];
   locked?: { category?: string; brand?: string };
   banner?: ReactNode;
@@ -25,6 +25,27 @@ interface CatalogViewProps {
 
 /** Shared product listing layout for /shop, /category/[slug] and /brand/[slug]. */
 export function CatalogView({ title, description, breadcrumbs, query, result, brands, locked, banner }: CatalogViewProps) {
+  // Feed failure is NOT an empty catalogue: when the data call itself
+  // failed and nothing rendered, say so honestly instead of showing
+  // empty filters and "No products found". No internals leak here —
+  // the server log carries the diagnosis. The retry link reloads this
+  // same listing.
+  if (result.catalogueUnavailable === true && result.total === 0) {
+    const retryHref = locked?.category ? `/category/${locked.category}` : locked?.brand ? `/brand/${locked.brand}` : "/shop";
+    return (
+      <div className="container pb-8 pt-5 sm:pt-8">
+        <Breadcrumbs items={breadcrumbs} />
+        <h1 className="mt-4 text-balance font-serif text-[34px] leading-tight text-ink sm:text-5xl">{title}</h1>
+        {description && <p className="mt-2 max-w-xl text-sm text-ink-muted">{description}</p>}
+        <EmptyState
+          icon={<TriangleAlert className="h-7 w-7" aria-hidden />}
+          title="Catalogue unavailable"
+          description="The catalogue could not be loaded. Please try again in a moment."
+          action={<ButtonLink href={retryHref} variant="outline">Try again</ButtonLink>}
+        />
+      </div>
+    );
+  }
   return (
     <CatalogProvider query={query} locked={locked}>
       <div className="container pb-8 pt-5 sm:pt-8">

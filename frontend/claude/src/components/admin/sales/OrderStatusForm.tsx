@@ -25,11 +25,14 @@ export function OrderStatusForm({
   currentStatus,
   expectedUpdatedAt,
   action,
+  idPrefix = "order-status",
 }: {
   orderId: string;
   currentStatus: OrderStatus;
   expectedUpdatedAt: string;
   action: SalesAction;
+  /** Prefix for the select id; the order list passes a per-card prefix so ids stay unique. */
+  idPrefix?: string;
 }) {
   const allowed = ORDER_TRANSITIONS[currentStatus];
   const [selected, setSelected] = useState<OrderStatus | "">(allowed[0] ?? "");
@@ -53,9 +56,9 @@ export function OrderStatusForm({
     <div>
       <FormMessage state={dialogOpen ? null : state} />
       <div className="aa-field">
-        <label htmlFor="order-status-select">Change status</label>
+        <label htmlFor={`${idPrefix}-select`}>Change status</label>
         <select
-          id="order-status-select"
+          id={`${idPrefix}-select`}
           value={active}
           onChange={(event) => setSelected(event.target.value as OrderStatus)}
         >

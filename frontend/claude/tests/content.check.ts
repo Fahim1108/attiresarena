@@ -210,24 +210,52 @@ describe("banner validation and ordering", () => {
 describe("password strength rules", () => {
   it("accepts a 12+ character letter-and-number password", () => {
     expect(
-      PASSWORD_SCHEMA.safeParse({ password: "correct horse 42", confirmPassword: "correct horse 42" })
-        .success,
+      PASSWORD_SCHEMA.safeParse({
+        currentPassword: "old password 99",
+        password: "correct horse 42",
+        confirmPassword: "correct horse 42",
+      }).success,
     ).toBe(true);
   });
 
   it("rejects short, letter-only and mismatched passwords", () => {
     expect(
-      PASSWORD_SCHEMA.safeParse({ password: "short1", confirmPassword: "short1" }).success,
+      PASSWORD_SCHEMA.safeParse({
+        currentPassword: "old password 99",
+        password: "short1",
+        confirmPassword: "short1",
+      }).success,
     ).toBe(false);
     expect(
       PASSWORD_SCHEMA.safeParse({
+        currentPassword: "old password 99",
         password: "allletterspassword",
         confirmPassword: "allletterspassword",
       }).success,
     ).toBe(false);
     expect(
-      PASSWORD_SCHEMA.safeParse({ password: "correct horse 42", confirmPassword: "different 42" })
-        .success,
+      PASSWORD_SCHEMA.safeParse({
+        currentPassword: "old password 99",
+        password: "correct horse 42",
+        confirmPassword: "different 42",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("requires the current password and rejects reusing it", () => {
+    expect(
+      PASSWORD_SCHEMA.safeParse({
+        currentPassword: "",
+        password: "correct horse 42",
+        confirmPassword: "correct horse 42",
+      }).success,
+    ).toBe(false);
+    expect(
+      PASSWORD_SCHEMA.safeParse({
+        currentPassword: "correct horse 42",
+        password: "correct horse 42",
+        confirmPassword: "correct horse 42",
+      }).success,
     ).toBe(false);
   });
 });

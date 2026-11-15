@@ -34,21 +34,27 @@ export function DonutChart({
   formatValue = (value) => String(value),
   ariaLabel,
   emptyMessage = "No data in this period.",
+  className,
 }: {
   segments: readonly DonutSegment[];
   centerLabel: string;
   formatValue?: (value: number) => string;
   ariaLabel: string;
   emptyMessage?: string;
+  /** Extra class on the chart wrapper (e.g. a large dashboard variant). */
+  className?: string;
 }) {
   const total = segments.reduce((sum, segment) => sum + segment.value, 0);
   if (segments.length === 0 || total <= 0) {
     return (
-      <div className="aa-chart">
+      <div className={className ? `aa-chart ${className}` : "aa-chart"}>
         <p className="aa-muted">{emptyMessage}</p>
       </div>
     );
   }
+  // Kept as the original pure per-segment prefix sum: with at most 8
+  // segments the cost is negligible, and a running-offset mutation
+  // inside map() violates the react-hooks/immutability lint rule.
   const arcs = segments.map((segment, index) => {
     const fraction = segment.value / total;
     const length = Math.max(fraction * CIRCUMFERENCE - 1.5, 0);
@@ -63,7 +69,7 @@ export function DonutChart({
     };
   });
   return (
-    <div className="aa-chart">
+    <div className={className ? `aa-chart ${className}` : "aa-chart"}>
       <div className="aa-donut-wrap">
         <svg
           className="aa-donut"

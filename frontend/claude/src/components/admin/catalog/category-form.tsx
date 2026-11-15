@@ -10,12 +10,24 @@ import {
   type CategoryWithUrls,
 } from "@/lib/admin/catalog-categories";
 import { uploadCategoryImage } from "@/lib/admin/catalog-media";
-import { validateImageFileMeta } from "@/lib/admin/catalog-variants";
+import {
+  MAX_COMPRESSIBLE_IMAGE_BYTES,
+  validateImageFileMeta,
+  type CategoryLevelChoice,
+} from "@/lib/admin/catalog-variants";
+import {
+  COMPRESSOR_DEFAULT_ON,
+  compressImageFile,
+  formatBytes,
+} from "./image-compress";
+import { CompressToggle } from "./compress-toggle";
 import { focusFirstInvalid, SubmitButton } from "../ui-client";
 
 export interface CategoryParentOption {
   id: string;
   label: string;
+  /** Tree depth: 1 = primary, 2 = secondary, 3 = sub-category. */
+  depth: number;
 }
 
 function CategoryImageField({
@@ -23,11 +35,14 @@ function CategoryImageField({
   label,
   currentPath,
   currentUrl,
+  compress,
 }: {
   fieldName: "image_storage_path" | "banner_storage_path";
   label: string;
   currentPath: string | null;
   currentUrl: string | null;
+  /** Auto-compressor toggle state, shared across the form's image fields. */
+  compress: boolean;
 }) {
   const [path, setPath] = useState(currentPath ?? "");
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentUrl);
@@ -36,21 +51,44 @@ function CategoryImageField({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const onFile = async (file: File) => {
-    const error = validateImageFileMeta(file);
+    const error = validateImageFileMeta(
+      file,
+      compress ? { maxBytes: MAX_COMPRESSIBLE_IMAGE_BYTES } : {},
+    );
     if (error) {
       setStatus(error);
       return;
     }
     setUploading(true);
+    let uploadFile = file;
+    let sizeNote = "";
+    if (compress) {
+      setStatus("Compressing…");
+      const result = await compressImageFile(file);
+      uploadFile = result.file;
+      if (result.compressed) {
+        sizeNote = ` Compressed ${formatBytes(file.size)} → ${formatBytes(uploadFile.size)}.`;
+      } else if (result.note) {
+        sizeNote = ` ${result.note}`;
+      }
+      const sizeError = validateImageFileMeta(uploadFile);
+      if (sizeError) {
+        setUploading(false);
+        setStatus(
+          "Even after compression, this image is over 5 MB. Choose a smaller file or turn compression off and retry with a file under 5 MB.",
+        );
+        return;
+      }
+    }
     setStatus("Uploading…");
     const form = new FormData();
-    form.set("image", file);
+    form.set("image", uploadFile);
     const result = await uploadCategoryImage(form);
     setUploading(false);
     if (result.ok) {
       setPath(result.path);
       setPreviewUrl(result.url);
-      setStatus("Uploaded. Save the category to keep it.");
+      setStatus(`Uploaded.${sizeNote} Save the category to keep it.`);
     } else {
       setStatus(result.error);
     }
@@ -127,9 +165,16 @@ function CategoryImageField({
 export function CategoryForm({
   category,
   parentOptions,
+  depth,
 }: {
   category: CategoryWithUrls | null;
   parentOptions: CategoryParentOption[];
+  /**
+   * Tree depth of the edited category (1 = primary, 2 = secondary,
+   * 3 = sub-category). Omitted for the create form, which starts at
+   * Primary and never offers Sub-category.
+   */
+  depth?: number;
 }) {
   const [state, formAction] = useActionState<CategoryFormState, FormData>(
     saveCategory,
@@ -138,6 +183,33 @@ export function CategoryForm({
   const [name, setName] = useState(category?.name ?? "");
   const [slug, setSlug] = useState(category?.slug ?? "");
   const [slugEdited, setSlugEdited] = useState(Boolean(category));
+  const [compress, setCompress] = useState(COMPRESSOR_DEFAULT_ON);
+  const [seoTitleLength, setSeoTitleLength] = useState(
+    category?.seo_title?.length ?? 0,
+  );
+  const [seoDescriptionLength, setSeoDescriptionLength] = useState(
+    category?.seo_description?.length ?? 0,
+  );
+  const isCreate = category === null;
+  const [level, setLevel] = useState<CategoryLevelChoice>(
+    depth === 2 ? "secondary" : depth === 3 ? "sub" : "primary",
+  );
+  const [parentId, setParentId] = useState(category?.parent_id ?? "");
+  const primaries = parentOptions.filter((option) => option.depth === 1);
+  const subParents = parentOptions.filter((option) => option.depth <= 2);
+  const parentDisabled =
+    level === "primary" || (level === "secondary" && primaries.length === 0);
+  const onLevelChange = (next: CategoryLevelChoice) => {
+    setLevel(next);
+    if (next === "primary") {
+      setParentId("");
+    } else if (next === "secondary") {
+      setParentId(primaries[0]?.id ?? "");
+    } else {
+      const current = parentOptions.find((option) => option.id === parentId);
+      if (!current || current.depth > 2) setParentId("");
+    }
+  };
   const idSuffix = category?.id ?? "new";
   const inputId = (field: string) => `category-${field}-${idSuffix}`;
   const formRef = useRef<HTMLFormElement>(null);
@@ -226,26 +298,99 @@ export function CategoryForm({
           {errorText("slug", "slug")}
         </div>
         <div className="aa-field">
-          <label htmlFor={inputId("parent")}>
-            Parent category
-          </label>
+          <span
+            id={inputId("level-label")}
+            style={{ fontWeight: 600, fontSize: "0.88rem" }}
+          >
+            Category level
+          </span>
+          <input type="hidden" name="category_level" value={level} />
+          <div
+            className="aa-check-row"
+            role="radiogroup"
+            aria-labelledby={inputId("level-label")}
+          >
+            <label>
+              <input
+                type="radio"
+                name={`category_level_choice_${idSuffix}`}
+                value="primary"
+                checked={level === "primary"}
+                onChange={() => onLevelChange("primary")}
+              />
+              Primary (top level)
+            </label>
+            <label>
+              <input
+                type="radio"
+                name={`category_level_choice_${idSuffix}`}
+                value="secondary"
+                checked={level === "secondary"}
+                onChange={() => onLevelChange("secondary")}
+              />
+              Secondary (under a primary)
+            </label>
+            {!isCreate ? (
+              <label>
+                <input
+                  type="radio"
+                  name={`category_level_choice_${idSuffix}`}
+                  value="sub"
+                  checked={level === "sub"}
+                  onChange={() => onLevelChange("sub")}
+                />
+                Sub-category (third level)
+              </label>
+            ) : null}
+          </div>
+          <p className="aa-hint">
+            Primary categories sit at the top level. Secondary categories
+            must belong to a primary. Sub-categories are legacy third-level
+            entries and cannot be created here.
+          </p>
+          {errorText("category_level", "level")}
+        </div>
+        <div className="aa-field">
+          <label htmlFor={inputId("parent")}>Parent category</label>
+          {parentDisabled ? (
+            <input type="hidden" name="parent_id" value="" />
+          ) : null}
           <select
             id={inputId("parent")}
             name="parent_id"
-            defaultValue={category?.parent_id ?? ""}
+            value={level === "primary" ? "" : parentId}
+            disabled={parentDisabled}
+            onChange={(e) => setParentId(e.target.value)}
             aria-invalid={fieldError("parent_id") ? true : undefined}
             aria-describedby={describedBy("parent_id", "parent")}
           >
-            <option value="">No parent (top level)</option>
-            {parentOptions.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
+            {level === "primary" ? (
+              <option value="">No parent (top level)</option>
+            ) : level === "secondary" ? (
+              primaries.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))
+            ) : (
+              <>
+                <option value="">No parent (promote to top level)</option>
+                {subParents.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </>
+            )}
           </select>
           <p className="aa-hint">
-            Categories may be at most 3 levels deep. A category cannot be
-            moved under itself or one of its children.
+            {level === "primary"
+              ? "Primary categories have no parent."
+              : level === "secondary"
+                ? primaries.length === 0
+                  ? "Create a primary category first — a secondary category needs a primary parent."
+                  : "A secondary category must belong to a primary category."
+                : "Categories may be at most 3 levels deep. A category cannot be moved under itself or one of its children."}
           </p>
           {errorText("parent_id", "parent")}
         </div>
@@ -281,17 +426,22 @@ export function CategoryForm({
           />
           {errorText("description", "description")}
         </div>
+        <div className="aa-field aa-field--full">
+          <CompressToggle checked={compress} onChange={setCompress} />
+        </div>
         <CategoryImageField
           fieldName="image_storage_path"
           label="Category image"
           currentPath={category?.image_storage_path ?? null}
           currentUrl={category?.imageUrl ?? null}
+          compress={compress}
         />
         <CategoryImageField
           fieldName="banner_storage_path"
           label="Banner image"
           currentPath={category?.banner_storage_path ?? null}
           currentUrl={category?.bannerUrl ?? null}
+          compress={compress}
         />
         <div className="aa-field">
           <label htmlFor={inputId("seo-title")}>
@@ -304,7 +454,9 @@ export function CategoryForm({
             maxLength={160}
             aria-invalid={fieldError("seo_title") ? true : undefined}
             aria-describedby={describedBy("seo_title", "seo-title")}
+            onChange={(e) => setSeoTitleLength(e.target.value.length)}
           />
+          <p className="aa-hint">{seoTitleLength}/160 characters</p>
           {errorText("seo_title", "seo-title")}
         </div>
         <div className="aa-field">
@@ -318,7 +470,9 @@ export function CategoryForm({
             maxLength={320}
             aria-invalid={fieldError("seo_description") ? true : undefined}
             aria-describedby={describedBy("seo_description", "seo-description")}
+            onChange={(e) => setSeoDescriptionLength(e.target.value.length)}
           />
+          <p className="aa-hint">{seoDescriptionLength}/320 characters</p>
           {errorText("seo_description", "seo-description")}
         </div>
         <div className="aa-field">

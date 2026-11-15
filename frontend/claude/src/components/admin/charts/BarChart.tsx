@@ -18,11 +18,14 @@ export function BarChart({
   formatValue = (value) => String(value),
   ariaLabel,
   emptyMessage = "No data in this period.",
+  className,
 }: {
   bars: readonly BarChartBar[];
   formatValue?: (value: number) => string;
   ariaLabel: string;
   emptyMessage?: string;
+  /** Extra class on the chart wrapper (e.g. a large dashboard variant). */
+  className?: string;
 }) {
   const max = Math.max(
     0,
@@ -31,7 +34,7 @@ export function BarChart({
   const hasComparison = bars.some((bar) => bar.compareValue !== undefined);
   if (bars.length === 0 || max <= 0) {
     return (
-      <div className="aa-chart">
+      <div className={className ? `aa-chart ${className}` : "aa-chart"}>
         <p className="aa-muted">{emptyMessage}</p>
       </div>
     );
@@ -39,7 +42,7 @@ export function BarChart({
   const first = bars[0];
   const last = bars[bars.length - 1];
   return (
-    <div className="aa-chart">
+    <div className={className ? `aa-chart ${className}` : "aa-chart"}>
       <div
         className="aa-bars"
         role="img"

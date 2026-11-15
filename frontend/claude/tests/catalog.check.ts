@@ -1,16 +1,29 @@
 import { describe, it, expect } from "vitest";
+import { canViewProductCosts } from "../src/lib/admin/authorization";
 import {
   aggregateVariantStock,
   buildCategoryTree,
+  categoryLevel,
+  categoryLevelName,
   classifyStock,
   collectDescendantIds,
+  deriveCategoryPair,
   eligibleParents,
+  isCatalogStoragePath,
+  isNormalizedOrder,
   isValidSlug,
+  MAX_COMPRESSIBLE_IMAGE_BYTES,
   moveIdInOrder,
   parseTagsInput,
+  primaryCategories,
+  publicationVisibility,
   remainingImageSlots,
+  secondaryCategoriesFor,
+  siblingOrderGroups,
   suggestUniqueSlug,
   validCatalogImageBytes,
+  validateCategoryAssignment,
+  validateCategoryLevelChoice,
   validateImageCount,
   validateImageFileMeta,
   validateReorderOrder,
@@ -278,6 +291,19 @@ describe("image file validation", () => {
     expect(validateImageCount(19, 2)).toMatch(/at most 20/);
     expect(validateImageCount(20, 1)).toMatch(/at most 20/);
   });
+  it("allows larger originals when a compressor will shrink them", () => {
+    const big = { type: "image/jpeg", size: 12 * 1024 * 1024 };
+    expect(validateImageFileMeta(big)).toMatch(/5 MB/);
+    expect(
+      validateImageFileMeta(big, { maxBytes: MAX_COMPRESSIBLE_IMAGE_BYTES }),
+    ).toBe(null);
+    expect(
+      validateImageFileMeta(
+        { type: "image/jpeg", size: MAX_COMPRESSIBLE_IMAGE_BYTES + 1 },
+        { maxBytes: MAX_COMPRESSIBLE_IMAGE_BYTES },
+      ),
+    ).toMatch(/20 MB/);
+  });
 });
 
 describe("tags and categories", () => {
@@ -308,6 +334,192 @@ describe("tags and categories", () => {
       "root",
     ]);
     expect(eligibleParents(flat, null)).toHaveLength(4);
+  });
+});
+
+describe("category hierarchy levels", () => {
+  const flat: CategoryFlat[] = [
+    category("root", null, "Root"),
+    category("child", "root", "Child"),
+    category("grand", "child", "Grandchild"),
+    category("other", null, "Other"),
+    category("orphan", "missing", "Orphan"),
+  ];
+  it("derives primary/secondary/sub-category levels from the parent chain", () => {
+    expect(categoryLevel(flat, "root")).toBe(1);
+    expect(categoryLevel(flat, "child")).toBe(2);
+    expect(categoryLevel(flat, "grand")).toBe(3);
+    expect(categoryLevel(flat, "missing")).toBe(null);
+    expect(categoryLevel(flat, "orphan")).toBe(2);
+    expect(categoryLevelName(1)).toBe("Primary category");
+    expect(categoryLevelName(2)).toBe("Secondary category");
+    expect(categoryLevelName(3)).toBe("Sub-category");
+    expect(categoryLevelName(9)).toBe("Sub-category");
+  });
+  it("returns null for a cyclic parent chain", () => {
+    const cyclic: CategoryFlat[] = [
+      category("a", "b", "A"),
+      category("b", "a", "B"),
+    ];
+    expect(categoryLevel(cyclic, "a")).toBe(null);
+  });
+  it("works on minimal id/parent_id nodes (form option lists)", () => {
+    const nodes = [
+      { id: "root", parent_id: null },
+      { id: "child", parent_id: "root" },
+      { id: "grand", parent_id: "child" },
+    ];
+    expect(categoryLevel(nodes, "grand")).toBe(3);
+    expect(primaryCategories(nodes).map((c) => c.id)).toEqual(["root"]);
+    expect(secondaryCategoriesFor(nodes, "root").map((c) => c.id)).toEqual([
+      "child",
+    ]);
+    expect(validateCategoryAssignment("root", "child", nodes)).toBe(null);
+    expect(validateCategoryLevelChoice("secondary", "root", nodes)).toBe(null);
+  });
+  it("lists primaries and secondaries of one primary", () => {
+    expect(primaryCategories(flat).map((c) => c.id)).toEqual(["root", "other"]);
+    expect(secondaryCategoriesFor(flat, "root").map((c) => c.id)).toEqual([
+      "child",
+    ]);
+    expect(secondaryCategoriesFor(flat, "other")).toEqual([]);
+  });
+  it("validates primary + secondary product assignment", () => {
+    expect(validateCategoryAssignment(null, null, flat)).toBe(null);
+    expect(validateCategoryAssignment("root", null, flat)).toBe(null);
+    expect(validateCategoryAssignment("root", "child", flat)).toBe(null);
+    expect(validateCategoryAssignment(null, "child", flat)).toMatch(
+      /primary category/,
+    );
+    expect(validateCategoryAssignment("other", "child", flat)).toMatch(
+      /must belong/,
+    );
+    expect(validateCategoryAssignment("root", "grand", flat)).toMatch(
+      /must belong/,
+    );
+    expect(validateCategoryAssignment("child", "grand", flat)).toMatch(
+      /top-level/,
+    );
+    expect(validateCategoryAssignment("root", "missing", flat)).toMatch(
+      /no longer exists/,
+    );
+  });
+  it("validates primary/secondary/sub level choices against parents", () => {
+    expect(validateCategoryLevelChoice("primary", null, flat)).toBe(null);
+    expect(validateCategoryLevelChoice("primary", "root", flat)).toMatch(
+      /no parent/,
+    );
+    expect(validateCategoryLevelChoice("secondary", "root", flat)).toBe(null);
+    expect(validateCategoryLevelChoice("secondary", null, flat)).toMatch(
+      /needs a primary/,
+    );
+    expect(validateCategoryLevelChoice("secondary", "child", flat)).toMatch(
+      /must be a primary/,
+    );
+    expect(validateCategoryLevelChoice("sub", null, flat)).toBe(null);
+    expect(validateCategoryLevelChoice("sub", "root", flat)).toBe(null);
+    expect(validateCategoryLevelChoice("sub", "child", flat)).toBe(null);
+    expect(validateCategoryLevelChoice("sub", "grand", flat)).toMatch(
+      /another sub-category/,
+    );
+  });
+  it("derives the form pair from a stored assignment", () => {
+    expect(deriveCategoryPair(flat, null, null)).toEqual({
+      primaryId: null,
+      secondaryId: null,
+      replacedId: null,
+    });
+    expect(deriveCategoryPair(flat, "root", "child")).toEqual({
+      primaryId: "root",
+      secondaryId: "child",
+      replacedId: null,
+    });
+    // A depth-2 category_id survives as the secondary.
+    expect(deriveCategoryPair(flat, "child", null)).toEqual({
+      primaryId: "root",
+      secondaryId: "child",
+      replacedId: null,
+    });
+    // A depth-3 assignment keeps its top two links; the leaf is replaced.
+    expect(deriveCategoryPair(flat, "grand", null)).toEqual({
+      primaryId: "root",
+      secondaryId: "child",
+      replacedId: "grand",
+    });
+    // Inconsistent stored pairs are repaired, reporting the dropped id.
+    expect(deriveCategoryPair(flat, "root", "grand")).toEqual({
+      primaryId: "root",
+      secondaryId: null,
+      replacedId: "grand",
+    });
+    expect(deriveCategoryPair(flat, null, "child")).toEqual({
+      primaryId: null,
+      secondaryId: null,
+      replacedId: "child",
+    });
+    expect(deriveCategoryPair(flat, "missing", null)).toEqual({
+      primaryId: null,
+      secondaryId: null,
+      replacedId: "missing",
+    });
+  });
+  it("groups siblings in display order for normalization", () => {
+    const nodes = [
+      { id: "b", parent_id: null, sort_position: 5 },
+      { id: "a", parent_id: null, sort_position: 2 },
+      { id: "c2", parent_id: "a", sort_position: 3 },
+      { id: "c1", parent_id: "a", sort_position: 1 },
+    ];
+    expect(siblingOrderGroups(nodes)).toEqual([
+      ["a", "b"],
+      ["c1", "c2"],
+    ]);
+    expect(siblingOrderGroups([])).toEqual([]);
+    expect(isNormalizedOrder(nodes, ["a", "b"])).toBe(false);
+    expect(
+      isNormalizedOrder(
+        [
+          { id: "a", parent_id: null, sort_position: 0 },
+          { id: "b", parent_id: null, sort_position: 1 },
+        ],
+        ["a", "b"],
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("publication visibility and cost visibility", () => {
+  it("requires both publication signals for storefront visibility", () => {
+    expect(publicationVisibility("published", true)).toBe("visible");
+    expect(publicationVisibility("published", false)).toBe("hidden");
+    expect(publicationVisibility("archived", false)).toBe("hidden");
+    expect(publicationVisibility("archived", true)).toBe("paused");
+    expect(publicationVisibility("draft", true)).toBe("paused");
+  });
+  it("shows costs only to cost-viewing roles, never to moderators alone", () => {
+    // Single rule lives in authorization.ts and matches the database
+    // costs.read permission's union semantics: any cost-viewing role
+    // grants visibility, so a combined owner+moderator session may view
+    // costs (the database has_permission check agrees).
+    expect(canViewProductCosts({ roles: ["owner"] })).toBe(true);
+    expect(canViewProductCosts({ roles: ["product_manager"] })).toBe(true);
+    expect(canViewProductCosts({ roles: ["admin"] })).toBe(true);
+    expect(canViewProductCosts({ roles: ["owner", "analyst"] })).toBe(true);
+    expect(canViewProductCosts({ roles: ["owner", "moderator"] })).toBe(true);
+    expect(canViewProductCosts({ roles: ["analyst"] })).toBe(false);
+    expect(canViewProductCosts({ roles: ["order_manager"] })).toBe(false);
+    expect(canViewProductCosts({ roles: ["moderator"] })).toBe(false);
+    expect(canViewProductCosts({ roles: ["editor"] })).toBe(false);
+    expect(canViewProductCosts({ roles: [] })).toBe(false);
+  });
+  it("validates catalog storage paths", () => {
+    const good =
+      "55555555-5555-4555-8555-555555555555/66666666-6666-4666-8666-666666666666.webp";
+    expect(isCatalogStoragePath(good)).toBe(true);
+    expect(isCatalogStoragePath("/inventory/x.jpg")).toBe(false);
+    expect(isCatalogStoragePath("a/b.gif")).toBe(false);
+    expect(isCatalogStoragePath("../escape.jpg")).toBe(false);
+    expect(isCatalogStoragePath("")).toBe(false);
   });
 });
 

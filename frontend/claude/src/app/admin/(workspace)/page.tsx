@@ -23,6 +23,7 @@ import {
   periodDelta,
   resolveGranularity,
   revenueGranularitySchema,
+  summarizeRevenue,
   withComparisonSeries,
   addDaysToKey,
   type RevenueGranularity,
@@ -55,7 +56,7 @@ import {
 import { BarChart } from "@/components/admin/charts/BarChart";
 import { DonutChart, DONUT_PALETTE } from "@/components/admin/charts/DonutChart";
 import { ProductThumbnail } from "@/components/admin/access/ProductThumbnail";
-import { isProductionStorefront } from "@/lib/storefront-policy";
+import styles from "./dashboard.module.css";
 
 /**
  * Dashboard: real queries only, through the staff session client (RLS
@@ -190,9 +191,6 @@ export default async function AdminDashboard({
     { label: "Last 30 days", from: addDaysToKey(today, -29), to: today },
     { label: "This month", from: `${today.slice(0, 7)}-01`, to: today },
   ];
-  const productsHref = isProductionStorefront()
-    ? "/admin/products"
-    : "/admin/products/library";
 
   const warnings: string[] = [];
   if (data.failedSections.length > 0) {
@@ -213,6 +211,16 @@ export default async function AdminDashboard({
     data.revenueBuckets,
     data.revenueBucketsPrevious,
   );
+  const revenueSummary = summarizeRevenue(data.revenueBuckets);
+  // Largest status slice for the summary under the donut; null when the
+  // period has no orders at all.
+  let topStatus: { status: OrderStatus; count: number } | null = null;
+  for (const status of ORDER_STATUSES) {
+    const count = data.statusCounts[status];
+    if (count > 0 && (!topStatus || count > topStatus.count)) {
+      topStatus = { status, count };
+    }
+  }
 
   return (
     <main id="main" tabIndex={-1} className="aa-main">
@@ -349,11 +357,34 @@ export default async function AdminDashboard({
             formatValue={formatMoneyShort}
             ariaLabel={`Revenue by ${granularity === "day" ? "day" : granularity === "week" ? "week" : "month"}`}
             emptyMessage="No revenue in this period."
+            className={styles.chartLarge}
           />
-          <p className="aa-muted">
-            Revenue in period: {formatMoney(data.revenueMinor)} · Previous
-            period: {formatMoney(data.revenueMinorPrevious)}.
-          </p>
+          <dl className={styles.summary}>
+            <div>
+              <dt>Revenue in period</dt>
+              <dd>{formatMoney(data.revenueMinor)}</dd>
+            </div>
+            <div>
+              <dt>Previous period</dt>
+              <dd>{formatMoney(data.revenueMinorPrevious)}</dd>
+            </div>
+            {revenueSummary.peak && revenueSummary.totalMinor > 0 ? (
+              <div>
+                <dt>Peak {granularity === "day" ? "day" : granularity === "week" ? "week" : "month"}</dt>
+                <dd>
+                  {revenueSummary.peak.label} ·{" "}
+                  {formatMoney(revenueSummary.peak.revenueMinor)}
+                </dd>
+              </div>
+            ) : null}
+            <div>
+              <dt>
+                Average per{" "}
+                {granularity === "day" ? "day" : granularity === "week" ? "week" : "month"}
+              </dt>
+              <dd>{formatMoney(revenueSummary.averageMinor)}</dd>
+            </div>
+          </dl>
         </Panel>
         <Panel title="Orders by status" description="Click a status to open the matching orders.">
           <DonutChart
@@ -367,7 +398,19 @@ export default async function AdminDashboard({
             formatValue={formatCount}
             ariaLabel="Orders by status in the selected period"
             emptyMessage="No orders in this period."
+            className={styles.donutLarge}
           />
+          {topStatus ? (
+            <dl className={styles.summary}>
+              <div>
+                <dt>Most orders</dt>
+                <dd>
+                  {ORDER_STATUS_LABELS[topStatus.status]} ·{" "}
+                  {formatCount(topStatus.count)} of {formatCount(data.orderCount)}
+                </dd>
+              </div>
+            </dl>
+          ) : null}
         </Panel>
       </div>
 
@@ -403,7 +446,7 @@ export default async function AdminDashboard({
                   {data.bestSellers.map((item) => (
                     <tr key={item.productId}>
                       <th scope="row">
-                        <span style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                        <span className={styles.productCell}>
                           <ProductThumbnail url={item.imageUrl} alt={item.imageAlt} />
                           <Link href={`/admin/catalog/products/${item.productId}`}>
                             {item.productName}
@@ -547,18 +590,14 @@ export default async function AdminDashboard({
             </div>
           )}
         </Panel>
-        <Panel title="Collection" description="The garment intake workspace stays available alongside the new catalog tools.">
+        <Panel title="Catalog" description="Products, variants, images, and stock are managed in the catalog.">
           <p>
-            Manage intake, the product library and physical verification from
-            the existing workspace, or use the new catalog pages from the
-            sidebar.
+            Add products, edit variants, and track stock from the catalog
+            pages.
           </p>
           <div className="aa-editor-actions">
-            <Link className="aa-button" href={productsHref}>
+            <Link className="aa-button" href="/admin/catalog/products">
               Manage products <ArrowUpRight size={15} aria-hidden="true" />
-            </Link>
-            <Link className="aa-row-action" href="/admin/catalog/products">
-              Open catalog
             </Link>
           </div>
         </Panel>

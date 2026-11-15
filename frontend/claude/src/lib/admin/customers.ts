@@ -185,7 +185,7 @@ const SEARCH_CAP = 150;
 async function searchOrderIdsForCustomers(
   client: StaffClient,
   q: string,
-): Promise<{ ids: string[]; narrowed: boolean }> {
+): Promise<{ ids: string[]; narrowed: boolean } | null> {
   const pattern = escapeLikePattern(q);
   const [byName, byPhone, byEmail] = await Promise.all([
     client.from("orders").select("id").ilike("customer_name", pattern).limit(SEARCH_LIMIT),
@@ -193,12 +193,15 @@ async function searchOrderIdsForCustomers(
     client.from("orders").select("id").ilike("email", pattern).limit(SEARCH_LIMIT),
   ]);
   if (byName.error || byPhone.error || byEmail.error) {
-    throw new Error("Customer search could not be completed. No changes were made.");
+    // Unavailable: the caller degrades honestly instead of throwing.
+    return null;
   }
   const idSchema = z.object({ id: z.uuid() });
   const ids = new Set<string>();
   for (const result of [byName, byPhone, byEmail]) {
-    for (const row of idSchema.array().parse(result.data)) ids.add(row.id);
+    const parsed = idSchema.array().safeParse(result.data);
+    if (!parsed.success) return null;
+    for (const row of parsed.data) ids.add(row.id);
   }
   const narrowed =
     [byName.data, byPhone.data, byEmail.data].some((rows) => (rows?.length ?? 0) >= SEARCH_LIMIT) ||
@@ -210,10 +213,17 @@ export interface CustomerListEntry extends CustomerSummary {
   blocked: boolean;
 }
 
+/**
+ * Reads return null when the live data is UNAVAILABLE (missing table/RPC,
+ * failed query, or malformed rows) so pages can degrade honestly with
+ * labeled sample data instead of throwing into the error boundary.
+ * notFound() is kept for invalid phones and phones with no orders.
+ */
 export async function readCustomers(params: Record<string, string | string[] | undefined>) {
   const session = await requireStaff(areaRoles("customers"));
   const filters = customerFilters(params);
   const scope = filters.q ? await searchOrderIdsForCustomers(session.client, filters.q) : null;
+  if (filters.q && scope === null) return null;
   if (scope && scope.ids.length === 0) {
     return {
       customers: [] as CustomerListEntry[],
@@ -231,8 +241,10 @@ export async function readCustomers(params: Record<string, string | string[] | u
     .limit(AGGREGATION_LIMIT);
   if (scope) query = query.in("id", scope.ids);
   const result = await query;
-  if (result.error) throw new Error("Customers could not be read. No changes were made.");
-  const rows = orderRowSchema.array().parse(result.data);
+  if (result.error) return null;
+  const rowsParsed = orderRowSchema.array().safeParse(result.data);
+  if (!rowsParsed.success) return null;
+  const rows = rowsParsed.data;
   const truncated = !scope && rows.length >= AGGREGATION_LIMIT;
   const summaries = sortCustomerSummaries(aggregateCustomers(rows), filters.sort);
 
@@ -277,8 +289,10 @@ export async function readCustomerProfile(rawPhone: string) {
     .order("placed_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(201);
-  if (ordersResult.error) throw new Error("Customer orders could not be read.");
-  const allOrders = orderRowSchema.array().parse(ordersResult.data);
+  if (ordersResult.error) return null;
+  const allOrdersParsed = orderRowSchema.array().safeParse(ordersResult.data);
+  if (!allOrdersParsed.success) return null;
+  const allOrders = allOrdersParsed.data;
   if (allOrders.length === 0) notFound();
   const orders = allOrders.slice(0, 200);
   // Totals are computed from the same orders shown below, so they always
@@ -291,10 +305,13 @@ export async function readCustomerProfile(rawPhone: string) {
     .select(BLOCKED_COLUMNS)
     .eq("phone", phone)
     .maybeSingle();
-  if (blockedResult.error) throw new Error("Customer block status could not be read.");
-  const blockedRow = blockedResult.data
-    ? blockedCustomerRowSchema.parse(blockedResult.data)
-    : null;
+  if (blockedResult.error) return null;
+  let blockedRow: BlockedCustomerRow | null = null;
+  if (blockedResult.data) {
+    const blockedParsed = blockedCustomerRowSchema.safeParse(blockedResult.data);
+    if (!blockedParsed.success) return null;
+    blockedRow = blockedParsed.data;
+  }
 
   return {
     phone,
@@ -386,6 +403,9 @@ export async function exportCustomersCsv(input: { q: string; sort: string }): Pr
   const session = await requireStaff(areaRoles("customers"));
   const filters = customerFilters({ ...input, page: "1", pageSize: String(MAX_PAGE_SIZE) });
   const scope = filters.q ? await searchOrderIdsForCustomers(session.client, filters.q) : null;
+  if (filters.q && scope === null) {
+    return { ok: false, error: "Customers could not be exported. Try again." };
+  }
   if (scope && scope.ids.length === 0) {
     return { ok: true, csv: customersToCsv([]), filename: "customers.csv", truncated: false, total: 0 };
   }
@@ -399,7 +419,11 @@ export async function exportCustomersCsv(input: { q: string; sort: string }): Pr
   if (result.error) {
     return { ok: false, error: "Customers could not be exported. Try again." };
   }
-  const rows = orderRowSchema.array().parse(result.data);
+  const rowsParsed = orderRowSchema.array().safeParse(result.data);
+  if (!rowsParsed.success) {
+    return { ok: false, error: "Customers could not be exported. Try again." };
+  }
+  const rows = rowsParsed.data;
   const summaries = sortCustomerSummaries(aggregateCustomers(rows), filters.sort);
   const blockedResult = await session.client
     .from("blocked_customers")

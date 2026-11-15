@@ -82,9 +82,20 @@ export const PAYMENT_STATUS_LABELS: Record<string, string> = {
   refunded: "Refunded",
 };
 
-/** Database roles from the user_roles CHECK constraint. */
+/**
+ * Database roles from the user_roles CHECK constraint. The first six are
+ * the original roles; moderator, editor and admin are added by migration
+ * 20261115001000_admin_v2_roles_permissions.sql, which widens the CHECK
+ * constraints on user_roles.role and role_permissions.role. Until that
+ * migration applies, assigning a new role fails server-side (the RPC and
+ * the CHECK reject it) — the UI must never assume the new roles exist.
+ * Order here is the display order in the User role UI (broadest first).
+ */
 export const STAFF_ROLES = [
   "owner",
+  "admin",
+  "editor",
+  "moderator",
   "product_manager",
   "order_manager",
   "customer_support",
@@ -96,6 +107,9 @@ export type StaffRole = (typeof STAFF_ROLES)[number];
 
 export const STAFF_ROLE_LABELS: Record<StaffRole, string> = {
   owner: "Owner",
+  admin: "Admin",
+  editor: "Editor",
+  moderator: "Moderator",
   product_manager: "Product Manager",
   order_manager: "Order Manager",
   customer_support: "Customer Support",
@@ -103,10 +117,13 @@ export const STAFF_ROLE_LABELS: Record<StaffRole, string> = {
   analyst: "Analyst",
 };
 
-/** Business-friendly role groups used by the admin-users UI. */
+/** Business-friendly role groups used by the User role UI. */
 export const STAFF_ROLE_GROUPS: Record<StaffRole, "Owner" | "Admin" | "Staff"> =
   {
     owner: "Owner",
+    admin: "Admin",
+    editor: "Staff",
+    moderator: "Staff",
     product_manager: "Admin",
     order_manager: "Admin",
     marketing_manager: "Admin",
@@ -123,8 +140,11 @@ export function isStaffRole(value: unknown): value is StaffRole {
 
 /**
  * Permission names. The first seven already exist in role_permissions
- * (foundation + Step 1/Step 2 widenings). The rest are added by migration
- * 20261115000100_admin_panel_permissions.sql following the same precedent.
+ * (foundation + Step 1/Step 2 widenings). The next six are added by
+ * migration 20261115000100_admin_panel_permissions.sql following the same
+ * precedent. costs.read is added by migration
+ * 20261115001000_admin_v2_roles_permissions.sql: it gates product cost
+ * prices, which moderators and editors must never see.
  */
 export const PERMISSIONS = {
   catalogueRead: "catalogue.read",
@@ -140,20 +160,146 @@ export const PERMISSIONS = {
   settingsManage: "settings.manage",
   usersManage: "users.manage",
   analyticsRead: "analytics.read",
+  costsRead: "costs.read",
 } as const;
+
+export type PermissionName = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
+
+export const ALL_PERMISSIONS: readonly PermissionName[] = [
+  PERMISSIONS.catalogueRead,
+  PERMISSIONS.catalogueManage,
+  PERMISSIONS.inventoryRead,
+  PERMISSIONS.inventoryAdjust,
+  PERMISSIONS.checkoutRecover,
+  PERMISSIONS.ordersRead,
+  PERMISSIONS.ordersManage,
+  PERMISSIONS.customersRead,
+  PERMISSIONS.couponsManage,
+  PERMISSIONS.contentManage,
+  PERMISSIONS.settingsManage,
+  PERMISSIONS.usersManage,
+  PERMISSIONS.analyticsRead,
+  PERMISSIONS.costsRead,
+];
+
+export function isPermissionName(value: unknown): value is PermissionName {
+  return (
+    typeof value === "string" &&
+    (ALL_PERMISSIONS as readonly string[]).includes(value)
+  );
+}
+
+export const PERMISSION_LABELS: Record<PermissionName, string> = {
+  "catalogue.read": "View products and categories",
+  "catalogue.manage": "Manage products and categories",
+  "inventory.read": "View inventory",
+  "inventory.adjust": "Adjust inventory",
+  "checkout.recover": "Recover incomplete orders",
+  "orders.read": "View orders",
+  "orders.manage": "Manage orders",
+  "customers.read": "View customers",
+  "coupons.manage": "Manage coupons",
+  "content.manage": "Manage content and banners",
+  "settings.manage": "Manage settings and integrations",
+  "users.manage": "Manage users and roles",
+  "analytics.read": "View analytics",
+  "costs.read": "View product cost prices",
+};
+
+/** Permission checkboxes in the User role UI, grouped by section. */
+export const PERMISSION_GROUPS: readonly {
+  section: string;
+  permissions: readonly PermissionName[];
+}[] = [
+  { section: "Catalogue", permissions: ["catalogue.read", "catalogue.manage"] },
+  { section: "Inventory", permissions: ["inventory.read", "inventory.adjust"] },
+  { section: "Orders", permissions: ["orders.read", "orders.manage", "checkout.recover"] },
+  { section: "Customers", permissions: ["customers.read"] },
+  { section: "Coupons", permissions: ["coupons.manage"] },
+  { section: "Content", permissions: ["content.manage"] },
+  { section: "Analytics", permissions: ["analytics.read"] },
+  { section: "Costs", permissions: ["costs.read"] },
+  { section: "Settings and users", permissions: ["settings.manage", "users.manage"] },
+];
+
+/**
+ * Default permissions granted to each role by the migrations. This mirror
+ * must match the role_permissions seed rows in migrations 001 and 010
+ * exactly; it is used only to explain role-granted access in the UI when
+ * the live permission rows cannot be read. The database is authoritative:
+ * effective access is always role grants plus per-user grants, checked
+ * server-side by private.has_permission.
+ *
+ * Deliberate exclusions: only owner and product_manager/admin hold
+ * costs.read (moderators and editors never see cost prices); only owner
+ * holds settings.manage and users.manage, so settings and user management
+ * stay owner-only even for the admin role.
+ */
+export const ROLE_PERMISSION_DEFAULTS: Record<StaffRole, readonly PermissionName[]> = {
+  owner: ALL_PERMISSIONS,
+  admin: [
+    "catalogue.read",
+    "catalogue.manage",
+    "inventory.read",
+    "inventory.adjust",
+    "checkout.recover",
+    "orders.read",
+    "orders.manage",
+    "customers.read",
+    "coupons.manage",
+    "content.manage",
+    "analytics.read",
+    "costs.read",
+  ],
+  editor: ["catalogue.read", "catalogue.manage", "inventory.read", "content.manage", "coupons.manage"],
+  moderator: [
+    "catalogue.read",
+    "inventory.read",
+    "checkout.recover",
+    "orders.read",
+    "customers.read",
+    "analytics.read",
+  ],
+  product_manager: [
+    "catalogue.read",
+    "catalogue.manage",
+    "inventory.read",
+    "inventory.adjust",
+    "costs.read",
+  ],
+  order_manager: [
+    "catalogue.read",
+    "inventory.read",
+    "checkout.recover",
+    "orders.read",
+    "orders.manage",
+    "customers.read",
+    "analytics.read",
+  ],
+  customer_support: ["orders.read", "customers.read"],
+  marketing_manager: ["coupons.manage", "content.manage", "analytics.read"],
+  analyst: ["catalogue.read", "inventory.read", "orders.read", "analytics.read"],
+};
+
+/** Roles whose holders may view product cost prices (see costs.read). */
+export const COST_VIEWING_ROLES: readonly StaffRole[] = [
+  "owner",
+  "admin",
+  "product_manager",
+];
 
 /** Which database roles may hold each admin area (server-side enforcement). */
 export const AREA_ROLES: Record<string, readonly StaffRole[]> = {
-  catalogue: ["owner", "product_manager"],
-  inventory: ["owner", "product_manager"],
-  orders: ["owner", "order_manager"],
-  recovery: ["owner", "order_manager", "customer_support"],
-  customers: ["owner", "order_manager", "customer_support"],
-  coupons: ["owner", "marketing_manager"],
-  content: ["owner", "marketing_manager"],
+  catalogue: ["owner", "admin", "editor", "product_manager"],
+  inventory: ["owner", "admin", "editor", "product_manager"],
+  orders: ["owner", "admin", "moderator", "order_manager"],
+  recovery: ["owner", "admin", "moderator", "order_manager", "customer_support"],
+  customers: ["owner", "admin", "moderator", "order_manager", "customer_support"],
+  coupons: ["owner", "admin", "editor", "marketing_manager"],
+  content: ["owner", "admin", "editor", "marketing_manager"],
   settings: ["owner"],
   users: ["owner"],
-  analytics: ["owner", "order_manager", "marketing_manager", "analyst"],
+  analytics: ["owner", "admin", "moderator", "order_manager", "marketing_manager", "analyst"],
 };
 
 /** Owner can do everything; every area check must include "owner". */

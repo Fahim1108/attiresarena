@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { PageHeading, Panel, Notice } from "@/components/admin/ui";
-import { SeoSettingsForm } from "@/components/admin/marketing/forms";
+import {
+  SeoExtendedForm,
+  SeoSettingsForm,
+} from "@/components/admin/marketing/forms";
 import { BrandImageForm } from "@/components/admin/settings/forms";
 import {
   clearBrandImage,
   getStoreSettingsMap,
+  saveSeoExtendedSettings,
   saveSeoSettings,
   settingString,
   signedStorageUrl,
@@ -21,11 +25,13 @@ export default async function SeoPage() {
       <PageHeading
         eyebrow="Marketing"
         title="SEO settings"
-        description="Default titles, descriptions, per-page overrides and the social sharing image."
+        description="Default titles, descriptions, sharing previews, robots and sitemap choices."
       />
       <Notice kind="info">
-        Saved SEO values apply once the document metadata wiring reads
-        them. Only owners can change settings.
+        Saved SEO values apply to page metadata on the next page load.
+        Tracking integrations (Meta Pixel, Google Analytics) live under{" "}
+        <Link href="/admin/marketing/promotions">Promotions</Link>. Only
+        owners can change settings.
       </Notice>
       {settings === null ? (
         <Notice kind="warning">
@@ -35,6 +41,12 @@ export default async function SeoPage() {
         <>
           <Panel title="Titles and descriptions">
             <SeoSettingsForm action={saveSeoSettings} settings={settings} />
+          </Panel>
+          <Panel
+            title="Sharing, robots and sitemap"
+            description="Keywords, Open Graph sharing, Twitter cards, canonical URL, search-engine robots and sitemap choices."
+          >
+            <SeoExtendedForm action={saveSeoExtendedSettings} settings={settings} />
           </Panel>
           <Panel
             title="Social sharing image"
@@ -51,15 +63,6 @@ export default async function SeoPage() {
           </Panel>
         </>
       )}
-      <Panel title="Google Analytics">
-        <p>
-          No analytics integration is configured. A codebase search found no
-          Google Analytics, tag manager or measurement ID, so there is no
-          tracking field here — a field that did nothing would be
-          misleading. Traffic and sales reporting lives under{" "}
-          <Link href="/admin/analytics">Analytics</Link>, built from order data.
-        </p>
-      </Panel>
     </main>
   );
 }

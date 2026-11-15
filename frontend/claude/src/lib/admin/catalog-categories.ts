@@ -14,6 +14,17 @@
  * is stored in the new categories columns, and display uses signed URLs.
  * Note: storefront category display follows existing publication
  * behaviour; saving a category here does not change the storefront feed.
+ *
+ * LEVELS (Admin Panel v2): Primary = depth 1, Secondary = depth 2,
+ * Sub-category = depth 3 (legacy rows only; the UI never creates new
+ * ones). Level is DERIVED from the parent chain — no level column
+ * exists — and saveCategory validates the chosen level against the
+ * chosen parent before calling the unchanged admin_save_category RPC
+ * (cycle rejection + depth ≤ 3 stay enforced in the database).
+ *
+ * UNAVAILABILITY: listCategories returns null when categories cannot
+ * be read (post-auth only). The page renders labelled sample data
+ * instead of the error boundary.
  */
 
 import { randomUUID } from "node:crypto";
@@ -29,8 +40,13 @@ import {
 import { areaRoles, PRODUCT_MEDIA_BUCKET } from "./constants";
 import { slugify } from "./format";
 import {
+  isNormalizedOrder,
   isValidSlug,
+  siblingOrderGroups,
+  validateCategoryLevelChoice,
   type CategoryFlat,
+  type CategoryHierarchyNode,
+  type CategoryLevelChoice,
 } from "./catalog-variants";
 
 const categoryRowSchema = z.object({
@@ -64,11 +80,11 @@ async function signedUrl(
   return signed.error ? null : signed.data.signedUrl;
 }
 
-/** All categories, sort-ordered, with signed image/banner URLs. */
+/** All categories, sort-ordered, with signed image/banner URLs. Null when unavailable. */
 export async function listCategories(): Promise<{
   categories: CategoryWithUrls[];
   canManage: boolean;
-}> {
+} | null> {
   const session = await requireStaff(areaRoles("catalogue"));
   const result = await session.client
     .from("categories")
@@ -90,7 +106,8 @@ export async function listCategories(): Promise<{
       .order("id", { ascending: true })
       .limit(500);
     if (fallback.error) {
-      throw new Error("Categories could not be read.");
+      // Unavailable (not empty): the page renders labelled sample data.
+      return null;
     }
     rows = z
       .array(
@@ -198,6 +215,21 @@ function rpcCode(error: unknown): string | undefined {
   return undefined;
 }
 
+/** Minimal id/parent_id list for level validation. Null when unreadable. */
+async function readCategoryHierarchy(
+  client: Awaited<ReturnType<typeof staffSession>>["client"],
+): Promise<CategoryHierarchyNode[] | null> {
+  const result = await client
+    .from("categories")
+    .select("id,parent_id")
+    .limit(500);
+  if (result.error) return null;
+  const parsed = z
+    .array(z.object({ id: z.uuid(), parent_id: z.uuid().nullable() }))
+    .safeParse(result.data ?? []);
+  return parsed.success ? parsed.data : null;
+}
+
 export async function saveCategory(
   _prev: CategoryFormState,
   form: FormData,
@@ -250,6 +282,14 @@ export async function saveCategory(
   if (candidate.parent_id === id) {
     fieldErrors.parent_id = "A category cannot be its own parent.";
   }
+  const levelRaw = text("category_level").trim();
+  const level: CategoryLevelChoice | null =
+    levelRaw === "primary" || levelRaw === "secondary" || levelRaw === "sub"
+      ? levelRaw
+      : null;
+  if (!level) {
+    fieldErrors.category_level = "Choose a category level.";
+  }
   const parsed = categoryFormSchema.safeParse(candidate);
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {
@@ -264,8 +304,31 @@ export async function saveCategory(
       fieldErrors,
     };
   }
-  if (!parsed.success) {
+  if (!parsed.success || !level) {
     return { ok: false, error: "Check the highlighted fields and try again." };
+  }
+  // Level-vs-parent validation against a fresh hierarchy read. The
+  // read reflects the CURRENT tree; the parent's own depth does not
+  // depend on the row being moved, and cycle rejection stays with the
+  // database (admin_save_category). Fail closed when unreadable.
+  const hierarchy = await readCategoryHierarchy(session.client);
+  if (!hierarchy) {
+    return {
+      ok: false,
+      error: "Categories could not be checked. Reload and try again.",
+    };
+  }
+  const levelError = validateCategoryLevelChoice(
+    level,
+    parsed.data.parent_id,
+    hierarchy,
+  );
+  if (levelError) {
+    return {
+      ok: false,
+      error: levelError,
+      fieldErrors: { parent_id: levelError },
+    };
   }
   const oldImage = text("old_image_storage_path").trim() || null;
   const oldBanner = text("old_banner_storage_path").trim() || null;
@@ -360,4 +423,60 @@ export async function reorderCategories(
   }
   revalidatePath("/admin/catalog/categories");
   return actionOk("Category order saved.");
+}
+
+const categoryOrderRowSchema = z.object({
+  id: z.uuid(),
+  parent_id: z.uuid().nullable(),
+  sort_position: z.number().int(),
+});
+
+/**
+ * Renumber sort_position to 0..n-1 within every sibling group,
+ * preserving current display order (reference: "Normalize order").
+ * Groups that already read 0..n-1 are skipped, so a clean tree writes
+ * nothing. Uses the existing admin_reorder_categories RPC per group;
+ * a failed group stops the run with an honest error (earlier groups
+ * stay normalized — each RPC call is its own transaction).
+ */
+export async function normalizeCategoryOrder(): Promise<AdminActionResult> {
+  const session = await requireStaff(areaRoles("catalogue"));
+  const result = await session.client
+    .from("categories")
+    .select("id,parent_id,sort_position")
+    .order("sort_position", { ascending: true })
+    .limit(2001);
+  if (result.error) {
+    return actionError("Categories could not be read for normalization.");
+  }
+  const rows = z.array(categoryOrderRowSchema).safeParse(result.data ?? []);
+  if (!rows.success || rows.data.length > 2000) {
+    return actionError("Categories could not be read for normalization.");
+  }
+  const groups = siblingOrderGroups(rows.data);
+  let normalized = 0;
+  for (const ids of groups) {
+    if (ids.length > 500) {
+      return actionError(
+        "A category group is too large to normalize in one step.",
+      );
+    }
+    if (isNormalizedOrder(rows.data, ids)) continue;
+    const reorder = await session.client.rpc("admin_reorder_categories", {
+      ordered_ids: ids,
+    });
+    if (reorder.error) {
+      return actionError(
+        rpcMessage(reorder.error, "Category order could not be normalized."),
+      );
+    }
+    normalized += 1;
+  }
+  if (normalized === 0) {
+    return actionOk("Category order is already normalized.");
+  }
+  revalidatePath("/admin/catalog/categories");
+  return actionOk(
+    `Normalized order in ${normalized} group${normalized === 1 ? "" : "s"}.`,
+  );
 }

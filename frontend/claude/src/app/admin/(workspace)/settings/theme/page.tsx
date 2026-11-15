@@ -1,5 +1,6 @@
 import { PageHeading, Panel, Notice } from "@/components/admin/ui";
 import { BrandImageForm, StoreNameForm } from "@/components/admin/settings/forms";
+import { CustomizeForm } from "@/components/admin/settings/customize-forms";
 import {
   clearBrandImage,
   getStoreSettingsMap,
@@ -8,10 +9,33 @@ import {
   signedStorageUrl,
   uploadBrandImage,
 } from "@/lib/admin/settings";
+import {
+  getLayoutSettings,
+  saveCustomizeSettings,
+} from "@/lib/admin/layout-settings";
+import {
+  CUSTOMIZE_BUTTONS_SCHEMA,
+  CUSTOMIZE_TYPOGRAPHY_SCHEMA,
+  DEFAULT_CUSTOMIZE_BUTTONS,
+  DEFAULT_CUSTOMIZE_TYPOGRAPHY,
+} from "@/lib/admin/reference-adapt";
 import { theme } from "@/config";
 
 export default async function ThemeSettingsPage() {
   const settings = await getStoreSettingsMap();
+  const layoutSettings = await getLayoutSettings();
+  const parsedTypography = CUSTOMIZE_TYPOGRAPHY_SCHEMA.safeParse(
+    layoutSettings?.customize_typography,
+  );
+  const parsedButtons = CUSTOMIZE_BUTTONS_SCHEMA.safeParse(
+    layoutSettings?.customize_buttons,
+  );
+  const typography = parsedTypography.success
+    ? parsedTypography.data
+    : DEFAULT_CUSTOMIZE_TYPOGRAPHY;
+  const buttons = parsedButtons.success
+    ? parsedButtons.data
+    : DEFAULT_CUSTOMIZE_BUTTONS;
   const logoPath = settingString(settings, "logo_storage_path");
   const faviconPath = settingString(settings, "favicon_storage_path");
   const [logoUrl, faviconUrl] = await Promise.all([
@@ -68,6 +92,23 @@ export default async function ThemeSettingsPage() {
           label="Favicon"
           currentUrl={faviconUrl}
           hasCurrent={Boolean(faviconPath)}
+        />
+      </Panel>
+      <Panel
+        title="Customize"
+        description="Typography and button style, with a live preview. Stored only — the storefront theme is unchanged until a follow-up wires these values."
+      >
+        {layoutSettings === null ? (
+          <Notice kind="warning">
+            Customize settings could not be loaded. If the
+            reference-additions migration has not applied yet, customize
+            storage is unavailable.
+          </Notice>
+        ) : null}
+        <CustomizeForm
+          initialTypography={typography}
+          initialButtons={buttons}
+          action={saveCustomizeSettings}
         />
       </Panel>
       <Panel title="Current palette (read-only)">

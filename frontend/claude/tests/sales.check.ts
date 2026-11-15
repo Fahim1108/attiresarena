@@ -5,11 +5,15 @@ import {
   escapeLikePattern,
   isLegalTransition,
   legalTransitions,
+  orderItemRowSchema,
+  orderRowSchema,
   ordersToCsv,
   type OrderRow,
 } from "../src/lib/admin/orders";
 import {
+  checkoutItemRowSchema,
   checkoutProgressLabel,
+  checkoutSessionRowSchema,
   manualRecoveryOptions,
   sessionValue,
 } from "../src/lib/admin/incomplete";
@@ -21,13 +25,26 @@ import {
 } from "../src/lib/admin/customers";
 import {
   couponDiscountMinor,
+  couponRowSchema,
   evaluateCouponEligibility,
   fromDatetimeLocal,
   normalizeCouponCode,
   toDatetimeLocal,
   type CouponTerms,
 } from "../src/lib/admin/coupons";
-import type { OrderStatus } from "../src/lib/admin/constants";
+import { ORDER_STATUSES, type OrderStatus } from "../src/lib/admin/constants";
+import { resolveDisplayData, resolveDisplayRecord } from "../src/lib/admin/sample-data";
+import {
+  SAMPLE_COUPON_DETAIL,
+  SAMPLE_COUPONS,
+  SAMPLE_CUSTOMER_PROFILE,
+  SAMPLE_CUSTOMERS,
+  SAMPLE_INCOMPLETE_DETAIL,
+  SAMPLE_INCOMPLETE_SESSIONS,
+  SAMPLE_ORDER_DETAIL,
+  SAMPLE_ORDER_NOTICES,
+  SAMPLE_ORDERS,
+} from "../src/lib/admin/sample-sales";
 
 /* Fake rows are test fixtures only; they are never app data. */
 function fakeOrder(over: Partial<OrderRow> & { phone: string }): OrderRow {
@@ -411,5 +428,125 @@ describe("coupon code and date helpers", () => {
     expect(fromDatetimeLocal("")).toBe(null);
     expect(fromDatetimeLocal("not a date")).toBe(null);
     expect(toDatetimeLocal(null)).toBe("");
+  });
+});
+
+describe("coupon eligibility mirror — invalid request wins (SQL check order)", () => {
+  const base: CouponTerms = {
+    kind: "percent",
+    percent_value: 10,
+    fixed_discount_minor: null,
+    min_order_minor: 0,
+    max_discount_minor: null,
+    starts_at: null,
+    expires_at: null,
+    total_usage_limit: null,
+    per_customer_limit: null,
+    first_order_only: false,
+    active: true,
+  };
+  const input = {
+    subtotalMinor: 100000,
+    userId: null as string | null,
+    phone: "01712345678",
+    totalRedemptions: 0,
+    customerRedemptions: 0,
+    priorOrderCount: 0,
+    priorRedemptionsByUser: 0,
+    now: new Date("2026-11-15T04:00:00.000Z"),
+  };
+
+  it("returns invalid_request, not not_found, when the request is malformed and the coupon is missing", () => {
+    // validate_coupon rejects a malformed request before looking the coupon up.
+    expect(evaluateCouponEligibility(null, { ...input, subtotalMinor: -1 }).reason).toBe(
+      "invalid_request",
+    );
+    expect(evaluateCouponEligibility(null, { ...input, subtotalMinor: 10.5 }).reason).toBe(
+      "invalid_request",
+    );
+    expect(evaluateCouponEligibility(base, { ...input, subtotalMinor: 10.5 }).reason).toBe(
+      "invalid_request",
+    );
+  });
+
+  it("still returns not_found for a well-formed request with no coupon", () => {
+    expect(evaluateCouponEligibility(null, input)).toEqual({
+      valid: false,
+      reason: "not_found",
+      discount_minor: 0,
+    });
+  });
+});
+
+describe("sales sample-data contract", () => {
+  it("sample orders satisfy the order row schema and use only the 8 fixed statuses", () => {
+    expect(orderRowSchema.array().safeParse(SAMPLE_ORDERS).success).toBe(true);
+    for (const order of SAMPLE_ORDERS) {
+      expect(ORDER_STATUSES).toContain(order.status);
+    }
+    expect(JSON.stringify(SAMPLE_ORDERS)).not.toMatch(/Processing/);
+    expect(orderItemRowSchema.array().safeParse(SAMPLE_ORDER_DETAIL.items).success).toBe(true);
+    expect(SAMPLE_ORDER_DETAIL.order.id).toBe(SAMPLE_ORDERS[0]!.id);
+  });
+
+  it("sample notices mirror the sample orders", () => {
+    expect(SAMPLE_ORDER_NOTICES).toHaveLength(SAMPLE_ORDERS.length);
+    expect(SAMPLE_ORDER_NOTICES[0]!).toMatchObject({
+      id: SAMPLE_ORDERS[0]!.id,
+      order_number: SAMPLE_ORDERS[0]!.order_number,
+      customer_name: SAMPLE_ORDERS[0]!.customer_name,
+    });
+  });
+
+  it("sample incomplete sessions keep the strict definition: abandoned, with items, no order", () => {
+    for (const view of SAMPLE_INCOMPLETE_SESSIONS) {
+      expect(checkoutSessionRowSchema.safeParse(view.session).success).toBe(true);
+      expect(checkoutItemRowSchema.array().safeParse(view.items).success).toBe(true);
+      expect(view.session.lifecycle_status).toBe("abandoned");
+      expect(view.session.order_id).toBe(null);
+      expect(view.items.length).toBeGreaterThan(0);
+      expect(view.valueMinor).toBe(sessionValue(view.items));
+    }
+    expect(SAMPLE_INCOMPLETE_DETAIL.session.id).toBe(SAMPLE_INCOMPLETE_SESSIONS[0]!.session.id);
+  });
+
+  it("sample customers use valid Bangladeshi phones and match the sample profile", () => {
+    for (const customer of SAMPLE_CUSTOMERS) {
+      expect(isValidBdPhone(customer.phone)).toBe(true);
+    }
+    expect(SAMPLE_CUSTOMER_PROFILE.summary).toBe(SAMPLE_CUSTOMERS[0]);
+    expect(SAMPLE_CUSTOMER_PROFILE.orders[0]!.id).toBe(SAMPLE_ORDERS[0]!.id);
+    expect(SAMPLE_CUSTOMER_PROFILE.blocked).toBe(false);
+    expect(SAMPLE_CUSTOMER_PROFILE.canManageBlock).toBe(false);
+  });
+
+  it("sample coupons satisfy the coupon row schema with zero recorded uses", () => {
+    expect(couponRowSchema.array().safeParse(SAMPLE_COUPONS).success).toBe(true);
+    for (const coupon of SAMPLE_COUPONS) {
+      expect(coupon.usageCount).toBe(0);
+    }
+    expect(SAMPLE_COUPON_DETAIL.coupon.id).toBe(SAMPLE_COUPONS[0]!.id);
+    expect(SAMPLE_COUPON_DETAIL.redemptions).toEqual([]);
+    expect(SAMPLE_COUPON_DETAIL.totalRedemptions).toBe(0);
+  });
+
+  it("resolveDisplayData shows samples only when live is null, never for a live empty list", () => {
+    expect(resolveDisplayData(null, SAMPLE_ORDERS)).toEqual({
+      items: SAMPLE_ORDERS,
+      isSample: true,
+    });
+    expect(resolveDisplayData([], SAMPLE_ORDERS)).toEqual({ items: [], isSample: false });
+    expect(resolveDisplayData(SAMPLE_ORDERS, [])).toEqual({
+      items: SAMPLE_ORDERS,
+      isSample: false,
+    });
+  });
+
+  it("resolveDisplayRecord shows the sample record only when live is null", () => {
+    expect(resolveDisplayRecord(null, SAMPLE_ORDER_DETAIL)).toEqual({
+      record: SAMPLE_ORDER_DETAIL,
+      isSample: true,
+    });
+    expect(resolveDisplayRecord(SAMPLE_ORDER_DETAIL, SAMPLE_ORDER_DETAIL).isSample).toBe(false);
   });
 });

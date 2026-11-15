@@ -13,11 +13,40 @@
  *
  * Status vocabulary: the UI only ever sends 'published' (Active) or
  * 'archived' (Inactive). 'draft' is never accepted from the UI and the
- * RPCs reject it. Saving here makes the product Active in the admin panel;
- * display on the public storefront follows the existing publication review
- * and its allowlist (see src/services/adapters/published-thrift.ts, which
- * this module must NOT touch) — new products do not appear on the
- * storefront automatically.
+ * RPCs reject it.
+ *
+ * PUBLICATION (Admin Panel v2, migration 20261115000800): visibility on
+ * the public storefront needs BOTH signals — status 'published' AND
+ * is_published. admin_publish_product / admin_unpublish_product flip
+ * both together (unpublish archives; it never writes 'draft').
+ * Setting a published product Inactive pauses its storefront
+ * visibility without clearing is_published; setting it Active again
+ * resumes it. Published products join the storefront feed (allowlist
+ * UNION published admin products — see src/lib/catalog-publication.ts
+ * and services/adapters/published-thrift.ts). Visibility is NOT
+ * orderability: checkout eligibility is a separate, untouched layer,
+ * and the admin UI says so honestly wherever publication is offered.
+ *
+ * SECONDARY CATEGORIES (migration 20261115000900): products carry a
+ * secondary_category_id alongside category_id (the primary). Levels
+ * are DERIVED from the parent chain (depth 1 = primary, depth 2 =
+ * secondary) — no level is ever stored. The assign RPC + trigger are
+ * authoritative: a secondary requires a primary and must belong to
+ * it. The v1 create/update RPCs never touch the column, so this module
+ * calls admin_assign_product_categories after a successful save and
+ * surfaces a retry flag when that call fails.
+ *
+ * COST VISIBILITY: variant cost prices are stripped server-side for
+ * cost-blind roles (see canViewProductCosts in authorization.ts — the
+ * single rule, matching the database costs.read permission's union
+ * semantics: any cost-viewing role grants visibility). Cost-blind saves
+ * are rejected rather than allowed to erase costs.
+ *
+ * UNAVAILABILITY: listCatalogProducts returns null when the catalogue
+ * cannot be read (post-auth only — requireStaff redirects still
+ * propagate first). Pages render labelled sample data in that case;
+ * detail reads keep throwing, because a detail/edit page must never
+ * show a sample product as if it were real.
  */
 
 import { revalidatePath } from "next/cache";
@@ -27,11 +56,13 @@ import { staffSession } from "./access";
 import {
   actionError,
   actionOk,
+  canViewProductCosts,
   requireStaff,
   type AdminActionResult,
 } from "./authorization";
 import {
   areaRoles,
+  MAX_PRODUCT_IMAGES,
   PRODUCT_BADGES,
   productDisplayStatus,
   type ProductDisplayStatus,
@@ -40,14 +71,19 @@ import { parseMoneyToMinor, slugify } from "./format";
 import {
   aggregateVariantStock,
   classifyStock,
+  isCatalogStoragePath,
   isValidSlug,
   parseTagsInput,
+  publicationVisibility,
   validateVariantList,
   variantInputSchema,
   type CatalogListFilters,
+  type PublicationVisibility,
   type StockFilter,
   type VariantInput,
 } from "./catalog-variants";
+import { readPublishedFeed } from "../../services/adapters/published-thrift";
+import type { StorefrontFeedHealth } from "../catalog-publication";
 
 /** Upper bound on rows scanned for one list request (stock/price filters
  *  run in memory over embedded aggregates PostgREST cannot filter by). */
@@ -99,6 +135,19 @@ function rpcErrorCode(error: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * Storefront revalidation for catalogue writes. Same-deployment only:
+ * a publish on Preview revalidates Preview, never Production. The
+ * storefront renders force-dynamic with no-store feed reads today, so
+ * these calls are future-proofing; they become load-bearing if any
+ * listing route gains caching. Never revalidates another deployment.
+ */
+function revalidateStorefront(slug?: string | null): void {
+  revalidatePath("/");
+  revalidatePath("/shop");
+  if (slug) revalidatePath(`/product/${slug}`);
+}
+
 // --------------------------------------------------------------------- reads
 
 const listVariantSchema = z.object({
@@ -123,9 +172,12 @@ const listRowSchema = z.object({
   description: z.string(),
   status: z.enum(["draft", "published", "archived"]),
   category_id: z.uuid().nullable(),
+  is_published: z.boolean(),
+  published_at: z.iso.datetime({ offset: true }).nullable(),
   created_at: z.iso.datetime({ offset: true }),
   updated_at: z.iso.datetime({ offset: true }),
   categories: toOne(z.object({ name: z.string() })),
+  badges: z.array(z.string()),
   product_variants: z.array(listVariantSchema),
   product_media: z
     .array(
@@ -138,13 +190,24 @@ const listRowSchema = z.object({
     .optional(),
 });
 
+const listRowBaseSchema = listRowSchema.omit({
+  is_published: true,
+  published_at: true,
+});
+
 export interface CatalogListItem {
   id: string;
   name: string;
   slug: string;
   status: "draft" | "published" | "archived";
   displayStatus: ProductDisplayStatus;
+  isPublished: boolean;
+  publishedAt: string | null;
+  /** Storefront visibility from status + is_published (see publicationVisibility). */
+  storefrontVisibility: PublicationVisibility;
   categoryName: string | null;
+  /** Display badges (e.g. Best Seller, New Arrival) shown as pills. */
+  badges: string[];
   createdAt: string;
   updatedAt: string;
   minPriceMinor: number | null;
@@ -168,37 +231,57 @@ export interface CatalogListResult {
 
 export async function listCatalogProducts(
   filters: CatalogListFilters,
-): Promise<CatalogListResult> {
+): Promise<CatalogListResult | null> {
   const session = await requireStaff(areaRoles("catalogue"));
   const canManage = session.roles.some(
     (r) => r === "owner" || r === "product_manager",
   );
-  let query = session.client
-    .from("products")
-    .select(
-      "id,name,slug,description,status,category_id,created_at,updated_at," +
-        "categories(name)," +
-        "product_variants(id,price_minor,sale_price_minor,active,inventory(on_hand,reserved,available,low_stock_threshold))," +
-        "product_media(storage_path,alt_text,position)",
-      { count: "exact" },
-    )
-    .limit(100, { referencedTable: "product_variants" })
-    .order("position", { referencedTable: "product_media" })
-    .limit(1, { referencedTable: "product_media" });
-  if (filters.q) {
-    const pattern = escapeLike(filters.q);
-    query = query.or(`name.ilike.${pattern},slug.ilike.${pattern}`);
-  }
-  if (filters.categoryId) query = query.eq("category_id", filters.categoryId);
-  const result = await query
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: true })
-    .limit(LIST_FETCH_CAP);
+  const buildQuery = (withPublication: boolean) => {
+    let query = session.client
+      .from("products")
+      .select(
+        "id,name,slug,description,status,category_id," +
+          (withPublication ? "is_published,published_at," : "") +
+          "created_at,updated_at,badges," +
+          "categories(name)," +
+          "product_variants(id,price_minor,sale_price_minor,active,inventory(on_hand,reserved,available,low_stock_threshold))," +
+          "product_media(storage_path,alt_text,position)",
+        { count: "exact" },
+      )
+      .limit(100, { referencedTable: "product_variants" })
+      .order("position", { referencedTable: "product_media" })
+      .limit(1, { referencedTable: "product_media" });
+    if (filters.q) {
+      const pattern = escapeLike(filters.q);
+      query = query.or(`name.ilike.${pattern},slug.ilike.${pattern}`);
+    }
+    if (filters.categoryId) query = query.eq("category_id", filters.categoryId);
+    return query
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .limit(LIST_FETCH_CAP);
+  };
+  const result = await buildQuery(true);
+  let rows: z.infer<typeof listRowSchema>[];
+  let totalCount: number;
   if (result.error) {
-    throw new Error("Product list could not be read. No changes were made.");
+    // Pre-migration fallback: is_published/published_at arrive with
+    // migration 008. Without them every product reads as unpublished.
+    const fallback = await buildQuery(false);
+    if (fallback.error) {
+      // Unavailable (not empty): the page renders labelled sample data.
+      return null;
+    }
+    rows = z
+      .array(listRowBaseSchema)
+      .parse(fallback.data ?? [])
+      .map((row) => ({ ...row, is_published: false, published_at: null }));
+    totalCount = fallback.count ?? 0;
+  } else {
+    rows = z.array(listRowSchema).parse(result.data ?? []);
+    totalCount = result.count ?? 0;
   }
-  const rows = z.array(listRowSchema).parse(result.data ?? []);
-  const truncated = (result.count ?? 0) > LIST_FETCH_CAP;
+  const truncated = totalCount > LIST_FETCH_CAP;
 
   const enriched = rows.map((row) => {
     const aggregate = aggregateVariantStock(row.product_variants);
@@ -267,7 +350,14 @@ export async function listCatalogProducts(
         slug: row.slug,
         status: row.status,
         displayStatus,
+        isPublished: row.is_published,
+        publishedAt: row.published_at,
+        storefrontVisibility: publicationVisibility(
+          row.status,
+          row.is_published,
+        ),
         categoryName: row.categories?.name ?? null,
+        badges: row.badges,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         minPriceMinor: aggregate.minPriceMinor,
@@ -296,7 +386,9 @@ const categoryOptionSchema = z.object({
 export type CategoryOption = z.infer<typeof categoryOptionSchema>;
 
 /** Flat category list for product-form selects (parents + children). */
-export async function readCategoryOptions(): Promise<CategoryOption[]> {
+export async function readCategoryOptions(options: {
+  onUnavailable?: "throw" | "empty";
+} = {}): Promise<CategoryOption[]> {
   const session = await staffSession();
   const result = await session.client
     .from("categories")
@@ -315,6 +407,9 @@ export async function readCategoryOptions(): Promise<CategoryOption[]> {
       .order("id", { ascending: true })
       .limit(500);
     if (fallback.error) {
+      // Lenient mode (list filter only): an empty option list degrades
+      // the filter without failing the page. Forms keep throwing.
+      if (options.onUnavailable === "empty") return [];
       throw new Error("Categories could not be read.");
     }
     return z
@@ -337,6 +432,9 @@ const productDetailSchema = z.object({
   description: z.string(),
   status: z.enum(["draft", "published", "archived"]),
   category_id: z.uuid().nullable(),
+  secondary_category_id: z.uuid().nullable(),
+  is_published: z.boolean(),
+  published_at: z.iso.datetime({ offset: true }).nullable(),
   brand: z.string().nullable(),
   highlights: z.array(z.string()),
   tags: z.array(z.string()),
@@ -370,6 +468,7 @@ const detailInventorySchema = z.object({
 export interface CatalogProductDetail {
   product: z.infer<typeof productDetailSchema>;
   categoryName: string | null;
+  secondaryCategoryName: string | null;
   variants: Array<
     Omit<z.infer<typeof detailVariantSchema>, "cost_price_minor"> & {
       cost_price_minor: number | null;
@@ -377,6 +476,8 @@ export interface CatalogProductDetail {
     }
   >;
   canManage: boolean;
+  /** False for cost-blind roles: every variant cost reads null. */
+  canViewCosts: boolean;
 }
 
 export async function readCatalogProduct(
@@ -384,43 +485,93 @@ export async function readCatalogProduct(
 ): Promise<CatalogProductDetail | null> {
   const session = await staffSession();
   if (!z.uuid().safeParse(id).success) return null;
-  const product = await session.client
-    .from("products")
-    .select(
-      "id,name,slug,description,status,category_id,brand,highlights,tags,badges," +
-        "seo_title,seo_description,meta_keywords,created_at,updated_at,categories(name)",
-    )
-    .eq("id", id)
-    .maybeSingle();
+  const canViewCosts = canViewProductCosts(session);
+  const productColumns =
+    "id,name,slug,description,status,category_id,brand,highlights,tags,badges," +
+    "seo_title,seo_description,meta_keywords,created_at,updated_at," +
+    "secondary_category_id,is_published,published_at,categories(name)";
+  const productBaseColumns =
+    "id,name,slug,description,status,category_id,brand,highlights,tags,badges," +
+    "seo_title,seo_description,meta_keywords,created_at,updated_at,categories(name)";
+  const variantColumns =
+    "id,size,color,price_minor,sale_price_minor,cost_price_minor,active,created_at";
+  // The product and variants reads are independent (both keyed by the id
+  // parameter), so they run in parallel. allSettled plus ordered checks
+  // keeps the original error semantics: product failures surface first,
+  // and a missing product still returns null before variants are read.
+  const [productSettled, variantsSettled] = await Promise.allSettled([
+    session.client
+      .from("products")
+      .select(productColumns)
+      .eq("id", id)
+      .maybeSingle(),
+    session.client
+      .from("product_variants")
+      .select(variantColumns)
+      .eq("product_id", id)
+      .order("created_at", { ascending: true })
+      .limit(101),
+  ]);
+  if (productSettled.status === "rejected") throw productSettled.reason;
+  const product = productSettled.value;
+  let productData: unknown;
   if (product.error) {
-    throw new Error(
-      "Product details could not be read. If this persists, check that catalogue migration 20261115000200 has been applied.",
-    );
+    // Pre-migration fallback: the publication/hierarchy columns arrive
+    // with migrations 008/009; without them the product reads as
+    // unpublished with no secondary category.
+    const fallback = await session.client
+      .from("products")
+      .select(productBaseColumns)
+      .eq("id", id)
+      .maybeSingle();
+    if (fallback.error) {
+      throw new Error(
+        "Product details could not be read. If this persists, check that catalogue migration 20261115000200 has been applied.",
+      );
+    }
+    if (!fallback.data) return null;
+    // The row is validated by the schema parse below; the cast only
+    // recovers a spreadable object type from the client's select type.
+    productData = {
+      ...(fallback.data as unknown as Record<string, unknown>),
+      secondary_category_id: null,
+      is_published: false,
+      published_at: null,
+    };
+  } else {
+    if (!product.data) return null;
+    productData = product.data;
   }
-  if (!product.data) return null;
   const parsed = productDetailSchema
     .extend({ categories: toOne(z.object({ name: z.string() })) })
-    .parse(product.data);
+    .parse(productData);
   const { categories, ...base } = parsed;
-  const variants = await session.client
-    .from("product_variants")
-    .select(
-      "id,size,color,price_minor,sale_price_minor,cost_price_minor,active,created_at",
-    )
-    .eq("product_id", id)
-    .order("created_at", { ascending: true })
-    .limit(101);
+  if (variantsSettled.status === "rejected") throw variantsSettled.reason;
+  const variants = variantsSettled.value;
   if (variants.error) throw new Error("Product variants could not be read.");
   const variantRows = z.array(detailVariantSchema).parse(variants.data ?? []);
-  const inventory = variantRows.length
-    ? await session.client
-        .from("inventory")
-        .select("variant_id,on_hand,reserved,available,low_stock_threshold")
-        .in(
-          "variant_id",
-          variantRows.map((v) => v.id),
-        )
-    : null;
+  // Inventory (keyed by the variant rows just read) and the secondary
+  // category name (keyed by the product row) are independent of each
+  // other, so they run in parallel. A missing secondary name is
+  // non-fatal: the form still shows the stored assignment.
+  const [inventory, secondary] = await Promise.all([
+    variantRows.length
+      ? session.client
+          .from("inventory")
+          .select("variant_id,on_hand,reserved,available,low_stock_threshold")
+          .in(
+            "variant_id",
+            variantRows.map((v) => v.id),
+          )
+      : Promise.resolve(null),
+    base.secondary_category_id
+      ? session.client
+          .from("categories")
+          .select("name")
+          .eq("id", base.secondary_category_id)
+          .maybeSingle()
+      : Promise.resolve(null),
+  ]);
   if (inventory?.error) throw new Error("Product inventory could not be read.");
   const inventoryByVariant = new Map(
     z
@@ -428,18 +579,56 @@ export async function readCatalogProduct(
       .parse(inventory?.data ?? [])
       .map((row) => [row.variant_id, row]),
   );
+  const secondaryName =
+    secondary && !secondary.error && secondary.data
+      ? (z.object({ name: z.string() }).safeParse(secondary.data).data?.name ??
+        null)
+      : null;
   return {
     product: base,
     categoryName: categories?.name ?? null,
+    secondaryCategoryName: secondaryName,
     variants: variantRows.map((v) => ({
       ...v,
-      cost_price_minor: v.cost_price_minor ?? null,
+      // Server-side cost hiding: cost-blind roles receive null, never
+      // the real figure, in any configuration.
+      cost_price_minor: canViewCosts ? (v.cost_price_minor ?? null) : null,
       inventory: inventoryByVariant.get(v.id) ?? null,
     })),
     canManage: session.roles.some(
       (r) => r === "owner" || r === "product_manager",
     ),
+    canViewCosts,
   };
+}
+
+/**
+ * Storefront feed health for the admin-only diagnostics indicator
+ * (staff-gated: project refs are not secrets, but the indicator is an
+ * operator surface, not a public one). Returns null when the feed
+ * read itself fails unexpectedly; per-source failures are reported
+ * inside the health object, never thrown.
+ */
+export async function readStorefrontFeedHealth(): Promise<StorefrontFeedHealth | null> {
+  await requireStaff(areaRoles("catalogue"));
+  try {
+    const feed = await readPublishedFeed();
+    return {
+      configured: feed.configured,
+      allowlistOk: feed.allowlistOk,
+      publishedOk: feed.publishedOk,
+      allowlistCount: feed.allowlistCount,
+      publishedCount: feed.publishedCount,
+      visibleCount: feed.visibleCount,
+      projectRef: feed.projectRef,
+      envProjectRef: feed.envProjectRef,
+      expectedProjectRef: feed.expectedProjectRef,
+      allowlistError: feed.allowlistError,
+      publishedError: feed.publishedError,
+    };
+  } catch {
+    return null;
+  }
 }
 
 // -------------------------------------------------------------- form parsing
@@ -461,6 +650,7 @@ const productFormSchema = z.object({
   description: z.string().max(20000, "Description is too long."),
   status: z.enum(["published", "archived"]),
   category_id: z.uuid().nullable(),
+  secondary_category_id: z.uuid().nullable(),
   brand: z.string().trim().max(120).nullable(),
   highlights: z.array(z.string().trim().min(1).max(200)).max(20),
   tags: z.array(z.string().trim().min(1).max(40)).max(20),
@@ -489,6 +679,13 @@ function parseProductForm(form: FormData): {
   const rawName = text("name");
   const rawSlug = text("slug").trim() || slugify(rawName);
   const categoryRaw = text("category_id").trim();
+  const secondaryRaw = text("secondary_category_id").trim();
+  // Cheap shape check only: the assign RPC + trigger are authoritative
+  // for the pair (secondary requires a primary, must belong to it).
+  if (secondaryRaw !== "" && categoryRaw === "") {
+    fieldErrors.secondary_category_id =
+      "Choose a primary category before choosing a secondary category.";
+  }
   const basePrice = parseMoneyToMinor(text("base_price"));
   const baseSaleRaw = text("base_sale_price").trim();
   const baseCostRaw = text("base_cost_price").trim();
@@ -549,6 +746,7 @@ function parseProductForm(form: FormData): {
     description: text("description"),
     status: text("status"),
     category_id: categoryRaw === "" ? null : categoryRaw,
+    secondary_category_id: secondaryRaw === "" ? null : secondaryRaw,
     brand: text("brand").trim() === "" ? null : text("brand").trim(),
     highlights,
     tags: parseTagsInput(text("tags")),
@@ -659,15 +857,53 @@ export async function createCatalogProduct(
       fieldErrors,
     };
   }
+  // Cost-blind roles must never write costs (forward-defense: the
+  // catalogue area gate admits only owner/product_manager today).
+  const payload = canViewProductCosts(session)
+    ? data
+    : {
+        ...data,
+        base_cost_price_minor: null,
+        variants: data.variants.map((v) => ({
+          ...v,
+          cost_price_minor: null,
+        })),
+      };
   const result = await session.client.rpc("admin_create_product", {
-    p: toRpcPayload(data, false),
+    p: toRpcPayload(payload, false),
   });
   if (result.error || typeof result.data !== "string") {
     return rpcFailureState(result.error, "Product could not be created.");
   }
+  const productId = result.data;
+  const flags: string[] = [];
+  if (data.secondary_category_id) {
+    const assigned = await assignProductCategories(
+      session.client,
+      productId,
+      data.category_id,
+      data.secondary_category_id,
+    );
+    if (!assigned) flags.push("categories=failed");
+  }
+  const staged = parseStagedImages(form, session.user.id);
+  if (staged.attempted > 0) {
+    const attached = await attachStagedImages(
+      session.client,
+      productId,
+      staged.paths,
+    );
+    const failed = staged.attempted - attached;
+    if (failed > 0) {
+      flags.push("images=partial", `images_failed=${failed}`);
+    }
+  }
   revalidatePath("/admin/catalog/products");
   revalidatePath("/admin/catalog/inventory");
-  redirect(`/admin/catalog/products/${result.data}?saved=created`);
+  revalidateStorefront(data.slug);
+  const query =
+    flags.length > 0 ? `?saved=created&${flags.join("&")}` : "?saved=created";
+  redirect(`/admin/catalog/products/${productId}${query}`);
 }
 
 export async function updateCatalogProduct(
@@ -694,6 +930,20 @@ export async function updateCatalogProduct(
       fieldErrors,
     };
   }
+  // Cost-blind roles cannot save: the form omits cost inputs for them,
+  // so saving would erase the stored costs. Reject honestly instead.
+  // (Unreachable today: the catalogue area gate admits only
+  // owner/product_manager. Forward-defense for future role changes.)
+  if (!canViewProductCosts(session)) {
+    return {
+      ok: false,
+      error:
+        "Saving is unavailable for your role because cost prices would be removed. Ask an owner or product manager to save this product.",
+      fieldErrors: {
+        form: "Saving is unavailable for your role because cost prices would be removed.",
+      },
+    };
+  }
   const result = await session.client.rpc("admin_update_product", {
     target_id: id,
     expected_updated_at: expectedUpdatedAt,
@@ -702,10 +952,21 @@ export async function updateCatalogProduct(
   if (result.error) {
     return rpcFailureState(result.error, "Product could not be saved.");
   }
+  const flags: string[] = [];
+  const assigned = await assignProductCategories(
+    session.client,
+    id,
+    data.category_id,
+    data.secondary_category_id,
+  );
+  if (!assigned) flags.push("categories=failed");
   revalidatePath("/admin/catalog/products");
   revalidatePath(`/admin/catalog/products/${id}`);
   revalidatePath("/admin/catalog/inventory");
-  redirect(`/admin/catalog/products/${id}?saved=updated`);
+  revalidateStorefront(data.slug);
+  const query =
+    flags.length > 0 ? `?saved=updated&${flags.join("&")}` : "?saved=updated";
+  redirect(`/admin/catalog/products/${id}${query}`);
 }
 
 const statusChangeSchema = z.object({
@@ -713,18 +974,114 @@ const statusChangeSchema = z.object({
   status: z.enum(["published", "archived"]),
 });
 
-async function readExpectedUpdatedAt(
+async function readProductRevision(
   client: Awaited<ReturnType<typeof staffSession>>["client"],
   id: string,
-): Promise<string | null> {
+): Promise<{ updatedAt: string; slug: string } | null> {
   const row = await client
     .from("products")
-    .select("updated_at")
+    .select("updated_at,slug")
     .eq("id", id)
     .maybeSingle();
   if (row.error || !row.data) return null;
-  const parsed = z.object({ updated_at: z.string() }).safeParse(row.data);
-  return parsed.success ? parsed.data.updated_at : null;
+  const parsed = z
+    .object({ updated_at: z.string(), slug: z.string() })
+    .safeParse(row.data);
+  return parsed.success
+    ? { updatedAt: parsed.data.updated_at, slug: parsed.data.slug }
+    : null;
+}
+
+/**
+ * Set the product's primary + secondary categories atomically via
+ * migration 009. Returns false when the revision cannot be read or
+ * the RPC fails (including when migration 009 is unapplied) — the
+ * caller surfaces a retry flag; the product save itself stands.
+ */
+async function assignProductCategories(
+  client: Awaited<ReturnType<typeof staffSession>>["client"],
+  productId: string,
+  primaryId: string | null,
+  secondaryId: string | null,
+): Promise<boolean> {
+  const revision = await readProductRevision(client, productId);
+  if (!revision) return false;
+  const result = await client.rpc("admin_assign_product_categories", {
+    target_id: productId,
+    expected_updated_at: revision.updatedAt,
+    primary_category_id: primaryId,
+    secondary_category_id: secondaryId,
+  });
+  return !result.error;
+}
+
+interface StagedImageInput {
+  path: string;
+  alt: string;
+}
+
+/**
+ * Parse the staged-images JSON written by the create form's pre-upload
+ * panel. Fails closed: malformed entries, foreign paths (first segment
+ * must be the caller's own id) and duplicates are dropped; `attempted`
+ * counts the raw entries so partial failures stay visible.
+ */
+function parseStagedImages(
+  form: FormData,
+  ownerId: string,
+): { paths: StagedImageInput[]; attempted: number } {
+  const raw = form.get("staged_images_json");
+  if (typeof raw !== "string" || !raw.trim()) {
+    return { paths: [], attempted: 0 };
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return { paths: [], attempted: 0 };
+    const attempted = Math.min(parsed.length, MAX_PRODUCT_IMAGES);
+    const seen = new Set<string>();
+    const paths: StagedImageInput[] = [];
+    for (const item of parsed.slice(0, MAX_PRODUCT_IMAGES)) {
+      if (!item || typeof item !== "object") continue;
+      const record = item as Record<string, unknown>;
+      const path = typeof record.path === "string" ? record.path : "";
+      const alt =
+        typeof record.alt === "string" ? record.alt.slice(0, 300) : "";
+      if (!isCatalogStoragePath(path)) continue;
+      if (path.split("/")[0] !== ownerId) continue;
+      if (seen.has(path)) continue;
+      seen.add(path);
+      paths.push({ path, alt });
+    }
+    return { paths, attempted };
+  } catch {
+    return { paths: [], attempted: 0 };
+  }
+}
+
+/**
+ * Attach staged images at positions 0..n via the media RPC. Sequential
+ * on purpose: positions are explicit and the gallery must keep the
+ * staged order. Returns the number attached; unattached staged bytes
+ * stay orphaned in the private bucket (same caveat as category
+ * images) and the caller reports the shortfall.
+ */
+async function attachStagedImages(
+  client: Awaited<ReturnType<typeof staffSession>>["client"],
+  productId: string,
+  staged: StagedImageInput[],
+): Promise<number> {
+  let attached = 0;
+  for (const [index, item] of staged.entries()) {
+    const result = await client.rpc("admin_add_product_media", {
+      p_product_id: productId,
+      p_storage_path: item.path,
+      p_storage_object_id: null,
+      p_alt_text: item.alt,
+      p_position: index,
+    });
+    if (!result.error && typeof result.data === "string") attached += 1;
+  }
+  return attached;
 }
 
 export async function setCatalogProductStatus(
@@ -734,11 +1091,11 @@ export async function setCatalogProductStatus(
   const session = await requireStaff(areaRoles("catalogue"));
   const parsed = statusChangeSchema.safeParse({ id: productId, status });
   if (!parsed.success) return actionError("Invalid product or status.");
-  const expected = await readExpectedUpdatedAt(session.client, parsed.data.id);
-  if (!expected) return actionError("Product not found. Reload and try again.");
+  const revision = await readProductRevision(session.client, parsed.data.id);
+  if (!revision) return actionError("Product not found. Reload and try again.");
   const result = await session.client.rpc("admin_set_product_status", {
     target_id: parsed.data.id,
-    expected_updated_at: expected,
+    expected_updated_at: revision.updatedAt,
     new_status: parsed.data.status,
   });
   if (result.error) {
@@ -748,10 +1105,67 @@ export async function setCatalogProductStatus(
   }
   revalidatePath("/admin/catalog/products");
   revalidatePath(`/admin/catalog/products/${parsed.data.id}`);
+  // Archiving a published product pauses its storefront visibility
+  // (is_published stays set); reactivation resumes it. The list shows
+  // the resulting visibility state.
+  revalidateStorefront(revision.slug);
   return actionOk(
     status === "published"
       ? "Product set to Active."
       : "Product set to Inactive.",
+  );
+}
+
+/**
+ * Publish or unpublish a product (migration 008). Publish requires
+ * the readiness gate (name, description, visible category, image,
+ * active priced variant, stock) and refuses thrift-intake products;
+ * the RPC's authored readiness message passes through. Unpublish
+ * archives the product and revokes its public image access at once.
+ * Neither action affects checkout eligibility (separate layer).
+ */
+export async function setCatalogProductPublication(
+  productId: string,
+  publish: boolean,
+): Promise<AdminActionResult> {
+  const session = await requireStaff(areaRoles("catalogue"));
+  if (!z.uuid().safeParse(productId).success) {
+    return actionError("Invalid product.");
+  }
+  const revision = await readProductRevision(session.client, productId);
+  if (!revision) return actionError("Product not found. Reload and try again.");
+  const result = publish
+    ? await session.client.rpc("admin_publish_product", {
+        target_id: productId,
+        expected_updated_at: revision.updatedAt,
+      })
+    : await session.client.rpc("admin_unpublish_product", {
+        target_id: productId,
+        expected_updated_at: revision.updatedAt,
+      });
+  if (result.error) {
+    if (rpcErrorCode(result.error) === "PT409") {
+      return actionError(
+        "This product changed. Reload before changing publication.",
+      );
+    }
+    return actionError(
+      rpcErrorMessage(
+        result.error,
+        publish
+          ? "Product could not be published."
+          : "Product could not be removed from the storefront.",
+      ),
+    );
+  }
+  revalidatePath("/admin/catalog/products");
+  revalidatePath(`/admin/catalog/products/${productId}`);
+  revalidatePath("/admin/catalog/inventory");
+  revalidateStorefront(revision.slug);
+  return actionOk(
+    publish
+      ? "Product published to the storefront."
+      : "Product removed from the storefront.",
   );
 }
 
@@ -770,14 +1184,14 @@ export async function bulkSetCatalogProductStatus(
   let succeeded = 0;
   let lastError = "";
   for (const id of ids.data) {
-    const expected = await readExpectedUpdatedAt(session.client, id);
-    if (!expected) {
+    const revision = await readProductRevision(session.client, id);
+    if (!revision) {
       lastError = "A selected product could not be found.";
       continue;
     }
     const result = await session.client.rpc("admin_set_product_status", {
       target_id: id,
-      expected_updated_at: expected,
+      expected_updated_at: revision.updatedAt,
       new_status: status,
     });
     if (result.error) {
@@ -788,6 +1202,7 @@ export async function bulkSetCatalogProductStatus(
   }
   revalidatePath("/admin/catalog/products");
   revalidatePath("/admin/catalog/inventory");
+  revalidateStorefront();
   const label = status === "published" ? "Active" : "Inactive";
   if (succeeded === ids.data.length) {
     return actionOk(`${succeeded} product(s) set to ${label}.`);
@@ -819,6 +1234,7 @@ export async function duplicateCatalogProduct(
   }
   revalidatePath("/admin/catalog/products");
   revalidatePath("/admin/catalog/inventory");
+  revalidateStorefront();
   return {
     ok: true,
     message:
@@ -844,6 +1260,7 @@ export async function deleteCatalogProduct(
   }
   revalidatePath("/admin/catalog/products");
   revalidatePath("/admin/catalog/inventory");
+  revalidateStorefront();
   return actionOk("Product deleted.");
 }
 
@@ -869,6 +1286,7 @@ export async function bulkDeleteCatalogProducts(
   }
   revalidatePath("/admin/catalog/products");
   revalidatePath("/admin/catalog/inventory");
+  revalidateStorefront();
   if (succeeded === ids.data.length) {
     return actionOk(`${succeeded} product(s) deleted.`);
   }

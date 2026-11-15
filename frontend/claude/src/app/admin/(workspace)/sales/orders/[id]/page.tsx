@@ -7,11 +7,15 @@ import {
 } from "@/lib/admin/constants";
 import { formatDateTime, formatMoney } from "@/lib/admin/format";
 import { readOrderDetail, transitionOrder } from "@/lib/admin/orders";
-import { PageHeading, Panel, StatusBadge } from "@/components/admin/ui";
+import { resolveDisplayRecord } from "@/lib/admin/sample-data";
+import { SAMPLE_ORDER_DETAIL } from "@/lib/admin/sample-sales";
+import { PageHeading, Panel, Notice, StatusBadge } from "@/components/admin/ui";
+import { SampleBadge } from "@/components/admin/SampleBadge";
 import { ProductThumbnail } from "@/components/admin/access/ProductThumbnail";
 import { OrderStatusForm } from "@/components/admin/sales/OrderStatusForm";
 import { PrintInvoiceButton } from "@/components/admin/sales/PrintInvoiceButton";
 import { SalesNav } from "@/components/admin/sales/SalesNav";
+import styles from "@/components/admin/sales/sales-refresh.module.css";
 
 export const metadata = { title: "Order details" };
 
@@ -21,7 +25,13 @@ export default async function OrderDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { order, items, history } = await readOrderDetail(id);
+  // Null means unavailable: show a labeled sample record with no working
+  // status change. A genuinely missing order still 404s inside the loader.
+  const { record, isSample } = resolveDisplayRecord(
+    await readOrderDetail(id),
+    SAMPLE_ORDER_DETAIL,
+  );
+  const { order, items, history } = record;
   const orderLabel = order.order_number ? `#${order.order_number}` : "Order";
 
   return (
@@ -41,6 +51,16 @@ export default async function OrderDetailPage({
           }
         />
         <SalesNav current="orders" />
+        {isSample ? (
+          <div className={styles.sampleBanner} role="status">
+            <SampleBadge />
+            <span>
+              Live order data is unavailable — this order could not be read.
+              This sample record is for testing the layout only. Status
+              changes are unavailable, and no sample data is saved.
+            </span>
+          </div>
+        ) : null}
       </div>
 
       {/* Invoice: the only section that prints. */}
@@ -156,14 +176,23 @@ export default async function OrderDetailPage({
       </Panel>
 
       <div className="aa-no-print">
-        <Panel title="Change status" description="Only the next steps allowed by the order workflow are offered.">
-          <OrderStatusForm
-            orderId={order.id}
-            currentStatus={order.status}
-            expectedUpdatedAt={order.updated_at}
-            action={transitionOrder}
-          />
-        </Panel>
+        {isSample ? (
+          <Panel title="Change status">
+            <Notice kind="warning">
+              Status changes are unavailable while live order data cannot be
+              loaded. This sample record cannot be changed.
+            </Notice>
+          </Panel>
+        ) : (
+          <Panel title="Change status" description="Only the next steps allowed by the order workflow are offered.">
+            <OrderStatusForm
+              orderId={order.id}
+              currentStatus={order.status}
+              expectedUpdatedAt={order.updated_at}
+              action={transitionOrder}
+            />
+          </Panel>
+        )}
 
         <Panel title="Status history" description="Recorded in the admin audit log.">
           {history.length === 0 ? (

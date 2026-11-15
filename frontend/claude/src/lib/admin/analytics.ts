@@ -1,6 +1,6 @@
 import "server-only";
 
-import { requireStaff } from "./authorization";
+import { canViewProductCosts, requireStaff } from "./authorization";
 import { areaRoles } from "./constants";
 import {
   parseDateRange,
@@ -99,6 +99,13 @@ export interface AnalyticsReport {
     deliveredItems: number;
   } | null;
   profitAvailable: boolean;
+  /**
+   * True when the viewer's roles may not see cost prices
+   * (canViewProductCosts). The cost query is then skipped entirely and the
+   * page shows a role note instead of the "no cost prices" copy, which
+   * would be false. Revenue figures are unaffected.
+   */
+  costsHidden: boolean;
 }
 
 type StaffClient = Awaited<ReturnType<typeof requireStaff>>["client"];
@@ -169,6 +176,10 @@ export async function getAnalyticsReport(
   const range = parseDateRange(searchParams, 30);
   const fromIso = `${range.from}T00:00:00+06:00`;
   const toIso = `${dayAfter(range.to)}T00:00:00+06:00`;
+  // ONE cost rule (authorization.ts): moderators, editors and other
+  // non-cost roles never see profit or cost prices. The cost query below
+  // is skipped entirely when hidden.
+  const costsHidden = !canViewProductCosts(session);
   const empty: AnalyticsReport = {
     range,
     ordersAvailable: false,
@@ -185,6 +196,7 @@ export async function getAnalyticsReport(
     customerTrends: null,
     profit: null,
     profitAvailable: false,
+    costsHidden,
   };
 
   const orders = await fetchOrders(session.client, fromIso, toIso);
@@ -358,47 +370,51 @@ export async function getAnalyticsReport(
     customerTrends = { newCustomers: 0, returningCustomers: 0 };
   }
 
-  // Profit: delivered orders only, cost prices only when recorded.
+  // Profit: delivered orders only, cost prices only when recorded — and
+  // only when the viewer's roles may see costs. When hidden, the cost
+  // query never runs, so no cost price ever reaches this loader.
   let profit: AnalyticsReport["profit"] = null;
   let profitAvailable = false;
-  const deliveredIds = new Set(
-    orders.filter((order) => order.status === "delivered").map((order) => order.id),
-  );
-  const deliveredItems = await fetchOrderItems(session.client, [...deliveredIds]);
-  if (deliveredItems.length > 0) {
-    const variantIds = [...new Set(deliveredItems.map((item) => item.variant_id))];
-    const costResult = await session.client
-      .from("product_variants")
-      .select("id, cost_price_minor")
-      .in("id", variantIds.slice(0, 200));
-    if (!costResult.error) {
-      const costs = new Map<string, number>();
-      for (const variant of costResult.data ?? []) {
-        if (typeof variant.cost_price_minor === "number") {
-          costs.set(String(variant.id), variant.cost_price_minor);
+  if (!costsHidden) {
+    const deliveredIds = new Set(
+      orders.filter((order) => order.status === "delivered").map((order) => order.id),
+    );
+    const deliveredItems = await fetchOrderItems(session.client, [...deliveredIds]);
+    if (deliveredItems.length > 0) {
+      const variantIds = [...new Set(deliveredItems.map((item) => item.variant_id))];
+      const costResult = await session.client
+        .from("product_variants")
+        .select("id, cost_price_minor")
+        .in("id", variantIds.slice(0, 200));
+      if (!costResult.error) {
+        const costs = new Map<string, number>();
+        for (const variant of costResult.data ?? []) {
+          if (typeof variant.cost_price_minor === "number") {
+            costs.set(String(variant.id), variant.cost_price_minor);
+          }
         }
-      }
-      let profitMinor = 0;
-      let revenueMinor = 0;
-      let costMinor = 0;
-      let itemsWithCost = 0;
-      for (const item of deliveredItems) {
-        const cost = costs.get(item.variant_id);
-        if (cost === undefined) continue;
-        itemsWithCost += 1;
-        revenueMinor += item.line_total_minor;
-        costMinor += cost * item.quantity;
-        profitMinor += (item.unit_price_minor - cost) * item.quantity;
-      }
-      if (itemsWithCost > 0) {
-        profitAvailable = true;
-        profit = {
-          profitMinor,
-          revenueMinor,
-          costMinor,
-          itemsWithCost,
-          deliveredItems: deliveredItems.length,
-        };
+        let profitMinor = 0;
+        let revenueMinor = 0;
+        let costMinor = 0;
+        let itemsWithCost = 0;
+        for (const item of deliveredItems) {
+          const cost = costs.get(item.variant_id);
+          if (cost === undefined) continue;
+          itemsWithCost += 1;
+          revenueMinor += item.line_total_minor;
+          costMinor += cost * item.quantity;
+          profitMinor += (item.unit_price_minor - cost) * item.quantity;
+        }
+        if (itemsWithCost > 0) {
+          profitAvailable = true;
+          profit = {
+            profitMinor,
+            revenueMinor,
+            costMinor,
+            itemsWithCost,
+            deliveredItems: deliveredItems.length,
+          };
+        }
       }
     }
   }
@@ -424,6 +440,7 @@ export async function getAnalyticsReport(
     customerTrends,
     profit,
     profitAvailable,
+    costsHidden,
   };
 }
 

@@ -6,6 +6,13 @@ export const staffRoles = [
   "customer_support",
   "marketing_manager",
   "analyst",
+  // Admin Panel v2 roles (migration 20261115001000). staffSession() parses
+  // every staff member's roles through rolesSchema: without these entries
+  // a user holding only a new role would fail parsing and be denied
+  // sign-in even after the migration applies. Additive only.
+  "moderator",
+  "editor",
+  "admin",
 ] as const;
 export const rolesSchema = z.array(z.object({ role: z.enum(staffRoles) }));
 export const signInSchema = z.object({

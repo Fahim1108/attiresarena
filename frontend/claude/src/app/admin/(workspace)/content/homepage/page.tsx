@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PageHeading, Panel, StatusBadge, Notice } from "@/components/admin/ui";
+import { LayoutTabs } from "@/components/admin/LayoutTabs";
 import { AnnouncementForm } from "@/components/admin/content/forms";
 import { getAnnouncementBarValue, getBanners } from "@/lib/admin/content";
 import { saveAnnouncementBar } from "@/lib/admin/settings";
@@ -20,6 +21,7 @@ export default async function HomepageContentPage() {
         title="Homepage content"
         description="Announcement bar, hero slides and homepage sections."
       />
+      <LayoutTabs current="homepage-sections" />
       <Notice kind="info">
         Saved settings apply on the next page load once the storefront
         wiring for that setting is connected. The announcement bar and hero

@@ -48,7 +48,14 @@ export interface StorefrontDataSource {
   submitManualPayment(input: PaymentSubmissionInput): Promise<PaymentSubmissionResult>;
   // ---- Catalogue (read) ----
   getHomepageProducts(): Promise<MerchandisingCandidate[]>;
-  getProducts(query?: ProductQueryInput): Promise<Paginated<Product> & { facets: CatalogFacets }>;
+  /**
+   * `catalogueUnavailable` is the feed failure signal, set only by the
+   * live adapter: true when the catalogue data call itself failed, so
+   * listing pages can render "catalogue unavailable" instead of
+   * "0 products". Absent/false means the data call succeeded (a zero
+   * total is then a genuinely empty catalogue). Other adapters omit it.
+   */
+  getProducts(query?: ProductQueryInput): Promise<Paginated<Product> & { facets: CatalogFacets; catalogueUnavailable?: boolean }>;
   getProductBySlug(slug: string): Promise<Product | null>;
   getProductsByIds(ids: string[]): Promise<Product[]>;
   getRelatedProducts(product: Product, limit?: number): Promise<Product[]>;

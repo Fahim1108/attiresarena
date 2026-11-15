@@ -41,6 +41,29 @@ export const REVENUE_EXCLUDED_STATUSES: readonly OrderStatus[] = [
   "returned",
 ];
 
+/**
+ * Set lookups for the per-row hot paths (countByStatus, sumRevenue,
+ * bucketRevenue, best-seller filtering). The arrays above stay the
+ * canonical ordered definitions; these sets only avoid a linear scan
+ * per row.
+ */
+const REVENUE_EXCLUDED_SET: ReadonlySet<string> = new Set(
+  REVENUE_EXCLUDED_STATUSES,
+);
+const ORDER_STATUS_SET: ReadonlySet<string> = new Set(ORDER_STATUSES);
+
+/** Shared label formatters: constructing one per bucket was pure waste. */
+const DAY_KEY_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  timeZone: "UTC",
+});
+const MONTH_KEY_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_DAY_KEY = "9999-12-31";
 
@@ -129,11 +152,7 @@ export function bucketKeyFor(
 }
 
 function formatDayKey(key: string): string {
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-  }).format(new Date(`${key}T00:00:00Z`));
+  return DAY_KEY_FORMAT.format(new Date(`${key}T00:00:00Z`));
 }
 
 /** Human label for a bucket key: "12 Nov", "Week of 10 Nov", "Nov 2026". */
@@ -142,11 +161,7 @@ export function bucketLabel(
   granularity: RevenueGranularity,
 ): string {
   if (granularity === "month") {
-    return new Intl.DateTimeFormat("en-GB", {
-      month: "short",
-      year: "numeric",
-      timeZone: "UTC",
-    }).format(new Date(`${key}-01T00:00:00Z`));
+    return MONTH_KEY_FORMAT.format(new Date(`${key}-01T00:00:00Z`));
   }
   if (granularity === "week") return `Week of ${formatDayKey(key)}`;
   return formatDayKey(key);
@@ -210,9 +225,7 @@ export function bucketRevenue(
     const bucket = buckets.get(key);
     if (!bucket) continue;
     bucket.orderCount += 1;
-    if (
-      !(REVENUE_EXCLUDED_STATUSES as readonly string[]).includes(row.status)
-    ) {
+    if (!REVENUE_EXCLUDED_SET.has(row.status)) {
       bucket.revenueMinor += row.total_minor;
     }
   }
@@ -243,7 +256,7 @@ export function countByStatus(
     ORDER_STATUSES.map((status) => [status, 0]),
   ) as Record<OrderStatus, number>;
   for (const row of rows) {
-    if ((ORDER_STATUSES as readonly string[]).includes(row.status)) {
+    if (ORDER_STATUS_SET.has(row.status)) {
       counts[row.status as OrderStatus] += 1;
     }
   }
@@ -254,9 +267,7 @@ export function countByStatus(
 export function sumRevenue(rows: readonly RevenueRow[]): number {
   let total = 0;
   for (const row of rows) {
-    if (
-      !(REVENUE_EXCLUDED_STATUSES as readonly string[]).includes(row.status)
-    ) {
+    if (!REVENUE_EXCLUDED_SET.has(row.status)) {
       total += row.total_minor;
     }
   }
@@ -343,6 +354,59 @@ export function selectLowStock(
     .filter((row) => row.available <= row.lowStockThreshold)
     .sort((a, b) => a.available - b.available)
     .slice(0, limit);
+}
+
+export interface RevenueSummary {
+  totalMinor: number;
+  /** Highest-revenue bucket (first one wins a tie), or null when empty. */
+  peak: RevenueBucket | null;
+  /** Mean revenue per bucket; 0 when there are no buckets. */
+  averageMinor: number;
+  bucketCount: number;
+}
+
+/**
+ * Totals for the visible summary next to the revenue chart. Single pass;
+ * the chart itself stays the visual, this is the adjacent text summary
+ * screen-reader and skim readers use.
+ */
+export function summarizeRevenue(
+  buckets: readonly RevenueBucket[],
+): RevenueSummary {
+  let total = 0;
+  let peak: RevenueBucket | null = null;
+  for (const bucket of buckets) {
+    total += bucket.revenueMinor;
+    if (!peak || bucket.revenueMinor > peak.revenueMinor) peak = bucket;
+  }
+  return {
+    totalMinor: total,
+    peak,
+    averageMinor: buckets.length > 0 ? total / buckets.length : 0,
+    bucketCount: buckets.length,
+  };
+}
+
+export interface CoverMediaRow {
+  product_id: string;
+  storage_path: string;
+  alt_text: string;
+}
+
+/**
+ * First media row per product. `rows` must arrive ordered by position
+ * ascending (the batched query orders them), so the first row seen for a
+ * product is its cover image — the same row the old per-product
+ * limit(1) queries returned, without one query per product.
+ */
+export function selectFirstMediaByProduct(
+  rows: readonly CoverMediaRow[],
+): Map<string, CoverMediaRow> {
+  const first = new Map<string, CoverMediaRow>();
+  for (const row of rows) {
+    if (!first.has(row.product_id)) first.set(row.product_id, row);
+  }
+  return first;
 }
 
 // --- Row schemas: PostgREST rows are untrusted input, parsed with Zod. ---
@@ -442,6 +506,7 @@ const abandonedSessionRowSchema = z.object({
 });
 
 const mediaRowSchema = z.object({
+  product_id: z.uuid(),
   storage_path: z.string(),
   alt_text: z.string(),
 });
@@ -616,11 +681,7 @@ export async function loadDashboard(
         return rows.filter((row) => {
           const order = row.orders;
           if (!order) return false;
-          if (
-            (REVENUE_EXCLUDED_STATUSES as readonly string[]).includes(
-              order.status,
-            )
-          ) {
+          if (REVENUE_EXCLUDED_SET.has(order.status)) {
             return false;
           }
           // Compare instants, not strings: stored offsets vary.
@@ -671,31 +732,51 @@ export async function loadDashboard(
     ]);
 
     // Cover images for best sellers: short-lived signed URLs from the
-    // private gallery bucket, exactly like the product library. A missing
-    // image stays missing — no placeholder artwork is ever invented.
+    // private gallery bucket, exactly like the product library. One
+    // batched media query for all best sellers (ordered by position, so
+    // the first row per product is its cover), then signed URLs in
+    // parallel. A missing image stays missing — no placeholder artwork
+    // is ever invented. If the batched query fails, every best seller
+    // renders without an image rather than failing the section: the
+    // query either works for the whole table or not at all, so
+    // per-product retries would buy nothing.
     const aggregates = aggregateBestSellers(orderItems).slice(0, 5);
+    let covers = new Map<string, CoverMediaRow>();
+    if (aggregates.length > 0) {
+      try {
+        const media = await client
+          .from("product_media")
+          .select("product_id,storage_path,alt_text")
+          .in(
+            "product_id",
+            aggregates.map((aggregate) => aggregate.productId),
+          )
+          .order("position", { ascending: true })
+          .limit(200);
+        if (!media.error) {
+          covers = selectFirstMediaByProduct(
+            parseRows(mediaRowSchema, media.data),
+          );
+        }
+      } catch {
+        covers = new Map();
+      }
+    }
     const bestSellers: BestSeller[] = await Promise.all(
       aggregates.map(async (aggregate) => {
         let imageUrl: string | null = null;
         let imageAlt = aggregate.productName;
-        try {
-          const media = await client
-            .from("product_media")
-            .select("storage_path,alt_text")
-            .eq("product_id", aggregate.productId)
-            .order("position", { ascending: true })
-            .limit(1)
-            .maybeSingle();
-          const parsed = mediaRowSchema.safeParse(media.data);
-          if (!media.error && parsed.success) {
-            imageAlt = parsed.data.alt_text || aggregate.productName;
+        const cover = covers.get(aggregate.productId);
+        if (cover) {
+          imageAlt = cover.alt_text || aggregate.productName;
+          try {
             const signed = await client.storage
               .from(PRODUCT_MEDIA_BUCKET)
-              .createSignedUrl(parsed.data.storage_path, 120);
+              .createSignedUrl(cover.storage_path, 120);
             if (!signed.error) imageUrl = signed.data.signedUrl;
+          } catch {
+            imageUrl = null;
           }
-        } catch {
-          imageUrl = null;
         }
         return { ...aggregate, imageUrl, imageAlt };
       }),

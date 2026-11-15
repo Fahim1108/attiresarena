@@ -1,0 +1,66 @@
+/* Dashboard-only styles (Admin Panel v2). The shared aa-* classes in
+   admin-panel.css are untouched; the :global selectors below only resize
+   chart internals inside dashboard chart wrappers. Theme tokens come from
+   globals.css (--aa-* RGB triplets): primary #6B0202, border #EAEAEA. */
+
+/* Prominent charts: taller bars and a larger donut than the shared
+   defaults, so the graphs — not the KPI grid — anchor the page. */
+.chartLarge :global(.aa-bars) {
+  height: 15rem;
+}
+
+.donutLarge :global(.aa-donut) {
+  width: 12rem;
+  height: 12rem;
+}
+
+@media (max-width: 40rem) {
+  .chartLarge :global(.aa-bars) {
+    height: 12rem;
+  }
+
+  .donutLarge :global(.aa-donut) {
+    width: 10rem;
+    height: 10rem;
+  }
+}
+
+/* Visible data summary adjacent to a chart: the numbers behind the
+   visual, always on screen (the chart's <details> table stays as the
+   full per-bucket breakdown). */
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.75rem;
+  margin: 0.9rem 0 0;
+  padding-top: 0.9rem;
+  border-top: 1px solid rgb(var(--aa-border));
+}
+
+.summary div {
+  min-width: 0;
+}
+
+.summary dt {
+  font-size: 0.78rem;
+  color: rgb(var(--aa-text-muted));
+}
+
+.summary dd {
+  margin: 0.15rem 0 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* Best-seller product cell: thumbnail + name, wrapping safely. */
+.productCell {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.productCell a {
+  overflow-wrap: anywhere;
+}

@@ -2,10 +2,12 @@ import type { Metadata, Viewport } from "next";
 import { motionVariables } from "@/config/motion";
 
 import { ThemeStyle } from "@/components/theme/ThemeStyle";
+import { CustomCodeSlot, MarketingScripts } from "@/components/MarketingScripts";
 import { CartProvider } from "@/context/CartContext";
 import { StorefrontProvider } from "@/context/StorefrontContext";
 import { ToastProvider } from "@/context/ToastContext";
 import { WishlistProvider } from "@/context/WishlistContext";
+import { getStorefrontContent, parseMarketingSettings, resolveStorefrontMetadata } from "@/lib/store-settings";
 import { getInitialCart, getStorefrontSettings, getProducts } from "@/services";
 import "@fontsource-variable/cormorant-garamond";
 import "@fontsource-variable/inter";
@@ -18,15 +20,11 @@ import "./motion.css";
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const s = await getStorefrontSettings();
-  return {
-    metadataBase: new URL(s.siteUrl),
-    robots: { index: false, follow: false },
-    title: { default: `${s.siteName} — Thrift Shirts in Bangladesh`, template: `%s | ${s.siteName}` },
-    description: s.description,
-    icons: { icon: "/brand/icon.png", apple: "/brand/apple-icon.png" },
-    openGraph: { siteName: s.siteName, type: "website", images: [{ url: s.logo.badge }] },
-  };
+  const [s, content] = await Promise.all([getStorefrontSettings(), getStorefrontContent()]);
+  return resolveStorefrontMetadata(
+    { siteName: s.siteName, siteUrl: s.siteUrl, description: s.description, logoBadge: s.logo.badge },
+    content?.settings ?? null,
+  );
 }
 
 export const viewport: Viewport = {
@@ -39,7 +37,8 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [settings, initialCart, catalogue] = await Promise.all([getStorefrontSettings(), getInitialCart(), getProducts({pageSize:500})]);
+  const [settings, initialCart, catalogue, content] = await Promise.all([getStorefrontSettings(), getInitialCart(), getProducts({pageSize:500}), getStorefrontContent()]);
+  const marketing = parseMarketingSettings(content?.settings ?? null);
   return (
     <html lang="en" >
       <head>
@@ -47,6 +46,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <style>{motionVariables}</style>
       </head>
       <body>
+        <CustomCodeSlot code={marketing.headCode} label="header" />
+        <MarketingScripts marketing={marketing} />
         <aside className="design-preview-notice" aria-label="Design preview notice">Our collection is being prepared. Ordering is not yet available.</aside>
         <StorefrontProvider settings={settings}>
           <ToastProvider>
@@ -60,6 +61,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </WishlistProvider>
           </ToastProvider>
         </StorefrontProvider>
+        <CustomCodeSlot code={marketing.bodyCode} label="footer" />
       </body>
     </html>
   );

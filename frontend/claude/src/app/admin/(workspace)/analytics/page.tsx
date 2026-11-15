@@ -123,7 +123,13 @@ export default async function AnalyticsPage({
         title="Profit"
         description="Profit is revenue minus recorded cost prices on delivered orders only. It is never estimated."
       >
-        {!report.profitAvailable || !report.profit ? (
+        {report.costsHidden ? (
+          <p>
+            Profit and cost figures are hidden for your role. Cost prices are
+            visible only to owners, admins and product managers. The revenue
+            figures above are unaffected.
+          </p>
+        ) : !report.profitAvailable || !report.profit ? (
           <p>Profit is unavailable — no cost prices are recorded.</p>
         ) : (
           <>

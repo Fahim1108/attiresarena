@@ -7,7 +7,8 @@ import { previewPaymentConfiguration } from "@/config/payment-receiving";
 import { unavailableServices } from "./unavailable";
 import {campaignHero} from '@/config/campaign-banners';
 import {reviewShirts} from './review-thrift';
-import {publishedShirts,approvedReviews} from './published-thrift';
+import {publishedShirts,approvedReviews,readPublishedFeed,readThriftFeed,readAdminFeed} from './published-thrift';
+import {mergeStorefrontFeed} from '@/lib/catalog-publication';
 
 import {storeCategories} from '@/config/catalogue';
 import {defaultStorefrontSettings} from '@/config';
@@ -16,9 +17,10 @@ import {availableShirtTypes,publishedAvailable} from '@/lib/catalogue-dimensions
 import type {Product} from '@/types';
 import type {StorefrontDataSource} from '../types';
 
-/** Verified publications supersede the matching design-review copy, never duplicate it. */
-export async function browsableShirts(options:{liveReview?:boolean}={}){
- const published=await publishedShirts();
+/** Verified publications supersede the matching design-review copy, never duplicate it. The merged list is the allowlist feed UNION published admin products (allowlist wins on collision); feedUnavailable is true only when BOTH feed data calls fail. */
+export async function browsableShirtsWithStatus(options:{liveReview?:boolean}={}):Promise<{products:Product[];feedUnavailable:boolean}>{
+ const feed=await readPublishedFeed();
+ const published=mergeStorefrontFeed(feed.allowlist,feed.published);
  const slugs=new Set(published.map(p=>p.slug));
  let review=reviewInventoryEnabled()?reviewShirts():[];
  if(reviewInventoryEnabled()&&options.liveReview!==false){
@@ -28,7 +30,10 @@ export async function browsableShirts(options:{liveReview?:boolean}={}){
    return base?[projectSavedReview(item,base)]:[];
   });
  }
- return [...published,...review.filter(p=>!slugs.has(p.slug))];
+ return {products:[...published,...review.filter(p=>!slugs.has(p.slug))],feedUnavailable:feed.feedUnavailable};
+}
+export async function browsableShirts(options:{liveReview?:boolean}={}){
+ return (await browsableShirtsWithStatus(options)).products;
 }
 const categories=storeCategories.map(c=>({...c,available:c.slug==='shirts',description:c.slug==='shirts'?'Individual thrift shirts, carefully selected.':'Coming soon.',...(c.slug==='shirts'?{image:{src:'/inventory/thrift-shirts/AA-SHIRT-001-front.jpg',alt:'Attires Arena thrift shirts'},thumbnail:{src:'/inventory/thrift-shirts/AA-SHIRT-001-front.jpg',alt:'Attires Arena thrift shirts'}}:{})}));
 
@@ -43,13 +48,13 @@ export const ownerCatalogue:StorefrontDataSource={...unavailableServices,
  async placeOrder(payload){return placeCheckoutOrder(payload);},
  async getHomepageProducts(){return []; /* Publication dates must come from trusted publication metadata. */},
  async getProducts(query={}){
-  const products=await browsableShirts();
+  const {products,feedUnavailable}=await browsableShirtsWithStatus();
   // Provisional preview sizes and visually proposed metadata never satisfy verified facets.
   const requiresVerified=Boolean(query.sizes?.length||query.shirtType||query.collection);
   const verified=products.filter(p=>!p.reviewOnly&&publishedAvailable(p));
   const result=queryProducts(requiresVerified?verified:products,categories,[],query);
   const sizes=queryProducts(verified,categories,[],query).facets;
-  return {...result,facets:{...result.facets,sizes:sizes.sizes,sizeLabels:sizes.sizeLabels}};
+  return {...result,facets:{...result.facets,sizes:sizes.sizes,sizeLabels:sizes.sizeLabels},catalogueUnavailable:feedUnavailable};
  },
  async getProductBySlug(slug){return (await browsableShirts()).find(p=>p.slug===slug)??null;},
  async getProductsByIds(ids){return (await browsableShirts()).filter(p=>ids.includes(p.id));},
@@ -60,8 +65,16 @@ export const ownerCatalogue:StorefrontDataSource={...unavailableServices,
  async getReviews(id){return (await publishedShirts()).some(p=>p.id===id)?approvedReviews(id):[];},async getInitialCart(){return [];},
  async getCategories(){
   if(reviewInventoryEnabled())return categories;
-  const hasPublished=(await publishedShirts()).length>0;
-  return categories.map(c=>({...c,available:c.slug==='shirts'&&hasPublished}));
+  const thrift=await readThriftFeed();
+  // The admin source is read only when the allowlist read fails: a
+  // working allowlist already proves the feed is reachable. Shirts
+  // availability still reflects the allowlist feed only (admin
+  // products do not list on /category/* pages — see
+  // catalog-publication.ts, shirts-only design intent).
+  let catalogueUnavailable=false;
+  if(!thrift.ok)catalogueUnavailable=!(await readAdminFeed()).ok;
+  const hasPublished=thrift.products.length>0;
+  return categories.map(c=>({...c,available:c.slug==='shirts'&&hasPublished,catalogueUnavailable}));
  },async getCategoryBySlug(slug){return (await this.getCategories()).find(c=>c.slug===slug)??null;},
  async getSizeGuide(id){return id==='tops'?officialShirtSizeGuide:null;},
  async getManualPaymentConfiguration(){

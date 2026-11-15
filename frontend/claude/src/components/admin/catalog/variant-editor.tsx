@@ -63,12 +63,20 @@ function toDraft(initial: VariantDraftInitial, index: number): VariantDraft {
   };
 }
 
-function toVariantInput(draft: VariantDraft): VariantInput {
+function toVariantInput(
+  draft: VariantDraft,
+  canViewCosts: boolean,
+): VariantInput {
   const price = parseMoneyToMinor(draft.price) ?? -1;
   const sale =
     draft.sale.trim() === "" ? null : (parseMoneyToMinor(draft.sale) ?? -1);
+  // Cost-blind sessions serialize null: the server strips costs on read
+  // and rejects cost-blind updates, so a null here can never erase a
+  // stored cost.
   const cost =
-    draft.cost.trim() === "" ? null : (parseMoneyToMinor(draft.cost) ?? -1);
+    !canViewCosts || draft.cost.trim() === ""
+      ? null
+      : (parseMoneyToMinor(draft.cost) ?? -1);
   const stock = /^\d{1,9}$/.test(draft.stock.trim())
     ? Number.parseInt(draft.stock.trim(), 10)
     : -1;
@@ -96,9 +104,12 @@ function toVariantInput(draft: VariantDraft): VariantInput {
  */
 export function VariantEditor({
   initial,
+  canViewCosts,
   fieldError,
 }: {
   initial: VariantDraftInitial[];
+  /** False for cost-blind roles: cost inputs are omitted entirely. */
+  canViewCosts: boolean;
   fieldError?: string;
 }) {
   const [rows, setRows] = useState<VariantDraft[]>(() =>
@@ -107,8 +118,8 @@ export function VariantEditor({
   const [nextKey, setNextKey] = useState(initial.length + 1);
 
   const serialized = useMemo(
-    () => JSON.stringify(rows.map(toVariantInput)),
-    [rows],
+    () => JSON.stringify(rows.map((row) => toVariantInput(row, canViewCosts))),
+    [rows, canViewCosts],
   );
 
   const updateRow = (key: string, patch: Partial<VariantDraft>) => {
@@ -195,7 +206,7 @@ export function VariantEditor({
 
       <div style={{ display: "grid", gap: "1rem" }}>
         {rows.map((row, index) => {
-          const parsed = toVariantInput(row);
+          const parsed = toVariantInput(row, canViewCosts);
           const hasContent =
             row.size.trim() !== "" ||
             row.color.trim() !== "" ||
@@ -261,18 +272,20 @@ export function VariantEditor({
                     placeholder="Leave empty for no sale"
                   />
                 </div>
-                <div className="aa-field">
-                  <label htmlFor={`variant-cost-${row.key}`}>
-                    Cost price (৳, optional)
-                  </label>
-                  <input
-                    id={`variant-cost-${row.key}`}
-                    value={row.cost}
-                    inputMode="decimal"
-                    onChange={(e) => updateRow(row.key, { cost: e.target.value })}
-                    placeholder="Admin only, never shown to customers"
-                  />
-                </div>
+                {canViewCosts ? (
+                  <div className="aa-field">
+                    <label htmlFor={`variant-cost-${row.key}`}>
+                      Cost price (৳, optional)
+                    </label>
+                    <input
+                      id={`variant-cost-${row.key}`}
+                      value={row.cost}
+                      inputMode="decimal"
+                      onChange={(e) => updateRow(row.key, { cost: e.target.value })}
+                      placeholder="Admin only, never shown to customers"
+                    />
+                  </div>
+                ) : null}
                 <div className="aa-field">
                   {saved ? (
                     <span style={{ fontWeight: 600, fontSize: "0.88rem" }}>

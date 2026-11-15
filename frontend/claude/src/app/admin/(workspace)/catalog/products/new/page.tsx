@@ -1,4 +1,7 @@
-import { requireStaff } from "@/lib/admin/authorization";
+import {
+  canViewProductCosts,
+  requireStaff,
+} from "@/lib/admin/authorization";
 import { areaRoles } from "@/lib/admin/constants";
 import {
   createCatalogProduct,
@@ -6,11 +9,12 @@ import {
 } from "@/lib/admin/catalog-products";
 import { PageHeading } from "@/components/admin/ui";
 import { ProductForm } from "@/components/admin/catalog/product-form";
+import { StagedImageUploader } from "@/components/admin/catalog/staged-image-uploader";
 
 export const metadata = { title: "Add product" };
 
 export default async function NewCatalogProductPage() {
-  await requireStaff(areaRoles("catalogue"));
+  const session = await requireStaff(areaRoles("catalogue"));
   const categories = await readCategoryOptions();
 
   return (
@@ -18,7 +22,7 @@ export default async function NewCatalogProductPage() {
       <PageHeading
         eyebrow="Catalog / Products"
         title="Add product"
-        description="Create a product with pricing, variants, badges and SEO. Images are added after the product is saved."
+        description="Create a product with pricing, variants, badges and SEO. Photos can be staged below and are attached when you save."
       />
       <ProductForm
         mode="create"
@@ -29,6 +33,7 @@ export default async function NewCatalogProductPage() {
           description: "",
           status: "published",
           categoryId: null,
+          secondaryCategoryId: null,
           brand: null,
           highlights: [],
           tags: [],
@@ -44,8 +49,10 @@ export default async function NewCatalogProductPage() {
         variants={[]}
         categories={categories}
         canManage
+        canViewCosts={canViewProductCosts(session)}
         imageCount={0}
         imagesPanel={null}
+        stagedPanel={<StagedImageUploader />}
       />
     </main>
   );

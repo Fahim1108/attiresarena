@@ -46,6 +46,7 @@ import {
 import {
   imageExtensionFor,
   isAcceptedImageType,
+  isCatalogStoragePath,
   validCatalogImageBytes,
   validateImageCount,
   validateImageFileMeta,
@@ -116,6 +117,10 @@ function rpcMessage(error: unknown, fallback: string): string {
 function revalidateProduct(productId: string): void {
   revalidatePath("/admin/catalog/products");
   revalidatePath(`/admin/catalog/products/${productId}`);
+  // Gallery changes on a published product change storefront images.
+  // Same-deployment only; no-op under today's force-dynamic rendering.
+  revalidatePath("/");
+  revalidatePath("/shop");
 }
 
 async function countProductMedia(
@@ -412,4 +417,89 @@ export async function uploadCategoryImage(
     path,
     url: signed.error ? null : signed.data.signedUrl,
   };
+}
+
+export type StagedImageResult = CategoryImageUploadResult;
+
+/**
+ * Stage ONE image for product creation: bytes upload now, attachment
+ * happens on save (createCatalogProduct attaches staged paths via
+ * admin_add_product_media). Same orphan caveat as uploadCategoryImage:
+ * staged bytes whose product is never saved stay in the private bucket
+ * until a future housekeeping pass. Preview URL is short-lived (600s).
+ */
+export async function stageCatalogImage(
+  form: FormData,
+): Promise<StagedImageResult> {
+  const session = await requireStaff(areaRoles("catalogue"));
+  const prepared = await prepareUpload(form.get("image"));
+  if ("error" in prepared) return { ok: false, error: prepared.error };
+  const path = `${session.user.id}/${randomUUID()}.${imageExtensionFor(prepared.mime)}`;
+  const upload = await session.client.storage
+    .from(PRODUCT_MEDIA_BUCKET)
+    .upload(path, prepared.bytes, {
+      contentType: prepared.mime,
+      upsert: false,
+    });
+  if (upload.error) {
+    return { ok: false, error: "Upload failed. Check your access and try again." };
+  }
+  const signed = await session.client.storage
+    .from(PRODUCT_MEDIA_BUCKET)
+    .createSignedUrl(path, 600);
+  return {
+    ok: true,
+    path,
+    url: signed.error ? null : signed.data.signedUrl,
+  };
+}
+
+/**
+ * Discard a staged image. Only the caller's own paths, and only when no
+ * product gallery row or category image/banner references the path —
+ * all three checks fail closed. Attached images use removeCatalogMedia
+ * instead (row-first ordering contract).
+ */
+export async function discardStagedCatalogImage(
+  path: string,
+): Promise<AdminActionResult> {
+  const session = await requireStaff(areaRoles("catalogue"));
+  if (!isCatalogStoragePath(path) || path.split("/")[0] !== session.user.id) {
+    return actionError("Invalid staged image.");
+  }
+  const [inGallery, inCategoryImage, inCategoryBanner] = await Promise.all([
+    session.client
+      .from("product_media")
+      .select("id", { head: true, count: "exact" })
+      .eq("storage_path", path),
+    session.client
+      .from("categories")
+      .select("id", { head: true, count: "exact" })
+      .eq("image_storage_path", path),
+    session.client
+      .from("categories")
+      .select("id", { head: true, count: "exact" })
+      .eq("banner_storage_path", path),
+  ]);
+  if (inGallery.error || inCategoryImage.error || inCategoryBanner.error) {
+    return actionError(
+      "Staged image could not be checked. Reload and try again.",
+    );
+  }
+  if (
+    (inGallery.count ?? 0) > 0 ||
+    (inCategoryImage.count ?? 0) > 0 ||
+    (inCategoryBanner.count ?? 0) > 0
+  ) {
+    return actionError(
+      "That image is already in use and cannot be discarded here.",
+    );
+  }
+  const removed = await session.client.storage
+    .from(PRODUCT_MEDIA_BUCKET)
+    .remove([path]);
+  if (removed.error) {
+    return actionError("Staged image could not be removed.");
+  }
+  return actionOk("Staged image discarded.");
 }

@@ -1,9 +1,17 @@
 "use client";
 
 import { useActionState } from "react";
-import { FormMessage, SubmitButton } from "@/components/admin/ui-client";
+import {
+  ConfirmSubmit,
+  FormMessage,
+  SubmitButton,
+} from "@/components/admin/ui-client";
 import type { AdminActionResult } from "@/lib/admin/authorization";
-import { settingString, type StoreSettingsMap } from "@/lib/admin/settings-shared";
+import {
+  parseLowStockThreshold,
+  settingString,
+  type StoreSettingsMap,
+} from "@/lib/admin/settings-shared";
 
 type FormAction = (
   prev: AdminActionResult | null,
@@ -171,6 +179,125 @@ export function StoreNameForm({
   );
 }
 
+/**
+ * Contact phone + email only. saveStoreSettings updates only the keys
+ * present in the submitted form, so the rest of the store settings are
+ * untouched by this form.
+ */
+export function ContactDetailsForm({
+  action,
+  settings,
+}: {
+  action: FormAction;
+  settings: StoreSettingsMap;
+}) {
+  const [state, formAction] = useActionState(action, null);
+  return (
+    <form action={formAction}>
+      <FormMessage state={state} />
+      <div className="aa-form-grid">
+        <div className="aa-field">
+          <label htmlFor="general-contact-phone">Contact phone</label>
+          <input
+            id="general-contact-phone"
+            name="contact_phone"
+            type="tel"
+            defaultValue={settingString(settings, "contact_phone")}
+            maxLength={40}
+          />
+        </div>
+        <div className="aa-field">
+          <label htmlFor="general-contact-email">Contact email</label>
+          <input
+            id="general-contact-email"
+            name="contact_email"
+            type="email"
+            spellCheck={false}
+            defaultValue={settingString(settings, "contact_email")}
+            maxLength={254}
+          />
+        </div>
+      </div>
+      <p className="aa-hint">Only the contact phone and email are changed by this form.</p>
+      <div className="aa-form-actions">
+        <SubmitButton>Save contact details</SubmitButton>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * Light general display settings: currency label, timezone label and the
+ * low-stock threshold display value. Display-only — none of these change
+ * prices, dates or inventory behaviour.
+ */
+export function GeneralDisplayForm({
+  action,
+  settings,
+}: {
+  action: FormAction;
+  settings: StoreSettingsMap;
+}) {
+  const [state, formAction] = useActionState(action, null);
+  const threshold = parseLowStockThreshold(settings["low_stock_threshold"]);
+  return (
+    <form action={formAction}>
+      <FormMessage state={state} />
+      <div className="aa-form-grid">
+        <div className="aa-field">
+          <label htmlFor="display-currency">Currency display</label>
+          <input
+            id="display-currency"
+            name="display_currency"
+            autoComplete="off"
+            defaultValue={settingString(settings, "display_currency") || "BDT"}
+            maxLength={12}
+            required
+          />
+          <p className="aa-hint">
+            The store sells in BDT (Bangladeshi Taka) only. This label does
+            not change prices.
+          </p>
+        </div>
+        <div className="aa-field">
+          <label htmlFor="display-timezone">Timezone display</label>
+          <input
+            id="display-timezone"
+            name="display_timezone"
+            autoComplete="off"
+            defaultValue={settingString(settings, "display_timezone") || "Asia/Dhaka"}
+            maxLength={64}
+            required
+          />
+          <p className="aa-hint">
+            Display label only. Dates in the admin use Asia/Dhaka.
+          </p>
+        </div>
+        <div className="aa-field">
+          <label htmlFor="low-stock-threshold">Low-stock threshold</label>
+          <input
+            id="low-stock-threshold"
+            name="low_stock_threshold"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={999}
+            defaultValue={threshold ?? 5}
+            required
+          />
+          <p className="aa-hint">
+            Display value only. Inventory low-stock flags come from the
+            inventory records themselves.
+          </p>
+        </div>
+      </div>
+      <div className="aa-form-actions">
+        <SubmitButton>Save general settings</SubmitButton>
+      </div>
+    </form>
+  );
+}
+
 export function BrandImageForm({
   action,
   clearAction,
@@ -222,12 +349,17 @@ export function BrandImageForm({
         </div>
       </form>
       {hasCurrent ? (
-        <form action={clearAction} style={{ marginTop: "0.5rem" }}>
-          <input type="hidden" name="kind" value={kind} />
-          <button type="submit" className="aa-row-action aa-row-action--danger">
-            Remove saved {label.toLowerCase()}
-          </button>
-        </form>
+        <div style={{ marginTop: "0.5rem" }}>
+          <ConfirmSubmit
+            action={clearAction}
+            fields={{ kind }}
+            buttonLabel={`Remove saved ${label.toLowerCase()}`}
+            ariaLabel={`Remove saved ${label.toLowerCase()}`}
+            confirmTitle={`Remove the saved ${label.toLowerCase()}?`}
+            confirmBody={`The stored ${label.toLowerCase()} is cleared. You can upload a new one afterwards.`}
+            confirmLabel="Remove image"
+          />
+        </div>
       ) : null}
     </div>
   );

@@ -8,10 +8,14 @@ import {
   setCouponActive,
   toDatetimeLocal,
 } from "@/lib/admin/coupons";
+import { resolveDisplayRecord } from "@/lib/admin/sample-data";
+import { SAMPLE_COUPON_DETAIL } from "@/lib/admin/sample-sales";
 import { PageHeading, Panel, Notice, StatusBadge } from "@/components/admin/ui";
+import { SampleBadge } from "@/components/admin/SampleBadge";
 import { CouponForm, type CouponFormInitial } from "@/components/admin/sales/CouponForm";
 import { CouponRowActions } from "@/components/admin/sales/CouponRowActions";
 import { SalesNav } from "@/components/admin/sales/SalesNav";
+import styles from "@/components/admin/sales/sales-refresh.module.css";
 
 export const metadata = { title: "Coupon details" };
 
@@ -25,7 +29,13 @@ export default async function CouponDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { coupon, redemptions, totalRedemptions } = await readCouponDetail(id);
+  // Null means unavailable: show a labeled sample record with no working
+  // edit, toggle, or delete actions. A genuinely missing coupon still 404s.
+  const { record, isSample } = resolveDisplayRecord(
+    await readCouponDetail(id),
+    SAMPLE_COUPON_DETAIL,
+  );
+  const { coupon, redemptions, totalRedemptions } = record;
 
   const initial: CouponFormInitial = {
     id: coupon.id,
@@ -54,18 +64,32 @@ export default async function CouponDetailPage({
             <Link className="aa-secondary" href="/admin/sales/coupons">
               Back to coupons
             </Link>
-            <CouponRowActions
-              couponId={coupon.id}
-              code={coupon.code}
-              active={coupon.active}
-              hasRedemptions={totalRedemptions > 0}
-              toggleAction={setCouponActive}
-              deleteAction={deleteCoupon}
-            />
+            {!isSample ? (
+              <CouponRowActions
+                couponId={coupon.id}
+                code={coupon.code}
+                active={coupon.active}
+                hasRedemptions={totalRedemptions > 0}
+                toggleAction={setCouponActive}
+                deleteAction={deleteCoupon}
+              />
+            ) : null}
           </>
         }
       />
       <SalesNav current="coupons" />
+
+      {isSample ? (
+        <div className={styles.sampleBanner} role="status">
+          <SampleBadge />
+          <span>
+            Live coupon data is unavailable — this coupon could not be read.
+            This sample record is for testing the layout only. Editing,
+            activation, and deletion are unavailable, and no sample data is
+            saved.
+          </span>
+        </div>
+      ) : null}
 
       <Notice kind="warning">
         Applying a coupon at checkout is pending checkout integration. This coupon cannot be
@@ -118,9 +142,18 @@ export default async function CouponDetailPage({
         </dl>
       </Panel>
 
-      <Panel title="Edit coupon">
-        <CouponForm initial={initial} action={saveCoupon} submitLabel="Save coupon" />
-      </Panel>
+      {isSample ? (
+        <Panel title="Edit coupon">
+          <Notice kind="warning">
+            Editing is unavailable while live coupon data cannot be loaded.
+            This sample coupon cannot be changed.
+          </Notice>
+        </Panel>
+      ) : (
+        <Panel title="Edit coupon">
+          <CouponForm initial={initial} action={saveCoupon} submitLabel="Save coupon" />
+        </Panel>
+      )}
 
       <Panel
         title="Redemptions"

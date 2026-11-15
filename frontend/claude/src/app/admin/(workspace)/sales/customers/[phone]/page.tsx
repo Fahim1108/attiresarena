@@ -2,9 +2,13 @@ import Link from "next/link";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_TONES } from "@/lib/admin/constants";
 import { formatDateTime, formatMoney } from "@/lib/admin/format";
 import { blockCustomer, readCustomerProfile, unblockCustomer } from "@/lib/admin/customers";
+import { resolveDisplayRecord } from "@/lib/admin/sample-data";
+import { SAMPLE_CUSTOMER_PROFILE } from "@/lib/admin/sample-sales";
 import { PageHeading, Panel, Notice, StatusBadge } from "@/components/admin/ui";
+import { SampleBadge } from "@/components/admin/SampleBadge";
 import { CustomerBlockForms } from "@/components/admin/sales/CustomerBlockForms";
 import { SalesNav } from "@/components/admin/sales/SalesNav";
+import styles from "@/components/admin/sales/sales-refresh.module.css";
 
 export const metadata = { title: "Customer profile" };
 
@@ -14,8 +18,13 @@ export default async function CustomerProfilePage({
   params: Promise<{ phone: string }>;
 }) {
   const { phone } = await params;
-  const { summary, orders, ordersTruncated, blockedRow, blocked, canManageBlock } =
-    await readCustomerProfile(phone);
+  // Null means unavailable: show a labeled sample profile with no working
+  // block actions. An invalid phone or a phone with no orders still 404s.
+  const { record, isSample } = resolveDisplayRecord(
+    await readCustomerProfile(phone),
+    SAMPLE_CUSTOMER_PROFILE,
+  );
+  const { summary, orders, ordersTruncated, blockedRow, blocked, canManageBlock } = record;
 
   return (
     <main id="main" tabIndex={-1} className="aa-main">
@@ -30,6 +39,17 @@ export default async function CustomerProfilePage({
         }
       />
       <SalesNav current="customers" />
+
+      {isSample ? (
+        <div className={styles.sampleBanner} role="status">
+          <SampleBadge />
+          <span>
+            Live customer data is unavailable — this profile could not be
+            read. This sample profile is for testing the layout only. Block
+            actions are unavailable, and no sample data is saved.
+          </span>
+        </div>
+      ) : null}
 
       <Notice kind="info">
         This profile is derived from order records. There is no separate customer registry.
@@ -90,15 +110,22 @@ export default async function CustomerProfilePage({
       </Panel>
 
       <Panel title="Block / unblock">
-        <CustomerBlockForms
-          phone={summary.phone}
-          blocked={blocked}
-          blockedReason={blockedRow?.reason ?? null}
-          blockedAt={blockedRow?.blocked_at ?? null}
-          blockAction={blockCustomer}
-          unblockAction={unblockCustomer}
-          canManage={canManageBlock}
-        />
+        {isSample ? (
+          <Notice kind="warning">
+            Block actions are unavailable while live customer data cannot be
+            loaded. This sample profile cannot be changed.
+          </Notice>
+        ) : (
+          <CustomerBlockForms
+            phone={summary.phone}
+            blocked={blocked}
+            blockedReason={blockedRow?.reason ?? null}
+            blockedAt={blockedRow?.blocked_at ?? null}
+            blockAction={blockCustomer}
+            unblockAction={unblockCustomer}
+            canManage={canManageBlock}
+          />
+        )}
       </Panel>
 
       <Panel title="Order history">
@@ -119,9 +146,15 @@ export default async function CustomerProfilePage({
               {orders.map((order) => (
                 <tr key={order.id}>
                   <th scope="row">
-                    <Link href={`/admin/sales/orders/${order.id}`} className="aa-cell-main">
-                      {order.order_number ? `#${order.order_number}` : "Order"}
-                    </Link>
+                    {isSample ? (
+                      <span className="aa-cell-main">
+                        {order.order_number ? `#${order.order_number}` : "Order"}
+                      </span>
+                    ) : (
+                      <Link href={`/admin/sales/orders/${order.id}`} className="aa-cell-main">
+                        {order.order_number ? `#${order.order_number}` : "Order"}
+                      </Link>
+                    )}
                   </th>
                   <td>{formatDateTime(order.placed_at)}</td>
                   <td>
@@ -131,9 +164,13 @@ export default async function CustomerProfilePage({
                   </td>
                   <td>{formatMoney(order.total_minor)}</td>
                   <td className="aa-cell-actions">
-                    <Link className="aa-row-action" href={`/admin/sales/orders/${order.id}`} aria-label={`View order ${order.order_number ? `#${order.order_number}` : order.id}`}>
-                      View
-                    </Link>
+                    {isSample ? (
+                      "—"
+                    ) : (
+                      <Link className="aa-row-action" href={`/admin/sales/orders/${order.id}`} aria-label={`View order ${order.order_number ? `#${order.order_number}` : order.id}`}>
+                        View
+                      </Link>
+                    )}
                   </td>
                 </tr>
               ))}

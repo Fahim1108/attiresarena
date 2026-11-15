@@ -14,25 +14,39 @@ import {
   type CatalogMediaItem,
 } from "@/lib/admin/catalog-media";
 import {
+  MAX_COMPRESSIBLE_IMAGE_BYTES,
   remainingImageSlots,
   validateImageFileMeta,
 } from "@/lib/admin/catalog-variants";
+import {
+  COMPRESSOR_DEFAULT_ON,
+  compressImageFile,
+  formatBytes,
+} from "./image-compress";
+import { CompressToggle } from "./compress-toggle";
 import { Panel } from "../ui";
+import styles from "./catalogue-v2.module.css";
 
 type QueuedFile = {
   key: string;
   file: File;
   previewUrl: string;
-  status: "queued" | "uploading" | "done" | "failed";
+  status: "queued" | "compressing" | "uploading" | "done" | "failed";
   error?: string;
+  /** Size actually uploaded (the compressed size when compressed). */
+  uploadedBytes: number | null;
+  compressed: boolean;
+  note: string | null;
 };
 
 /**
  * Product image manager: device file select + drag-drop, per-file honest
- * states (Queued / Uploading / Done / Failed with the real error — never
- * a fabricated percentage, because uploads travel through Server Actions
- * and byte progress is unavailable on that transport), main-image
- * selection (position 0), up/down reorder, replace and delete.
+ * states (Queued / Compressing / Uploading / Done / Failed with the real
+ * error — never a fabricated percentage, because uploads travel through
+ * Server Actions and byte progress is unavailable on that transport),
+ * main-image selection (position 0), up/down reorder, replace and delete.
+ * The auto-compressor (on by default) shrinks photos client-side before
+ * upload; see image-compress.ts for the documented defaults and limits.
  */
 export function ImageUploader({
   productId,
@@ -46,6 +60,7 @@ export function ImageUploader({
   const router = useRouter();
   const [queued, setQueued] = useState<QueuedFile[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [compress, setCompress] = useState(COMPRESSOR_DEFAULT_ON);
   const [message, setMessage] = useState<{ text: string; kind: "info" | "error" } | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -53,14 +68,18 @@ export function ImageUploader({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const keyCounter = useRef(0);
   const previewsRef = useRef<Set<string>>(new Set());
+  const compressRef = useRef(compress);
+  useEffect(() => {
+    compressRef.current = compress;
+  }, [compress]);
 
-  useEffect(
-    () => () => {
-      for (const url of previewsRef.current) URL.revokeObjectURL(url);
-      previewsRef.current.clear();
-    },
-    [],
-  );
+  useEffect(() => {
+    const previews = previewsRef.current;
+    return () => {
+      for (const url of previews) URL.revokeObjectURL(url);
+      previews.clear();
+    };
+  }, []);
 
   const revokePreview = (url: string) => {
     URL.revokeObjectURL(url);
@@ -76,7 +95,12 @@ export function ImageUploader({
     const accepted: QueuedFile[] = [];
     const problems: string[] = [];
     for (const file of list) {
-      const error = validateImageFileMeta(file);
+      const error = validateImageFileMeta(
+        file,
+        compressRef.current
+          ? { maxBytes: MAX_COMPRESSIBLE_IMAGE_BYTES }
+          : {},
+      );
       if (error) {
         problems.push(`${file.name}: ${error}`);
         continue;
@@ -95,6 +119,9 @@ export function ImageUploader({
         file,
         previewUrl,
         status: "queued",
+        uploadedBytes: null,
+        compressed: false,
+        note: null,
       });
     }
     if (accepted.length > 0) {
@@ -105,19 +132,61 @@ export function ImageUploader({
 
   const uploadOne = async (key: string) => {
     const item = queued.find((q) => q.key === key);
-    if (!item || item.status === "uploading" || item.status === "done") return;
+    if (
+      !item ||
+      item.status === "compressing" ||
+      item.status === "uploading" ||
+      item.status === "done"
+    )
+      return;
+    const useCompress = compressRef.current;
+    let uploadFile = item.file;
+    let compressed = false;
+    let note: string | null = null;
+    if (useCompress) {
+      setQueued((current) =>
+        current.map((q) => (q.key === key ? { ...q, status: "compressing" } : q)),
+      );
+      const result = await compressImageFile(item.file);
+      uploadFile = result.file;
+      compressed = result.compressed;
+      note = result.note;
+      const sizeError = validateImageFileMeta(uploadFile);
+      if (sizeError) {
+        setQueued((current) =>
+          current.map((q) =>
+            q.key === key
+              ? {
+                  ...q,
+                  status: "failed",
+                  error:
+                    "Even after compression, this image is over 5 MB. Choose a smaller file or turn compression off and retry with a file under 5 MB.",
+                  note,
+                }
+              : q,
+          ),
+        );
+        return;
+      }
+    }
     setQueued((current) =>
-      current.map((q) => (q.key === key ? { ...q, status: "uploading" } : q)),
+      current.map((q) =>
+        q.key === key ? { ...q, status: "uploading", compressed, note } : q,
+      ),
     );
     const form = new FormData();
     form.set("product_id", productId);
-    form.set("image", item.file);
+    form.set("image", uploadFile);
     form.set("alt", "");
     const result = await uploadCatalogImage(form);
     if (result.ok) {
       revokePreview(item.previewUrl);
       setQueued((current) =>
-        current.map((q) => (q.key === key ? { ...q, status: "done" } : q)),
+        current.map((q) =>
+          q.key === key
+            ? { ...q, status: "done", uploadedBytes: uploadFile.size }
+            : q,
+        ),
       );
       setMessage({ text: result.message, kind: "info" });
       router.refresh();
@@ -182,18 +251,46 @@ export function ImageUploader({
   };
 
   const replace = async (id: string, file: File) => {
-    const error = validateImageFileMeta(file);
+    const useCompress = compressRef.current;
+    const error = validateImageFileMeta(
+      file,
+      useCompress ? { maxBytes: MAX_COMPRESSIBLE_IMAGE_BYTES } : {},
+    );
     if (error) {
       setMessage({ text: `${file.name}: ${error}`, kind: "error" });
       return;
     }
     setBusy(true);
+    let uploadFile = file;
+    let sizeNote = "";
+    if (useCompress) {
+      const result = await compressImageFile(file);
+      uploadFile = result.file;
+      if (result.compressed) {
+        sizeNote = ` Compressed ${formatBytes(file.size)} → ${formatBytes(uploadFile.size)}.`;
+      } else if (result.note) {
+        sizeNote = ` ${result.note}`;
+      }
+      const sizeError = validateImageFileMeta(uploadFile);
+      if (sizeError) {
+        setBusy(false);
+        setMessage({
+          text: "Even after compression, this image is over 5 MB. Choose a smaller file or turn compression off and retry with a file under 5 MB.",
+          kind: "error",
+        });
+        return;
+      }
+    }
     const form = new FormData();
     form.set("product_id", productId);
     form.set("media_id", id);
-    form.set("image", file);
+    form.set("image", uploadFile);
     const result = await replaceCatalogImage(form);
-    setMessage(result.ok ? { text: result.message, kind: "info" } : { text: result.error, kind: "error" });
+    setMessage(
+      result.ok
+        ? { text: `${result.message}${sizeNote}`, kind: "info" }
+        : { text: result.error, kind: "error" },
+    );
     setBusy(false);
     if (result.ok) router.refresh();
   };
@@ -232,43 +329,23 @@ export function ImageUploader({
         {ordered.length === 0 ? (
           <p className="aa-muted">No images attached yet.</p>
         ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(15rem, 1fr))",
-              gap: "1rem",
-            }}
-          >
+          <div className={styles.galleryGrid}>
             {ordered.map((image, index) => (
-              <article
-                key={image.id}
-                style={{
-                  border: "1px solid rgb(var(--aa-border))",
-                  borderRadius: "var(--aa-radius-card)",
-                  padding: "0.75rem",
-                  minWidth: 0,
-                }}
-              >
+              <article key={image.id} className={styles.galleryCard}>
                 {image.url ? (
                   <img
                     src={image.url}
                     alt={image.altText || "Product photo"}
                     width={240}
                     height={240}
-                    style={{
-                      objectFit: "contain",
-                      maxWidth: "100%",
-                      height: "auto",
-                      background: "#f7f4f4",
-                      borderRadius: "var(--aa-radius-card)",
-                    }}
+                    className={styles.galleryImage}
                   />
                 ) : (
                   <p className="aa-muted">
                     Preview unavailable. Reload to request a fresh private URL.
                   </p>
                 )}
-                <p style={{ margin: "0.5rem 0" }}>
+                <p className={styles.cardTitle}>
                   {index === 0 ? (
                     <strong>Main image</strong>
                   ) : (
@@ -292,13 +369,7 @@ export function ImageUploader({
                         }
                       />
                     </label>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: "0.5rem",
-                      }}
-                    >
+                    <div className={styles.actionRow}>
                       <button
                         type="button"
                         className="aa-secondary"
@@ -392,7 +463,10 @@ export function ImageUploader({
 
         {canManage ? (
           <>
+            <CompressToggle checked={compress} onChange={setCompress} />
             <div
+              className={`${styles.dropzone} ${dragOver ? styles.dropzoneActive : ""}`}
+              onClick={() => fileInputRef.current?.click()}
               onDragOver={(e) => {
                 e.preventDefault();
                 setDragOver(true);
@@ -403,15 +477,10 @@ export function ImageUploader({
                 setDragOver(false);
                 addFiles(e.dataTransfer.files);
               }}
-              style={{
-                border: `2px dashed ${dragOver ? "rgb(var(--aa-primary))" : "rgb(var(--aa-border))"}`,
-                borderRadius: "var(--aa-radius-card)",
-                padding: "1.25rem",
-                marginTop: "1rem",
-                textAlign: "center",
-              }}
             >
-              <p>Drag images here, or choose files from your device.</p>
+              <p className={styles.dropzoneTitle}>
+                Drag &amp; drop images here or click to browse
+              </p>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -427,55 +496,52 @@ export function ImageUploader({
                 type="button"
                 className="aa-secondary"
                 disabled={images.length >= MAX_PRODUCT_IMAGES}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fileInputRef.current?.click();
+                }}
               >
                 Choose images
               </button>
               <p className="aa-muted">
-                JPEG, PNG or WebP, up to 5 MB each, at most{" "}
-                {MAX_PRODUCT_IMAGES} images per product. Uploads show Queued,
-                Uploading, Done or Failed — no percentages, because uploads go
-                through the server.
+                JPEG, PNG or WebP, at most {MAX_PRODUCT_IMAGES} images per
+                product. Uploads show Queued, Compressing, Uploading, Done or
+                Failed — no percentages, because uploads go through the
+                server.
               </p>
             </div>
 
             {queued.length > 0 ? (
-              <div style={{ marginTop: "1rem", display: "grid", gap: "0.75rem" }}>
+              <div className={styles.queueList}>
                 {queued.map((item) => (
-                  <div
-                    key={item.key}
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: "0.75rem",
-                      alignItems: "center",
-                      border: "1px solid rgb(var(--aa-border))",
-                      borderRadius: "var(--aa-radius-card)",
-                      padding: "0.6rem",
-                    }}
-                  >
+                  <div key={item.key} className={styles.queueItem}>
                     {item.status !== "done" ? (
                       <img
                         src={item.previewUrl}
                         alt=""
                         width={64}
                         height={64}
-                        style={{ objectFit: "cover", borderRadius: 4 }}
+                        className={styles.queueThumb}
                       />
                     ) : null}
-                    <div style={{ minWidth: 0, flex: "1 1 12rem" }}>
-                      <p style={{ margin: 0, overflowWrap: "anywhere" }}>
-                        {item.file.name}
-                      </p>
-                      <p className="aa-muted" style={{ margin: 0 }}>
+                    <div className={styles.queueMain}>
+                      <p className={styles.queueName}>{item.file.name}</p>
+                      <p className={`aa-muted ${styles.queueStatus}`}>
                         {item.status === "queued"
                           ? "Queued"
-                          : item.status === "uploading"
-                            ? "Uploading…"
-                            : item.status === "done"
-                              ? "Done"
-                              : `Failed: ${item.error ?? "Upload failed."}`}
+                          : item.status === "compressing"
+                            ? "Compressing…"
+                            : item.status === "uploading"
+                              ? "Uploading…"
+                              : item.status === "done"
+                                ? `Done${item.compressed && item.uploadedBytes !== null ? ` · ${formatBytes(item.file.size)} → ${formatBytes(item.uploadedBytes)} compressed` : item.uploadedBytes !== null ? ` · ${formatBytes(item.uploadedBytes)}` : ""}`
+                                : `Failed: ${item.error ?? "Upload failed."}`}
                       </p>
+                      {item.note ? (
+                        <p className="aa-hint" style={{ margin: 0 }}>
+                          {item.note}
+                        </p>
+                      ) : null}
                     </div>
                     {item.status === "queued" || item.status === "failed" ? (
                       <button

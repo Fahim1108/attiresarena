@@ -1,9 +1,13 @@
+import Link from "next/link";
 import { PageHeading, Panel, Notice } from "@/components/admin/ui";
-import { StoreNameForm } from "@/components/admin/settings/forms";
-import { SeoSettingsForm } from "@/components/admin/marketing/forms";
+import {
+  ContactDetailsForm,
+  GeneralDisplayForm,
+  StoreNameForm,
+} from "@/components/admin/settings/forms";
 import {
   getStoreSettingsMap,
-  saveSeoSettings,
+  saveGeneralDisplaySettings,
   saveStoreSettings,
 } from "@/lib/admin/settings";
 
@@ -15,8 +19,13 @@ export default async function GeneralSettingsPage() {
       <PageHeading
         eyebrow="Settings"
         title="General settings"
-        description="Store name, SEO defaults and currency. Only owners can change settings."
+        description="Store name, contact details and display preferences. Only owners can change settings."
       />
+      <Notice kind="info">
+        SEO defaults and per-page overrides live under{" "}
+        <Link href="/admin/marketing/seo">Marketing → SEO settings</Link>.
+        Nothing on this page changes products, prices or checkout.
+      </Notice>
       {settings === null ? (
         <Notice kind="warning">
           Settings could not be loaded. Try again later.
@@ -26,20 +35,20 @@ export default async function GeneralSettingsPage() {
           <Panel title="Store name">
             <StoreNameForm action={saveStoreSettings} settings={settings} />
           </Panel>
+          <Panel title="Contact details">
+            <ContactDetailsForm action={saveStoreSettings} settings={settings} />
+          </Panel>
           <Panel
-            title="SEO defaults"
-            description="Defaults used when a page has no override. Per-page overrides are included below."
+            title="Display preferences"
+            description="Currency and timezone labels and the low-stock threshold display value. Display-only: these do not change prices, dates or inventory behaviour."
           >
-            <SeoSettingsForm action={saveSeoSettings} settings={settings} />
+            <GeneralDisplayForm
+              action={saveGeneralDisplaySettings}
+              settings={settings}
+            />
           </Panel>
         </>
       )}
-      <Panel title="Currency">
-        <p>
-          The store sells in <strong>BDT (Bangladeshi Taka)</strong> only.
-          Currency is a fixed storefront fact and cannot be changed here.
-        </p>
-      </Panel>
     </main>
   );
 }

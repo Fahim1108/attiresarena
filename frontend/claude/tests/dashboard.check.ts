@@ -14,7 +14,9 @@ import {
   rangeSpanDays,
   resolveGranularity,
   revenueGranularitySchema,
+  selectFirstMediaByProduct,
   selectLowStock,
+  summarizeRevenue,
   sumRevenue,
   withComparisonSeries,
 } from "../src/lib/admin/dashboard";
@@ -295,5 +297,60 @@ describe("low-stock selection", () => {
       ),
     ).toHaveLength(2);
     expect(selectLowStock([], 8)).toEqual([]);
+  });
+});
+
+describe("revenue summary", () => {
+  const bucket = (key: string, label: string, revenueMinor: number) => ({
+    key,
+    label,
+    revenueMinor,
+    orderCount: 1,
+  });
+  it("totals, peaks, and averages in one pass", () => {
+    expect(
+      summarizeRevenue([
+        bucket("2026-11-01", "1 Nov", 1000),
+        bucket("2026-11-02", "2 Nov", 3000),
+        bucket("2026-11-03", "3 Nov", 2000),
+      ]),
+    ).toEqual({
+      totalMinor: 6000,
+      peak: bucket("2026-11-02", "2 Nov", 3000),
+      averageMinor: 2000,
+      bucketCount: 3,
+    });
+  });
+  it("keeps the first bucket on a peak tie", () => {
+    const summary = summarizeRevenue([
+      bucket("2026-11-01", "1 Nov", 2000),
+      bucket("2026-11-02", "2 Nov", 2000),
+    ]);
+    expect(summary.peak?.key).toBe("2026-11-01");
+  });
+  it("handles empty buckets honestly", () => {
+    expect(summarizeRevenue([])).toEqual({
+      totalMinor: 0,
+      peak: null,
+      averageMinor: 0,
+      bucketCount: 0,
+    });
+  });
+});
+
+describe("cover-media selection", () => {
+  it("keeps the first row per product in position order", () => {
+    const rows = [
+      { product_id: "a", storage_path: "a/1.jpg", alt_text: "A front" },
+      { product_id: "b", storage_path: "b/1.jpg", alt_text: "B front" },
+      { product_id: "a", storage_path: "a/2.jpg", alt_text: "A back" },
+    ];
+    const first = selectFirstMediaByProduct(rows);
+    expect(first.get("a")).toEqual(rows[0]);
+    expect(first.get("b")).toEqual(rows[1]);
+    expect(first.size).toBe(2);
+  });
+  it("returns an empty map for empty input", () => {
+    expect(selectFirstMediaByProduct([]).size).toBe(0);
   });
 });

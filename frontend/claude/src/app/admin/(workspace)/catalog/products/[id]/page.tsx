@@ -6,9 +6,11 @@ import {
   updateCatalogProduct,
 } from "@/lib/admin/catalog-products";
 import { readProductMedia } from "@/lib/admin/catalog-media";
-import { Notice, PageHeading } from "@/components/admin/ui";
+import { publicationVisibility } from "@/lib/admin/catalog-variants";
+import { Notice, PageHeading, Panel } from "@/components/admin/ui";
 import { ImageUploader } from "@/components/admin/catalog/image-uploader";
 import { ProductForm } from "@/components/admin/catalog/product-form";
+import { PublicationActions } from "@/components/admin/catalog/publication-actions";
 
 export const metadata = { title: "Edit product" };
 
@@ -27,8 +29,17 @@ export default async function EditCatalogProductPage({
     readCategoryOptions(),
     readProductMedia(id),
   ]);
-  const { product, variants, canManage } = detail;
+  const { product, variants, canManage, canViewCosts } = detail;
   const saved = typeof query.saved === "string" ? query.saved : "";
+  const categoriesFailed = query.categories === "failed";
+  const imagesFailed = Number.parseInt(
+    typeof query.images_failed === "string" ? query.images_failed : "0",
+    10,
+  );
+  const visibility = publicationVisibility(
+    product.status,
+    product.is_published,
+  );
   const isLegacyDraft = product.status === "draft";
 
   // The Pricing section only feeds the default variant when no variants
@@ -69,6 +80,40 @@ export default async function EditCatalogProductPage({
           two. Draft is not available in this panel.
         </Notice>
       ) : null}
+      {categoriesFailed ? (
+        <Notice kind="warning">
+          Product saved, but the category assignment could not be saved.
+          Check the categories below and save again.
+        </Notice>
+      ) : null}
+      {query.images === "partial" && imagesFailed > 0 ? (
+        <Notice kind="warning">
+          {imagesFailed} staged image{imagesFailed === 1 ? "" : "s"} could
+          not be attached. Add the missing image{imagesFailed === 1 ? "" : "s"}{" "}
+          below.
+        </Notice>
+      ) : null}
+      <Panel title="Storefront publication">
+        <p className="aa-muted">
+          Publishing shows this product on the public storefront. Published
+          products are visible but cannot be ordered yet. Unpublishing
+          removes it from the storefront at once.
+          {product.published_at
+            ? ` Last published ${new Date(product.published_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}.`
+            : ""}
+        </p>
+        <p className="aa-muted">
+          To publish, a product needs a name, a description, a visible
+          category, at least one image, and an active variant with a price
+          and stock.
+        </p>
+        <PublicationActions
+          productId={product.id}
+          productName={product.name}
+          visibility={visibility}
+          canManage={canManage}
+        />
+      </Panel>
       <ProductForm
         mode="edit"
         action={updateCatalogProduct}
@@ -80,6 +125,7 @@ export default async function EditCatalogProductPage({
           description: product.description,
           status: product.status === "published" ? "published" : "archived",
           categoryId: product.category_id,
+          secondaryCategoryId: product.secondary_category_id,
           brand: product.brand,
           highlights: product.highlights,
           tags: product.tags,
@@ -106,6 +152,7 @@ export default async function EditCatalogProductPage({
         }))}
         categories={categories}
         canManage={canManage}
+        canViewCosts={canViewCosts}
         imageCount={media.length}
         imagesPanel={
           <ImageUploader

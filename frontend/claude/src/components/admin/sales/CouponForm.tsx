@@ -20,7 +20,16 @@ export interface CouponFormInitial {
   active: boolean;
 }
 
-/** Create/edit form. Only the active kind's value field is rendered. */
+/**
+ * Create/edit form. Only the active kind's value field is rendered.
+ *
+ * Reference-adaptation note: field order follows the reference modal
+ * shape (code, type, value, maximum, minimum, dates, limits, toggles)
+ * within the existing page architecture. A modal conversion was not
+ * made — the verified page flow and validation/eligibility logic stay
+ * untouched — and the reference's description / applicable-to fields
+ * have no storage, so they are intentionally absent.
+ */
 export function CouponForm({
   initial,
   action,
@@ -95,17 +104,6 @@ export function CouponForm({
           </div>
         )}
         <div className="aa-field">
-          <label htmlFor="coupon-min">Minimum order (BDT)</label>
-          <input
-            id="coupon-min"
-            name="min_order"
-            inputMode="decimal"
-            defaultValue={initial?.min_order ?? "0.00"}
-            placeholder="0.00"
-          />
-          <p className="aa-hint">Orders below this subtotal cannot use the coupon. 0 means no minimum.</p>
-        </div>
-        <div className="aa-field">
           <label htmlFor="coupon-max">Maximum discount (BDT, optional)</label>
           <input
             id="coupon-max"
@@ -115,6 +113,17 @@ export function CouponForm({
             placeholder="Leave blank for no cap"
           />
           <p className="aa-hint">Caps the discount, mostly useful for percent coupons.</p>
+        </div>
+        <div className="aa-field">
+          <label htmlFor="coupon-min">Minimum order (BDT)</label>
+          <input
+            id="coupon-min"
+            name="min_order"
+            inputMode="decimal"
+            defaultValue={initial?.min_order ?? "0.00"}
+            placeholder="0.00"
+          />
+          <p className="aa-hint">Orders below this subtotal cannot use the coupon. 0 means no minimum.</p>
         </div>
         <div className="aa-field">
           <label htmlFor="coupon-starts">Valid from (optional)</label>

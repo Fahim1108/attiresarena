@@ -46,12 +46,15 @@ export function SeriesChart({
   formatValue = (value) => String(value),
   ariaLabel,
   emptyMessage = "No data in this period.",
+  className,
 }: {
   points: readonly SeriesPoint[];
   comparePoints?: readonly SeriesPoint[];
   formatValue?: (value: number) => string;
   ariaLabel: string;
   emptyMessage?: string;
+  /** Extra class on the chart wrapper (e.g. a large dashboard variant). */
+  className?: string;
 }) {
   const max = Math.max(
     0,
@@ -60,7 +63,7 @@ export function SeriesChart({
   );
   if (points.length === 0 || max <= 0) {
     return (
-      <div className="aa-chart">
+      <div className={className ? `aa-chart ${className}` : "aa-chart"}>
         <p className="aa-muted">{emptyMessage}</p>
       </div>
     );
@@ -72,7 +75,7 @@ export function SeriesChart({
   const last = points[points.length - 1];
   const showDots = points.length <= 62;
   return (
-    <div className="aa-chart">
+    <div className={className ? `aa-chart ${className}` : "aa-chart"}>
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         width="100%"

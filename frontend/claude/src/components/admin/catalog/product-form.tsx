@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 import { PRODUCT_BADGES } from "@/lib/admin/constants";
 import { slugify } from "@/lib/admin/format";
+import {
+  deriveCategoryPair,
+  primaryCategories,
+  secondaryCategoriesFor,
+} from "@/lib/admin/catalog-variants";
 import type {
   CategoryOption,
   ProductFormState,
@@ -18,6 +23,7 @@ export interface ProductFormInitial {
   description: string;
   status: "published" | "archived";
   categoryId: string | null;
+  secondaryCategoryId: string | null;
   brand: string | null;
   highlights: string[];
   tags: string[];
@@ -35,53 +41,8 @@ function minorToDecimal(minor: number | null): string {
   return minor === null ? "" : (minor / 100).toFixed(2);
 }
 
-interface CategoryDisplayOption {
-  id: string;
-  label: string;
-}
-
-/** Flatten categories depth-first so children read as subcategories. */
-function flattenCategories(categories: CategoryOption[]): CategoryDisplayOption[] {
-  const byId = new Map(categories.map((c) => [c.id, c]));
-  const children = new Map<string | null, CategoryOption[]>();
-  for (const c of categories) {
-    const key = c.parent_id !== null && byId.has(c.parent_id) ? c.parent_id : null;
-    const list = children.get(key) ?? [];
-    list.push(c);
-    children.set(key, list);
-  }
-  for (const list of children.values()) {
-    list.sort(
-      (a, b) =>
-        (a.sort_position ?? 0) - (b.sort_position ?? 0) ||
-        a.name.localeCompare(b.name),
-    );
-  }
-  const options: CategoryDisplayOption[] = [];
-  const visited = new Set<string>();
-  const walk = (parentId: string | null, depth: number) => {
-    for (const c of children.get(parentId) ?? []) {
-      if (visited.has(c.id)) continue;
-      visited.add(c.id);
-      options.push({
-        id: c.id,
-        label: `${"— ".repeat(depth)}${c.name}${c.published ? "" : " (hidden)"}`,
-      });
-      walk(c.id, depth + 1);
-    }
-  };
-  walk(null, 0);
-  // Any category orphaned by a cycle still needs to be selectable.
-  for (const c of categories) {
-    if (!visited.has(c.id)) {
-      options.push({ id: c.id, label: c.name });
-    }
-  }
-  return options;
-}
-
 const STOREFRONT_NOTE =
-  "Saving here makes the product Active in the admin panel. Display on the public storefront follows the existing publication review and its allowlist — new products do not appear on the storefront automatically.";
+  "Saving here sets the product Active or Inactive in the admin panel. Publishing — from the product list or the edit page — shows it on the public storefront. Published products are visible but cannot be ordered yet.";
 
 export function ProductForm({
   mode,
@@ -92,8 +53,10 @@ export function ProductForm({
   variants,
   categories,
   canManage,
+  canViewCosts,
   imagesPanel,
   imageCount,
+  stagedPanel,
 }: {
   mode: "create" | "edit";
   action: (
@@ -106,8 +69,12 @@ export function ProductForm({
   variants: VariantDraftInitial[];
   categories: CategoryOption[];
   canManage: boolean;
+  /** False for cost-blind roles: cost inputs are omitted entirely. */
+  canViewCosts: boolean;
   imagesPanel: ReactNode;
   imageCount: number;
+  /** Pre-upload panel, rendered inside the form in create mode only. */
+  stagedPanel?: ReactNode;
 }) {
   const [state, formAction] = useActionState(action, { ok: false });
   const formRef = useRef<HTMLFormElement>(null);
@@ -122,6 +89,29 @@ export function ProductForm({
   const [highlights, setHighlights] = useState<string[]>(
     initial.highlights.length ? initial.highlights : [""],
   );
+  const [seoTitleLength, setSeoTitleLength] = useState(
+    initial.seoTitle?.length ?? 0,
+  );
+  const [seoDescriptionLength, setSeoDescriptionLength] = useState(
+    initial.seoDescription?.length ?? 0,
+  );
+  // Primary + secondary assignment. The stored assignment is mapped
+  // onto the pair once (see deriveCategoryPair); a third-level stored
+  // category cannot be represented and is reported below the selects.
+  const [pair] = useState(() =>
+    deriveCategoryPair(categories, initial.categoryId, initial.secondaryCategoryId),
+  );
+  const [primaryId, setPrimaryId] = useState(pair.primaryId ?? "");
+  const [secondaryId, setSecondaryId] = useState(pair.secondaryId ?? "");
+  const replacedCategory = pair.replacedId
+    ? (categories.find((c) => c.id === pair.replacedId) ?? null)
+    : null;
+  const primaries = primaryCategories(categories);
+  const secondaries = primaryId
+    ? secondaryCategoriesFor(categories, primaryId)
+    : [];
+  const categoryLabel = (category: CategoryOption) =>
+    `${category.name}${category.published ? "" : " (hidden)"}`;
 
   const fieldError = (key: string) => state.fieldErrors?.[key];
   // Inline errors are announced through aria-describedby on their field
@@ -137,8 +127,6 @@ export function ProductForm({
   };
   const describedBy = (key: string, inputId: string) =>
     fieldError(key) ? `${inputId}-error` : undefined;
-
-  const categoryOptions = flattenCategories(categories);
 
   return (
     <>
@@ -216,28 +204,75 @@ export function ProductForm({
                 {errorText("brand", "product-brand")}
               </div>
               <div className="aa-field">
-                <label htmlFor="product-category">
-                  Category / subcategory
-                </label>
+                <label htmlFor="product-category">Primary category</label>
                 <select
                   id="product-category"
                   name="category_id"
-                  defaultValue={initial.categoryId ?? ""}
+                  value={primaryId}
+                  onChange={(e) => {
+                    setPrimaryId(e.target.value);
+                    setSecondaryId("");
+                  }}
                   aria-invalid={fieldError("category_id") ? true : undefined}
                   aria-describedby={describedBy("category_id", "product-category")}
                 >
                   <option value="">No category</option>
-                  {categoryOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
+                  {primaries.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {categoryLabel(category)}
                     </option>
                   ))}
                 </select>
                 <p className="aa-hint">
-                  Indented entries are subcategories of the entry above them.
+                  Top-level category. A product without a category cannot be
+                  published.
                 </p>
                 {errorText("category_id", "product-category")}
               </div>
+              <div className="aa-field">
+                <label htmlFor="product-secondary-category">
+                  Secondary category
+                </label>
+                <select
+                  id="product-secondary-category"
+                  name="secondary_category_id"
+                  value={secondaryId}
+                  disabled={primaryId === ""}
+                  onChange={(e) => setSecondaryId(e.target.value)}
+                  aria-invalid={
+                    fieldError("secondary_category_id") ? true : undefined
+                  }
+                  aria-describedby={describedBy(
+                    "secondary_category_id",
+                    "product-secondary-category",
+                  )}
+                >
+                  <option value="">No secondary category</option>
+                  {secondaries.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {categoryLabel(category)}
+                    </option>
+                  ))}
+                </select>
+                <p className="aa-hint">
+                  Optional. A secondary category must belong to the chosen
+                  primary category.
+                </p>
+                {errorText(
+                  "secondary_category_id",
+                  "product-secondary-category",
+                )}
+              </div>
+              {pair.replacedId ? (
+                <p className="aa-notice aa-notice--warning aa-field--full">
+                  This product was assigned to{" "}
+                  {replacedCategory
+                    ? `"${replacedCategory.name}"`
+                    : "a category"}{" "}
+                  that does not fit the primary + secondary pair. Saving will
+                  replace that assignment with the selection above.
+                </p>
+              ) : null}
               <div className="aa-field aa-field--full">
                 <label htmlFor="product-description">Description</label>
                 <textarea
@@ -351,24 +386,26 @@ export function ProductForm({
                 />
                 {errorText("base_sale_price", "product-sale-price")}
               </div>
-              <div className="aa-field">
-                <label htmlFor="product-cost-price">
-                  Cost price (৳, optional)
-                </label>
-                <input
-                  id="product-cost-price"
-                  name="base_cost_price"
-                  defaultValue={minorToDecimal(initial.baseCostMinor)}
-                  inputMode="decimal"
-                  aria-invalid={fieldError("base_cost_price") ? true : undefined}
-                  aria-describedby={describedBy("base_cost_price", "product-cost-price")}
-                  placeholder="Admin only"
-                />
-                <p className="aa-hint">
-                  Cost prices are admin-only and never shown to customers.
-                </p>
-                {errorText("base_cost_price", "product-cost-price")}
-              </div>
+              {canViewCosts ? (
+                <div className="aa-field">
+                  <label htmlFor="product-cost-price">
+                    Cost price (৳, optional)
+                  </label>
+                  <input
+                    id="product-cost-price"
+                    name="base_cost_price"
+                    defaultValue={minorToDecimal(initial.baseCostMinor)}
+                    inputMode="decimal"
+                    aria-invalid={fieldError("base_cost_price") ? true : undefined}
+                    aria-describedby={describedBy("base_cost_price", "product-cost-price")}
+                    placeholder="Admin only"
+                  />
+                  <p className="aa-hint">
+                    Cost prices are admin-only and never shown to customers.
+                  </p>
+                  {errorText("base_cost_price", "product-cost-price")}
+                </div>
+              ) : null}
               <div className="aa-field">
                 <label htmlFor="product-stock">
                   Stock (simple products only)
@@ -397,6 +434,8 @@ export function ProductForm({
                 ordering and alt text live there so image changes never
                 interfere with saving this form.
               </p>
+            ) : stagedPanel ? (
+              stagedPanel
             ) : (
               <p>
                 Save the product first, then add images on its edit page.
@@ -408,6 +447,7 @@ export function ProductForm({
           <Panel title="Variants">
             <VariantEditor
               initial={variants}
+              canViewCosts={canViewCosts}
               fieldError={fieldError("variants")}
             />
           </Panel>
@@ -440,7 +480,9 @@ export function ProductForm({
                   maxLength={160}
                   aria-invalid={fieldError("seo_title") ? true : undefined}
                   aria-describedby={describedBy("seo_title", "product-seo-title")}
+                  onChange={(e) => setSeoTitleLength(e.target.value.length)}
                 />
+                <p className="aa-hint">{seoTitleLength}/160 characters</p>
                 {errorText("seo_title", "product-seo-title")}
               </div>
               <div className="aa-field aa-field--full">
@@ -454,7 +496,11 @@ export function ProductForm({
                   maxLength={320}
                   aria-invalid={fieldError("seo_description") ? true : undefined}
                   aria-describedby={describedBy("seo_description", "product-seo-description")}
+                  onChange={(e) => setSeoDescriptionLength(e.target.value.length)}
                 />
+                <p className="aa-hint">
+                  {seoDescriptionLength}/320 characters
+                </p>
                 {errorText("seo_description", "product-seo-description")}
               </div>
               <div className="aa-field aa-field--full">

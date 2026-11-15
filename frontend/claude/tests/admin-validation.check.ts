@@ -32,7 +32,22 @@ describe("admin trust boundaries", () => {
     expect(toMinorUnits("600")).toBe(60000);
   });
   it("rejects untrusted roles and invalid authenticator codes", () => {
-    expect(rolesSchema.safeParse([{ role: "admin" }]).success).toBe(false);
+    // Admin panel v2 trusts admin, editor and moderator roles (item 10), so
+    // the boundary is an invented role, not the admin role.
+    expect(rolesSchema.safeParse([{ role: "superuser" }]).success).toBe(false);
+    expect(
+      rolesSchema.safeParse([
+        { role: "owner" },
+        { role: "admin" },
+        { role: "editor" },
+        { role: "moderator" },
+        { role: "product_manager" },
+        { role: "order_manager" },
+        { role: "customer_support" },
+        { role: "marketing_manager" },
+        { role: "analyst" },
+      ]).success,
+    ).toBe(true);
     expect(
       totpSchema.safeParse({ factorId: draft.id, code: "12345x" }).success,
     ).toBe(false);

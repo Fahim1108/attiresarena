@@ -90,10 +90,13 @@ export function evaluateCouponEligibility(
     reason,
     discount_minor: 0,
   });
-  if (coupon === null) return invalid("not_found");
+  // Check order mirrors validate_coupon exactly: the SQL rejects a malformed
+  // request (empty code / negative subtotal) BEFORE looking the coupon up,
+  // so invalid_request wins over not_found when both apply.
   if (!Number.isInteger(input.subtotalMinor) || input.subtotalMinor < 0) {
     return invalid("invalid_request");
   }
+  if (coupon === null) return invalid("not_found");
   if (!coupon.active) return invalid("inactive");
   if (coupon.starts_at !== null && input.now < new Date(coupon.starts_at)) {
     return invalid("not_yet_valid");
@@ -222,25 +225,37 @@ const COUPON_COLUMNS =
 
 const REDEMPTION_COUNT_LIMIT = 10000;
 
+/**
+ * Reads return null when the live data is UNAVAILABLE (missing table/RPC,
+ * failed query, or malformed rows) so pages can degrade honestly with
+ * labeled sample data instead of throwing into the error boundary.
+ * notFound() is kept for genuinely missing coupons.
+ */
 export async function readCoupons() {
   const session = await requireStaff(areaRoles("coupons"));
-  const result = await session.client
-    .from("coupons")
-    .select(COUPON_COLUMNS)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(200);
-  if (result.error) throw new Error("Coupons could not be read. No changes were made.");
-  const coupons = couponRowSchema.array().parse(result.data);
+  // Independent queries: run them together instead of sequentially.
+  const [couponResult, redemptions] = await Promise.all([
+    session.client
+      .from("coupons")
+      .select(COUPON_COLUMNS)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(200),
+    session.client
+      .from("coupon_redemptions")
+      .select("coupon_id")
+      .limit(REDEMPTION_COUNT_LIMIT),
+  ]);
+  if (couponResult.error || redemptions.error) return null;
+  const couponsParsed = couponRowSchema.array().safeParse(couponResult.data);
+  if (!couponsParsed.success) return null;
+  const coupons = couponsParsed.data;
 
-  const redemptions = await session.client
-    .from("coupon_redemptions")
-    .select("coupon_id")
-    .limit(REDEMPTION_COUNT_LIMIT);
-  if (redemptions.error) throw new Error("Coupon usage could not be read.");
   const counts = new Map<string, number>();
   const countRow = z.object({ coupon_id: z.uuid() });
-  for (const row of countRow.array().parse(redemptions.data)) {
+  const countsParsed = countRow.array().safeParse(redemptions.data);
+  if (!countsParsed.success) return null;
+  for (const row of countsParsed.data) {
     counts.set(row.coupon_id, (counts.get(row.coupon_id) ?? 0) + 1);
   }
   return {
@@ -255,25 +270,30 @@ export async function readCoupons() {
 export async function readCouponDetail(id: string) {
   const session = await requireStaff(areaRoles("coupons"));
   if (!z.uuid().safeParse(id).success) notFound();
-  const couponResult = await session.client
-    .from("coupons")
-    .select(COUPON_COLUMNS)
-    .eq("id", id)
-    .maybeSingle();
-  if (couponResult.error) throw new Error("Coupon details could not be read.");
+  // Both queries are keyed by the id alone, so they run in parallel.
+  const [couponResult, redemptionsResult] = await Promise.all([
+    session.client.from("coupons").select(COUPON_COLUMNS).eq("id", id).maybeSingle(),
+    session.client
+      .from("coupon_redemptions")
+      .select("id,coupon_id,user_id,phone,order_id,redeemed_at", { count: "exact" })
+      .eq("coupon_id", id)
+      .order("redeemed_at", { ascending: false })
+      .limit(100),
+  ]);
+  if (couponResult.error) return null;
   if (!couponResult.data) notFound();
-  const coupon = couponRowSchema.parse(couponResult.data);
+  const couponParsed = couponRowSchema.safeParse(couponResult.data);
+  if (!couponParsed.success) return null;
+  const coupon = couponParsed.data;
 
-  const redemptionsResult = await session.client
-    .from("coupon_redemptions")
-    .select("id,coupon_id,user_id,phone,order_id,redeemed_at", { count: "exact" })
-    .eq("coupon_id", id)
-    .order("redeemed_at", { ascending: false })
-    .limit(100);
-  if (redemptionsResult.error) throw new Error("Coupon usage could not be read.");
+  if (redemptionsResult.error) return null;
+  const redemptionsParsed = couponRedemptionRowSchema
+    .array()
+    .safeParse(redemptionsResult.data);
+  if (!redemptionsParsed.success) return null;
   return {
     coupon,
-    redemptions: couponRedemptionRowSchema.array().parse(redemptionsResult.data),
+    redemptions: redemptionsParsed.data,
     totalRedemptions: redemptionsResult.count ?? 0,
   };
 }

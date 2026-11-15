@@ -26,9 +26,10 @@ import {
   Bell,
   Menu,
   ArrowUpRight,
-  ClipboardList,
   ImageIcon,
-  History,
+  Blocks,
+  PanelsTopLeft,
+  ArrowLeftRight,
 } from "lucide-react";
 import { signOutStaff } from "@/lib/admin/actions";
 import { areaRoles } from "@/lib/admin/constants";
@@ -37,8 +38,23 @@ import { areaRoles } from "@/lib/admin/constants";
  * Admin sidebar. Navigation groups follow the admin-panel spec with
  * business-friendly labels (never "Taxonomy" in the UI). Groups are gated
  * by role through AREA_ROLES; the owner sees everything because every area
- * includes "owner". The "Intake & Review" group preserves the existing
- * staging-gated links under exactly their previous conditions.
+ * includes "owner".
+ *
+ * Admin Panel v2 (owner item 13): the "Intake & Review" group is removed —
+ * Garment intake (/admin/products), the products library
+ * (/admin/products/library) and the Activity log (/admin/audit) have no
+ * sidebar entries. The routes themselves still exist and stay reachable by
+ * direct URL. The two remaining staging-gated tools, Private media
+ * (/admin/media) and Categories & Collections (/admin/catalogue), keep
+ * their exact previous conditions under the "Staging tools" group.
+ * Note: /admin/catalogue was observed rendering the public "Page not
+ * found" page on the live Preview (2026-11-15); the link is kept because
+ * the tool is gated, not intake — the 404 needs a separate look. (The
+ * /admin/catalogue route itself stays; only the intake/audit entries
+ * were removed, and the intake routes now redirect to /admin.)
+ * The staging global search form now targets /admin/catalog/products
+ * (same "q" parameter the products page filters on) instead of the
+ * removed products library.
  *
  * Area mapping notes:
  * - Promotions uses the coupons area (owner, marketing_manager) and SEO
@@ -47,8 +63,19 @@ import { areaRoles } from "@/lib/admin/constants";
  * - Change Password is shown to every staff member (it is self-service),
  *   not only to the settings area (owner-only).
  * - The old "/admin/products/new" sidebar link is superseded by the new
- *   "Add Product" link; the draft page itself still exists and stays
- *   reachable from the staging mobile bar below.
+ *   "Add Product" link; the old route now redirects to the dashboard
+ *   (owner item 13: garments intake removed).
+ *
+ * Reference-adaptation pass (admin v2, builder 5): groups follow the
+ * reference panel's shape using EXISTING routes only, with role gating
+ * and staging-tools conditions unchanged. Coupons moved from Sales to
+ * Catalog; Notifications moved from a standalone link into System;
+ * Widgets (/admin/content/widgets, content area), Layout
+ * (/admin/appearance, content area) and Redirects (/admin/system/redirects,
+ * settings area) were added. "Theme Settings" is labelled "Theme &
+ * Customize" because the page now also hosts the customize panels. Media
+ * stays under Staging tools with its existing conditions — it is not a
+ * Content entry.
  */
 
 type NavIcon = typeof LayoutDashboard;
@@ -72,7 +99,7 @@ export function AdminShell({
     roles.some((role) =>
       (areaRoles(area) as readonly string[]).includes(role),
     );
-  // Existing patterns, kept for the Intake & Review group conditions.
+  // Existing patterns, kept for the Staging tools group conditions.
   const canRead = roles.some((r) =>
     ["owner", "product_manager", "order_manager", "analyst"].includes(r),
   );
@@ -103,6 +130,9 @@ export function AdminShell({
         ...(hasArea("inventory")
           ? [{ href: "/admin/catalog/inventory", label: "Inventory", Icon: Boxes }]
           : []),
+        ...(hasArea("coupons")
+          ? [{ href: "/admin/sales/coupons", label: "Coupons", Icon: TicketPercent }]
+          : []),
       ],
     },
     {
@@ -117,9 +147,6 @@ export function AdminShell({
         ...(hasArea("customers")
           ? [{ href: "/admin/sales/customers", label: "Customers", Icon: Users }]
           : []),
-        ...(hasArea("coupons")
-          ? [{ href: "/admin/sales/coupons", label: "Coupons", Icon: TicketPercent }]
-          : []),
       ],
     },
     {
@@ -129,17 +156,23 @@ export function AdminShell({
             { href: "/admin/content/homepage", label: "Homepage Content", Icon: LayoutTemplate },
             { href: "/admin/content/banners", label: "Banners", Icon: Megaphone },
             { href: "/admin/content/pages", label: "Pages", Icon: FileText },
+            { href: "/admin/content/widgets", label: "Widgets", Icon: Blocks },
           ]
         : [],
     },
     {
       title: "Appearance",
-      links: hasArea("settings")
-        ? [
-            { href: "/admin/settings/theme", label: "Theme Settings", Icon: Palette },
-            { href: "/admin/settings/store", label: "Store Settings", Icon: Store },
-          ]
-        : [],
+      links: [
+        ...(hasArea("content")
+          ? [{ href: "/admin/appearance", label: "Layout", Icon: PanelsTopLeft }]
+          : []),
+        ...(hasArea("settings")
+          ? [
+              { href: "/admin/settings/theme", label: "Theme & Customize", Icon: Palette },
+              { href: "/admin/settings/store", label: "Store Settings", Icon: Store },
+            ]
+          : []),
+      ],
     },
     {
       title: "Marketing",
@@ -156,10 +189,16 @@ export function AdminShell({
       title: "System",
       links: [
         ...(hasArea("users")
-          ? [{ href: "/admin/system/users", label: "Admin Users", Icon: ShieldCheck }]
+          ? [{ href: "/admin/system/users", label: "User role", Icon: ShieldCheck }]
+          : []),
+        ...(staffKnown
+          ? [{ href: "/admin/system/notifications", label: "Notifications", Icon: Bell }]
           : []),
         ...(hasArea("settings")
           ? [{ href: "/admin/settings/general", label: "General Settings", Icon: Settings }]
+          : []),
+        ...(hasArea("settings")
+          ? [{ href: "/admin/system/redirects", label: "Redirects", Icon: ArrowLeftRight }]
           : []),
         ...(staffKnown
           ? [{ href: "/admin/settings/password", label: "Change Password", Icon: KeyRound }]
@@ -167,35 +206,21 @@ export function AdminShell({
       ],
     },
     {
-      title: "Intake & Review",
+      title: "Staging tools",
       links: [
-        ...(canRead
-          ? [{ href: "/admin/products", label: "Garment intake", Icon: ClipboardList }]
-          : []),
-        ...(canRead && stagingTools
-          ? [{ href: "/admin/products/library", label: "All products library", Icon: Package }]
-          : []),
         ...(canRead && stagingTools && taxonomyTools
           ? [{ href: "/admin/catalogue", label: "Categories & Collections", Icon: Tags }]
           : []),
         ...(canManage && stagingTools
           ? [{ href: "/admin/media", label: "Private media", Icon: ImageIcon }]
           : []),
-        ...(canManage
-          ? [{ href: "/admin/audit", label: "Activity log", Icon: History }]
-          : []),
       ],
     },
   ].filter((group) => group.links.length > 0);
 
   const allHrefs = groups.flatMap((group) => group.links.map((link) => link.href));
-  const uuidDetail = /^\/admin\/products\/[0-9a-f-]{36}$/;
   const current = (href: string) => {
     if (href === "/admin") return path === "/admin";
-    // Garment intake is exact-only: a product detail URL belongs to the library.
-    if (href === "/admin/products") return path === href;
-    if (href === "/admin/products/library")
-      return path === href || uuidDetail.test(path);
     if (path === href) return true;
     if (!path.startsWith(`${href}/`)) return false;
     // Longest-prefix wins: /admin/catalog/products/new beats /admin/catalog/products.
@@ -239,16 +264,6 @@ export function AdminShell({
       <Link className="aa-visit-store" href="/">
         Visit store <ArrowUpRight size={15} aria-hidden="true" />
       </Link>
-      {staffKnown ? (
-        <Link
-          className="aa-visit-store"
-          href="/admin/system/notifications"
-          aria-current={current("/admin/system/notifications") ? "page" : undefined}
-          onClick={() => drawer.current?.close()}
-        >
-          <Bell size={15} aria-hidden="true" /> Notifications
-        </Link>
-      ) : null}
       {staffKnown ? (
         <>
           <p className="aa-role">
@@ -294,7 +309,7 @@ export function AdminShell({
             height={44}
           />
           {canRead && stagingTools ? (
-            <form className="aa-global-search" action="/admin/products/library">
+            <form className="aa-global-search" action="/admin/catalog/products">
               <Search size={16} strokeWidth={1.6} aria-hidden="true" />
               <input
                 name="q"
@@ -325,24 +340,6 @@ export function AdminShell({
               <LayoutDashboard size={20} aria-hidden="true" />
               Home
             </Link>
-            {canRead && (
-              <Link
-                href="/admin/products/library"
-                aria-current={current("/admin/products/library") ? "page" : undefined}
-              >
-                <Package size={20} aria-hidden="true" />
-                Products
-              </Link>
-            )}
-            {canManage && (
-              <Link
-                href="/admin/products/new"
-                aria-current={path === "/admin/products/new" ? "page" : undefined}
-              >
-                <Plus size={20} aria-hidden="true" />
-                Add
-              </Link>
-            )}
             {canRead && taxonomyTools && (
               <Link
                 href="/admin/catalogue"

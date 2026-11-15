@@ -17,6 +17,11 @@ export default async function CategoryPage({ params, searchParams }: { params: P
   const { slug } = await params;
   const category = await getCategoryBySlug(slug);
   if (!category) notFound();
+  // Shirts only: non-shirt categories show "coming soon" BY DESIGN
+  // regardless of feed health, so the unavailable state applies only to
+  // the one listing category. A failed feed must not masquerade as an
+  // empty Shirts collection.
+  if(slug==='shirts'&&category.catalogueUnavailable===true&&category.available===false) return <section className="container animate-dropdown-in py-16 text-center"><h1 className="text-balance font-serif text-4xl text-primary">Catalogue unavailable</h1><p className="mt-4 text-ink-muted">The catalogue could not be loaded. Please try again in a moment.</p><ButtonLink href="/category/shirts" className="mt-6">Try again</ButtonLink></section>;
   if(category.available===false) return <section className="container animate-dropdown-in py-16 text-center"><h1 className="text-balance font-serif text-4xl text-primary">Coming Soon</h1><p className="mt-4 text-ink-muted">We&apos;re expanding our collection. Stay tuned.</p><ButtonLink href="/category/shirts" className="mt-6">Explore Shirts</ButtonLink></section>;
   const query = { ...parseProductQuery(await searchParams), categorySlugs: [slug] };
   const [result, brands] = await Promise.all([getProducts(query), getBrands()]);

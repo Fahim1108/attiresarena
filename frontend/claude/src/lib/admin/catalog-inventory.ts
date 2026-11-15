@@ -124,7 +124,7 @@ function classifyRow(
 
 export async function readInventory(
   filters: InventoryFilters,
-): Promise<InventoryPageResult> {
+): Promise<InventoryPageResult | null> {
   const session = await requireStaff(areaRoles("inventory"));
   const canAdjust = session.roles.some(
     (r) => r === "owner" || r === "product_manager",
@@ -141,7 +141,8 @@ export async function readInventory(
     .order("id", { ascending: true })
     .limit(INVENTORY_FETCH_CAP);
   if (result.error) {
-    throw new Error("Inventory could not be read. No changes were made.");
+    // Unavailable (not empty): the page renders labelled sample data.
+    return null;
   }
   const parsed = z.array(inventoryRowSchema).parse(result.data ?? []);
   const truncated = (result.count ?? 0) > INVENTORY_FETCH_CAP;
@@ -225,8 +226,8 @@ export interface VariantOption {
   available: number | null;
 }
 
-/** Variant choices for the adjustment form (newest first, capped). */
-export async function readVariantOptions(): Promise<VariantOption[]> {
+/** Variant choices for the adjustment form (newest first, capped). Null when unavailable. */
+export async function readVariantOptions(): Promise<VariantOption[] | null> {
   const session = await staffSession();
   const result = await session.client
     .from("product_variants")
@@ -236,7 +237,7 @@ export async function readVariantOptions(): Promise<VariantOption[]> {
     .order("created_at", { ascending: false })
     .order("id", { ascending: true })
     .limit(500);
-  if (result.error) throw new Error("Variants could not be read.");
+  if (result.error) return null;
   const schema = z.object({
     id: z.uuid(),
     size: z.string(),
@@ -288,7 +289,7 @@ export async function readMovementHistory(
   total: number;
   totalPages: number;
   page: number;
-}> {
+} | null> {
   const session = await requireStaff(areaRoles("inventory"));
   const safePage = Number.isFinite(page) && page >= 1 ? page : 1;
   const result = await session.client
@@ -300,7 +301,8 @@ export async function readMovementHistory(
     .order("id", { ascending: true })
     .range((safePage - 1) * DEFAULT_PAGE_SIZE, safePage * DEFAULT_PAGE_SIZE - 1);
   if (result.error) {
-    throw new Error("Movement history could not be read.");
+    // Unavailable: the page shows an honest notice, never fabricated rows.
+    return null;
   }
   const movements = z.array(movementRowSchema).parse(result.data ?? []);
   const variantIds = [...new Set(movements.map((m) => m.variant_id))];

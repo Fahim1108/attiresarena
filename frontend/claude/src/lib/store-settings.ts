@@ -1,6 +1,15 @@
 import "server-only";
 
+import type { Metadata } from "next";
 import type { PolicyPage } from "@/content/policies";
+import {
+  GA_MEASUREMENT_ID_PATTERN,
+  MAX_CUSTOM_CODE_LENGTH,
+  META_PIXEL_ID_PATTERN,
+  parsePixelEvents,
+  parseSeoRobots,
+  type PixelEventsConfig,
+} from "./admin/settings-shared";
 import type {
   Banner,
   FooterSettings,
@@ -8,6 +17,14 @@ import type {
   HeroSettings,
 } from "@/types";
 import { publicSupabaseConfiguration } from "./supabase-public";
+import {
+  DEFAULT_ERROR_404,
+  activeWidgets,
+  parseWidgetRow,
+  resolveErrorPage,
+  type ErrorPageConfig,
+  type Widget,
+} from "./admin/reference-adapt";
 
 /**
  * Fallback-safe storefront settings reader.
@@ -174,6 +191,38 @@ export async function getVisibleContentBlocks(): Promise<ContentBlockRow[]> {
   return parseBlocks(rows);
 }
 
+/**
+ * Active homepage widgets for the storefront countdown slot. The public
+ * RLS policy returns active rows only; expiry and ordering are applied
+ * here. Empty on any failure, so the homepage renders exactly as before
+ * when no widget is active.
+ */
+export async function getActiveHomepageWidgets(nowMs: number = Date.now()): Promise<Widget[]> {
+  const rows = await readRows(
+    "/rest/v1/homepage_widgets?select=id,title,type,placement,title_visible,title_alignment,title_size,subtitle,ends_at,offer_title,discount_text,style_theme,use_theme_color,background_color,accent_color,title_color,content_color,sort_position,active,created_at,updated_at&active=eq.true&order=sort_position.asc,created_at.asc",
+  );
+  const widgets: Widget[] = [];
+  for (const row of rows) {
+    const widget = parseWidgetRow(row);
+    if (widget) widgets.push(widget);
+  }
+  return activeWidgets(widgets, nowMs);
+}
+
+/**
+ * Stored 404 page copy, or the built-in default (same reference) when
+ * nothing is stored or the read fails. The storefront 404 page renders
+ * byte-identically when unconfigured.
+ */
+export async function getErrorPage404(): Promise<ErrorPageConfig> {
+  const rows = await readRows(
+    "/rest/v1/layout_settings?select=value&key=eq.error_404",
+  );
+  const first = rows[0];
+  if (!isRecord(first) || !("value" in first)) return DEFAULT_ERROR_404;
+  return resolveErrorPage(first.value);
+}
+
 /** Read a stored setting as trimmed text; null when absent or not text. */
 export function settingText(
   settings: Record<string, unknown> | null | undefined,
@@ -330,4 +379,134 @@ export function applyHeroOverride(
   }
   if (slides.length === 0) return hero;
   return { ...hero, slides };
+}
+
+// ---------------------------------------------------------------------------
+// Marketing integrations + SEO metadata (Admin Panel v2, items 9 + 11)
+// ---------------------------------------------------------------------------
+
+export interface MarketingSettings {
+  /** Numeric Meta Pixel ID, or null when unconfigured/invalid. */
+  pixelId: string | null;
+  /** Stored event toggles, or null when absent/malformed. */
+  pixelEvents: PixelEventsConfig | null;
+  /** GA4 measurement ID (G-…), or null when unconfigured/invalid. */
+  gaMeasurementId: string | null;
+  /** Owner-only custom header code, or null when empty/too long. */
+  headCode: string | null;
+  /** Owner-only custom footer code, or null when empty/too long. */
+  bodyCode: string | null;
+}
+
+function parseCustomCode(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > MAX_CUSTOM_CODE_LENGTH) return null;
+  return trimmed;
+}
+
+/**
+ * Parse the public-safe marketing settings for the storefront. Every
+ * field validates independently: one bad value never disables the others,
+ * and unconfigured fields are null so the layout renders zero third-party
+ * code. SMS settings are deliberately absent — nothing on the storefront
+ * reads them, and the SMS secret is never readable at all.
+ */
+export function parseMarketingSettings(
+  settings: Record<string, unknown> | null | undefined,
+): MarketingSettings {
+  const pixelId = settingText(settings, "meta_pixel_id");
+  const gaMeasurementId = settingText(settings, "ga_measurement_id");
+  return {
+    pixelId:
+      pixelId !== null && META_PIXEL_ID_PATTERN.test(pixelId) ? pixelId : null,
+    pixelEvents: parsePixelEvents(settings?.["meta_pixel_events"]),
+    gaMeasurementId:
+      gaMeasurementId !== null &&
+      GA_MEASUREMENT_ID_PATTERN.test(gaMeasurementId)
+        ? gaMeasurementId
+        : null,
+    headCode: parseCustomCode(settings?.["custom_head_code"]),
+    bodyCode: parseCustomCode(settings?.["custom_body_code"]),
+  };
+}
+
+export interface StaticSeoBase {
+  siteName: string;
+  siteUrl: string;
+  description: string;
+  logoBadge: string;
+}
+
+function parseHttpUrl(value: string | null): string | null {
+  if (value === null || !/^https?:\/\//.test(value)) return null;
+  try {
+    return new URL(value).toString();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve document metadata from the static base plus stored SEO settings.
+ * Static fallbacks are unchanged when nothing is configured or a value is
+ * invalid: same default title, same description, same noindex robots,
+ * same OG image. Robots stay noindex/nofollow unless the owner explicitly
+ * stores robots toggles — search indexing is never enabled by accident.
+ * Per-page overrides (seo_page_overrides) are NOT applied here: the root
+ * layout has no page context, so applying them needs per-page
+ * generateMetadata wiring (a follow-up; see the build report).
+ */
+export function resolveStorefrontMetadata(
+  base: StaticSeoBase,
+  settings: Record<string, unknown> | null | undefined,
+): Metadata {
+  const defaultTitle =
+    settingText(settings, "seo_default_title") ??
+    `${base.siteName} — Thrift Shirts in Bangladesh`;
+  const description =
+    settingText(settings, "seo_default_description") ?? base.description;
+  const canonical = parseHttpUrl(settingText(settings, "seo_canonical_base_url"));
+  const robots = parseSeoRobots(settings?.["seo_robots"]) ?? {
+    index: false,
+    follow: false,
+  };
+  const keywordsValue = settingText(settings, "seo_keywords");
+  const keywords = keywordsValue
+    ? keywordsValue
+        .split(",")
+        .map((keyword) => keyword.trim())
+        .filter(Boolean)
+        .slice(0, 20)
+    : undefined;
+  const ogImage = parseHttpUrl(settingText(settings, "seo_og_image_url"));
+  const twitterCard = settingText(settings, "seo_twitter_card");
+  return {
+    metadataBase: new URL(canonical ?? base.siteUrl),
+    robots: { index: robots.index, follow: robots.follow },
+    title: {
+      default: defaultTitle,
+      template: `%s | ${base.siteName}`,
+    },
+    description,
+    ...(keywords !== undefined && keywords.length > 0 ? { keywords } : {}),
+    icons: { icon: "/brand/icon.png", apple: "/brand/apple-icon.png" },
+    openGraph: {
+      siteName: base.siteName,
+      type: "website",
+      title: settingText(settings, "seo_og_title") ?? defaultTitle,
+      description: settingText(settings, "seo_og_description") ?? description,
+      images: [{ url: ogImage ?? base.logoBadge }],
+    },
+    ...(twitterCard === "summary" || twitterCard === "summary_large_image"
+      ? {
+          twitter: {
+            card: twitterCard,
+            title: settingText(settings, "seo_og_title") ?? defaultTitle,
+            description:
+              settingText(settings, "seo_og_description") ?? description,
+          },
+        }
+      : {}),
+  };
 }

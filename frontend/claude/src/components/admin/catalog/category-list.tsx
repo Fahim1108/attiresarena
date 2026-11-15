@@ -6,16 +6,19 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   deleteCategory,
+  normalizeCategoryOrder,
   reorderCategories,
   type CategoryWithUrls,
 } from "@/lib/admin/catalog-categories";
 import {
+  categoryLevelName,
   collectDescendantIds,
   moveIdInOrder,
   type CategoryNode,
 } from "@/lib/admin/catalog-variants";
 import { EmptyState, StatusBadge } from "../ui";
 import { CategoryForm, type CategoryParentOption } from "./category-form";
+import styles from "./catalogue-v2.module.css";
 
 export type CategoryTreeNode = CategoryNode<CategoryWithUrls>;
 
@@ -31,6 +34,7 @@ export function flattenCategoryOptions(
         options.push({
           id: node.id,
           label: `${"— ".repeat(node.depth - 1)}${node.name}`,
+          depth: node.depth,
         });
       }
       walk(node.children);
@@ -87,6 +91,14 @@ export function CategoryList({
     if (result.ok) router.refresh();
   };
 
+  const runNormalize = async () => {
+    setBusy(true);
+    const result = await normalizeCategoryOrder();
+    setMessage(result.ok ? { text: result.message, kind: "info" } : { text: result.error, kind: "error" });
+    setBusy(false);
+    if (result.ok) router.refresh();
+  };
+
   const renderNodes = (nodes: readonly CategoryTreeNode[]) => (
     <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: "0.75rem" }}>
       {nodes.map((node, index) => {
@@ -122,6 +134,9 @@ export function CategoryList({
               ) : null}
               <div style={{ flex: "1 1 12rem", minWidth: 0 }}>
                 <strong>{node.name}</strong>{" "}
+                <span className={styles.levelBadge}>
+                  {categoryLevelName(node.depth)}
+                </span>{" "}
                 <span className="aa-muted">
                   {node.slug} · sort {node.sort_position}
                   {node.children.length > 0
@@ -206,6 +221,7 @@ export function CategoryList({
                     key={`${node.id}:${node.updated_at}`}
                     category={node}
                     parentOptions={parentOptions}
+                    depth={node.depth}
                   />
                 </div>
               </details>
@@ -231,6 +247,21 @@ export function CategoryList({
           {message.text}
         </p>
       ) : null}
+      <div className={styles.listToolbar}>
+        <p className="aa-hint" style={{ margin: 0 }}>
+          Use ↑ ↓ to reorder. Lower order shows first among siblings.
+        </p>
+        {canManage ? (
+          <button
+            type="button"
+            className="aa-secondary"
+            disabled={busy}
+            onClick={() => void runNormalize()}
+          >
+            Normalize order
+          </button>
+        ) : null}
+      </div>
       {renderNodes(tree)}
     </div>
   );

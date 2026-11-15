@@ -8,6 +8,7 @@ export default async function CollectionPage({ params }: { params: Promise<{ slu
   const { slug } = await params;
   if(slug==='winter'){
     const [result,brands]=await Promise.all([getProducts({collection:'winter',inStock:true,pageSize:100}),getBrands()]);
+    if(result.catalogueUnavailable===true&&!result.items.length) return <div className="container py-16 text-center"><SectionHeading as="h1" title="Catalogue unavailable"/><p>The catalogue could not be loaded. Please try again in a moment.</p></div>;
     if(!result.items.length) return <div className="container py-16 text-center"><SectionHeading as="h1" title="Coming Soon"/><p>We&apos;re expanding our collection. Stay tuned.</p></div>;
     return <div className="container py-8"><SectionHeading as="h1" title="Winter Collection"/><ProductGrid products={result.items} brands={brands} columns={4}/></div>;
   }

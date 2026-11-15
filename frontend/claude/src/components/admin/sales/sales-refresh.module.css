@@ -1,0 +1,177 @@
+/* Sales + notifications refresh (Admin Panel v2). Theme tokens only:
+   primary #6B0202, primaryDark #460101, surface #FFFFFF, text #171717,
+   muted #74706C, border #EAEAEA, selected #F6EAEA; 6px radius.
+   No hover-reveal: every action is visible and labeled at rest. */
+
+.sampleBanner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #eaeaea;
+  border-left: 3px solid #6b0202;
+  border-radius: 6px;
+  background: #f6eaea;
+  color: #171717;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.noticeList {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.noticeItem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  min-width: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid #eaeaea;
+  border-radius: 6px;
+  background: #ffffff;
+  transition: border-color 150ms ease;
+}
+
+.noticeItem:hover {
+  border-color: #6b0202;
+}
+
+.noticeItem:focus-within {
+  outline: 2px solid #6b0202;
+  outline-offset: 2px;
+}
+
+.noticeTitle {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  color: #171717;
+}
+
+.noticeMeta {
+  color: #74706c;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.noticeLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: #6b0202;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  touch-action: manipulation;
+}
+
+.noticeLink:hover {
+  color: #460101;
+}
+
+.noticeLink:focus-visible {
+  outline: 2px solid #6b0202;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.statusRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+}
+
+.statusChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border: 1px solid #eaeaea;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #171717;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.statusChipStrong {
+  border-color: #6b0202;
+  background: #f6eaea;
+}
+
+.formGrid {
+  display: grid;
+  gap: 1rem;
+  max-width: 40rem;
+}
+
+.actionRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.dangerButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid #eaeaea;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #7a1010;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.dangerButton:hover {
+  border-color: #7a1010;
+  background: #f6eaea;
+}
+
+.dangerButton:focus-visible {
+  outline: 2px solid #6b0202;
+  outline-offset: 2px;
+}
+
+.dangerButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.dangerZone {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eaeaea;
+}
+
+.sectionNote {
+  margin: 0;
+  color: #74706c;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.money {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .noticeItem,
+  .dangerButton {
+    transition: none;
+  }
+}

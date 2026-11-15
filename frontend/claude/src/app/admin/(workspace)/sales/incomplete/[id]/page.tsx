@@ -2,10 +2,14 @@ import Link from "next/link";
 import { RECOVERY_STATUS_LABELS } from "@/lib/admin/constants";
 import { formatDateTime, formatMoney } from "@/lib/admin/format";
 import { readIncompleteDetail, setRecoveryStatus } from "@/lib/admin/incomplete";
+import { resolveDisplayRecord } from "@/lib/admin/sample-data";
+import { SAMPLE_INCOMPLETE_DETAIL } from "@/lib/admin/sample-sales";
 import { PageHeading, Panel, Notice, StatusBadge, type BadgeTone } from "@/components/admin/ui";
+import { SampleBadge } from "@/components/admin/SampleBadge";
 import { ProductThumbnail } from "@/components/admin/access/ProductThumbnail";
 import { RecoveryActions } from "@/components/admin/sales/RecoveryActions";
 import { SalesNav } from "@/components/admin/sales/SalesNav";
+import styles from "@/components/admin/sales/sales-refresh.module.css";
 
 export const metadata = { title: "Incomplete checkout" };
 
@@ -22,8 +26,13 @@ export default async function IncompleteDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { session, items, valueMinor, log, progressLabel, recoveryEditable } =
-    await readIncompleteDetail(id);
+  // Null means unavailable: show a labeled sample record with no working
+  // recovery actions. A genuinely missing checkout still 404s.
+  const { record, isSample } = resolveDisplayRecord(
+    await readIncompleteDetail(id),
+    SAMPLE_INCOMPLETE_DETAIL,
+  );
+  const { session, items, valueMinor, log, progressLabel, recoveryEditable } = record;
 
   return (
     <main id="main" tabIndex={-1} className="aa-main">
@@ -38,6 +47,17 @@ export default async function IncompleteDetailPage({
         }
       />
       <SalesNav current="incomplete" />
+
+      {isSample ? (
+        <div className={styles.sampleBanner} role="status">
+          <SampleBadge />
+          <span>
+            Live checkout data is unavailable — this checkout could not be
+            read. This sample record is for testing the layout only. Recovery
+            actions are unavailable, and no sample data is saved.
+          </span>
+        </div>
+      ) : null}
 
       <Notice kind="info">
         No messages are sent from this panel. Use the contact details shown to follow up.
@@ -140,7 +160,14 @@ export default async function IncompleteDetailPage({
         )}
       </Panel>
 
-      {recoveryEditable ? (
+      {isSample ? (
+        <Panel title="Follow up">
+          <Notice kind="warning">
+            Recovery actions are unavailable while live checkout data cannot
+            be loaded. This sample record cannot be changed.
+          </Notice>
+        </Panel>
+      ) : recoveryEditable ? (
         <Panel
           title="Follow up"
           description="Recovered is display-only: it is recorded automatically when a linked purchase is placed, and cannot be set by hand."

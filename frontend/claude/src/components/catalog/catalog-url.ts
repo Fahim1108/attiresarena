@@ -34,3 +34,43 @@ export function catalogHref(pathname: string, query: ProductQueryInput, locked: 
 
 /** "Clear all" target: no filters, no sort, no search. */
 export const EMPTY_CATALOG_QUERY: ProductQueryInput = {};
+
+export type PriceBoundsResult =
+  | { ok: true; minPrice?: number; maxPrice?: number }
+  | { ok: false; error: string };
+
+/**
+ * Parses the Price filter inputs (whole taka, same units as the priceRange
+ * facet and the min/max URL params). Empty means unset. Values outside the
+ * facet range are allowed — like a hand-written URL, they simply match
+ * fewer products. A minimum above the maximum is an error, not a swap:
+ * silently swapping would apply a range the shopper did not ask for.
+ */
+export function parsePriceBounds(minRaw: string, maxRaw: string): PriceBoundsResult {
+  const parseOne = (raw: string): number | undefined | null => {
+    const trimmed = raw.trim();
+    if (trimmed === "") return undefined;
+    if (!/^\d+$/.test(trimmed)) return null;
+    return Number(trimmed);
+  };
+  const minPrice = parseOne(minRaw);
+  const maxPrice = parseOne(maxRaw);
+  if (minPrice === null || maxPrice === null) {
+    return { ok: false, error: "Enter whole taka amounts for the price range." };
+  }
+  if (
+    minPrice !== undefined &&
+    maxPrice !== undefined &&
+    minPrice > maxPrice
+  ) {
+    return {
+      ok: false,
+      error: "Minimum price cannot be more than the maximum price.",
+    };
+  }
+  return {
+    ok: true,
+    ...(minPrice !== undefined ? { minPrice } : {}),
+    ...(maxPrice !== undefined ? { maxPrice } : {}),
+  };
+}

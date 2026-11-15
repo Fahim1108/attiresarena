@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { ShirtStyles } from "./ShirtStyles";
 import { ShopBySize } from "./ShopBySize";
 import { ProductGrid } from "@/components/product/ProductGrid";
@@ -10,6 +11,11 @@ import { Hero } from "./Hero";
 import { NewsletterSection } from "./NewsletterSection";
 import { PromoBanners } from "./PromoBanners";
 import { ValueProps } from "./ValueProps";
+import { WidgetCountdown } from "./WidgetCountdown";
+import {
+  placedWidgets,
+  type Widget,
+} from "@/lib/admin/reference-adapt";
 
 export interface HomepageData {
   candidates?: MerchandisingCandidate[];
@@ -30,8 +36,14 @@ type HomepageSettings = Pick<StorefrontSettings, "homepage" | "hero" | "promoBan
 /**
  * Renders homepage sections in the configured order. Used by the real homepage
  * (server) and by the Appearance Editor preview (client) so both stay identical.
+ *
+ * Widgets: active homepage widgets render after their placement section.
+ * `widgets` must already be filtered to active, unexpired widgets (the
+ * storefront reader does this). When `widgets` is empty (the default,
+ * and the Appearance Editor preview), no extra nodes are added and the
+ * output is byte-identical to before.
  */
-export function HomepageView({ settings, data }: { settings: HomepageSettings; data: HomepageData }) {
+export function HomepageView({ settings, data, widgets = [] }: { settings: HomepageSettings; data: HomepageData; widgets?: Widget[] }) {
   const selected = selectHomepageCollections(settings.homepage, data.candidates ?? []);
   // Explicit review curation uses real imported photos; never fabricate publication dates.
   for (const section of settings.homepage) {
@@ -43,15 +55,20 @@ export function HomepageView({ settings, data }: { settings: HomepageSettings; d
     <div className="space-y-5 pb-4 has-[>[data-section=value-props]:last-child]:-mb-10 has-[>[data-section=value-props]:last-child]:pb-0 sm:space-y-6 [&>*:nth-child(n+5)]:mt-10 sm:[&>*:nth-child(n+5)]:mt-8">
       {sections
         .map((section) => (
-          <div key={section.id} data-section={section.type} className={section.type === "value-props" ? "hidden sm:block" : undefined}>
-            {REVEAL_SECTIONS.has(section.type) ? (
-              <Reveal>
+          <Fragment key={section.id}>
+            <div data-section={section.type} className={section.type === "value-props" ? "hidden sm:block" : undefined}>
+              {REVEAL_SECTIONS.has(section.type) ? (
+                <Reveal>
+                  <SectionRenderer section={section} settings={settings} data={data} products={selected.get(section.id) ?? []} />
+                </Reveal>
+              ) : (
                 <SectionRenderer section={section} settings={settings} data={data} products={selected.get(section.id) ?? []} />
-              </Reveal>
-            ) : (
-              <SectionRenderer section={section} settings={settings} data={data} products={selected.get(section.id) ?? []} />
-            )}
-          </div>
+              )}
+            </div>
+            {placedWidgets(widgets, section.type).map((widget) => (
+              <WidgetCountdown key={widget.id} widget={widget} />
+            ))}
+          </Fragment>
         ))}
     </div>
   );

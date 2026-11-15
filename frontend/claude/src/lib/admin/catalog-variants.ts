@@ -82,16 +82,24 @@ export function validateImageFileMeta(file: {
   type: string;
   size: number;
   name?: string;
-}): string | null {
+}, options: { maxBytes?: number } = {}): string | null {
   if (!isAcceptedImageType(file.type)) {
     return "Only JPEG, PNG and WebP images are accepted.";
   }
   if (file.size <= 0) return "That file is empty.";
-  if (file.size > MAX_IMAGE_BYTES) {
-    return "Each image must be 5 MB or smaller.";
+  const maxBytes = options.maxBytes ?? MAX_IMAGE_BYTES;
+  if (file.size > maxBytes) {
+    return `Each image must be ${maxBytes / (1024 * 1024)} MB or smaller.`;
   }
   return null;
 }
+
+/**
+ * Largest original a client-side compressor may accept. The compressed
+ * output is still validated against MAX_IMAGE_BYTES before upload, and
+ * the server re-validates the bytes it receives.
+ */
+export const MAX_COMPRESSIBLE_IMAGE_BYTES = 20 * 1024 * 1024;
 
 /** How many more images a product may accept (0..20). */
 export function remainingImageSlots(existingCount: number): number {
@@ -496,4 +504,307 @@ export function parseTagsInput(input: string): string[] {
     tags.push(tag.slice(0, 40));
   }
   return tags.slice(0, 20);
+}
+
+// ------------------------------------------------------- category hierarchy
+//
+// Admin Panel v2 maps the owner's two-level vocabulary onto the existing
+// depth-≤3 hierarchy (migration 20261115000200, admin_save_category):
+//   Primary category   = depth 1 (parent_id is null)
+//   Secondary category = depth 2 (parent is a primary category)
+//   Sub-category       = depth 3 (legacy; the UI never creates new ones,
+//                        but existing depth-3 rows keep working)
+// Level is DERIVED from the parent chain, never stored: a stored level
+// column could drift from parent_id, while the chain is the truth the
+// database already enforces (cycle rejection + max depth 3).
+
+/**
+ * Depth of a category in the flat list (root = 1). Returns null when the
+ * id is unknown or the parent chain contains a cycle. Orphaned rows
+ * (parent missing from the list) count the visible chain only.
+ */
+/**
+ * Minimal shape the hierarchy helpers need: an id plus its parent link.
+ * CategoryFlat satisfies this, and so do the flat option lists used by
+ * the product/category forms — the helpers never read other fields.
+ */
+export interface CategoryHierarchyNode {
+  id: string;
+  parent_id: string | null;
+}
+
+export function categoryLevel(
+  flat: readonly CategoryHierarchyNode[],
+  categoryId: string,
+): number | null {
+  const byId = new Map(flat.map((c) => [c.id, c]));
+  if (!byId.has(categoryId)) return null;
+  const visited = new Set<string>();
+  let depth = 0;
+  let current: string | null = categoryId;
+  while (current !== null) {
+    if (visited.has(current)) return null;
+    visited.add(current);
+    depth += 1;
+    if (depth > 10) return null;
+    const row = byId.get(current);
+    current = row?.parent_id ?? null;
+  }
+  return depth;
+}
+
+/** Owner-facing level name for a depth (depths beyond 3 read as sub-category). */
+export function categoryLevelName(depth: number): string {
+  if (depth <= 1) return "Primary category";
+  if (depth === 2) return "Secondary category";
+  return "Sub-category";
+}
+
+/** Depth-1 categories, in list order. */
+export function primaryCategories<T extends CategoryHierarchyNode>(
+  flat: readonly T[],
+): T[] {
+  return flat.filter((c) => c.parent_id === null);
+}
+
+/** Depth-2 categories whose parent is `primaryId`, in list order. */
+export function secondaryCategoriesFor<T extends CategoryHierarchyNode>(
+  flat: readonly T[],
+  primaryId: string,
+): T[] {
+  return flat.filter((c) => c.parent_id === primaryId);
+}
+
+/**
+ * Validate a product's primary + secondary assignment. A secondary
+ * category REQUIRES a primary, must belong to that primary, and must be
+ * a second-level category. Returns an error message or null.
+ */
+export function validateCategoryAssignment(
+  primaryId: string | null,
+  secondaryId: string | null,
+  flat: readonly CategoryHierarchyNode[],
+): string | null {
+  if (secondaryId === null) return null;
+  if (primaryId === null) {
+    return "Choose a primary category before choosing a secondary category.";
+  }
+  if (categoryLevel(flat, primaryId) !== 1) {
+    return "The primary category must be a top-level category.";
+  }
+  const byId = new Map(flat.map((c) => [c.id, c]));
+  const secondary = byId.get(secondaryId);
+  if (!secondary) {
+    return "The chosen secondary category no longer exists. Reload and choose again.";
+  }
+  if (secondary.parent_id !== primaryId) {
+    return "The secondary category must belong to the chosen primary category.";
+  }
+  // Unreachable for consistent lists (a child of a primary is depth 2 by
+  // construction); kept as a guard for inconsistent/partial lists.
+  if (categoryLevel(flat, secondaryId) !== 2) {
+    return "The chosen secondary category must be a second-level category.";
+  }
+  return null;
+}
+
+export type CategoryLevelChoice = "primary" | "secondary" | "sub";
+
+/**
+ * Derive the primary + secondary pair a product form should show for a
+ * stored assignment. The pair model (migration 009) has no slot for a
+ * third-level category, so a depth-3 assignment is represented by its
+ * top two chain links and the replaced id is reported for a warning.
+ * A depth-2 category_id survives as the secondary (its parent becomes
+ * the primary), so legacy leaf assignments are preserved through the
+ * pair. Inconsistent stored pairs are repaired, reporting the dropped
+ * id. Never returns a secondary without a primary.
+ */
+export interface DerivedCategoryPair {
+  primaryId: string | null;
+  secondaryId: string | null;
+  /** Id of a stored assignment the pair cannot represent, if any. */
+  replacedId: string | null;
+}
+
+export function deriveCategoryPair(
+  flat: readonly CategoryHierarchyNode[],
+  categoryId: string | null,
+  secondaryId: string | null,
+): DerivedCategoryPair {
+  if (categoryId === null) {
+    return { primaryId: null, secondaryId: null, replacedId: secondaryId };
+  }
+  const byId = new Map(flat.map((c) => [c.id, c]));
+  const depth = categoryLevel(flat, categoryId);
+  if (depth === null) {
+    return { primaryId: null, secondaryId: null, replacedId: categoryId };
+  }
+  if (depth === 1) {
+    const secondaryOk =
+      secondaryId !== null && byId.get(secondaryId)?.parent_id === categoryId;
+    return {
+      primaryId: categoryId,
+      secondaryId: secondaryOk ? secondaryId : null,
+      replacedId:
+        secondaryId !== null && !secondaryOk ? secondaryId : null,
+    };
+  }
+  if (depth === 2) {
+    const parent = byId.get(categoryId)?.parent_id ?? null;
+    return {
+      primaryId: parent,
+      secondaryId: categoryId,
+      replacedId:
+        secondaryId !== null && secondaryId !== categoryId
+          ? secondaryId
+          : null,
+    };
+  }
+  // Depth 3+: keep the top two chain links (root + depth-2 ancestor).
+  const links: string[] = [];
+  const visited = new Set<string>();
+  let current: string | null = categoryId;
+  while (current !== null && byId.has(current) && !visited.has(current)) {
+    visited.add(current);
+    links.push(current);
+    current = byId.get(current)?.parent_id ?? null;
+  }
+  return {
+    primaryId: links[links.length - 1] ?? null,
+    secondaryId: links.length >= 2 ? (links[links.length - 2] ?? null) : null,
+    replacedId: categoryId,
+  };
+}
+
+/**
+ * Validate the level a category form assigns against its chosen parent.
+ * "sub" covers existing depth-3 rows being edited: they may move up (to a
+ * primary parent, or to no parent) but never deeper. Returns an error
+ * message or null. Self/descendant exclusion and the depth-3 database
+ * rule are enforced separately (UI options + admin_save_category).
+ */
+export function validateCategoryLevelChoice(
+  level: CategoryLevelChoice,
+  parentId: string | null,
+  flat: readonly CategoryHierarchyNode[],
+): string | null {
+  if (level === "primary") {
+    if (parentId !== null) {
+      return "A primary category has no parent category.";
+    }
+    return null;
+  }
+  if (level === "secondary") {
+    if (parentId === null) {
+      return "A secondary category needs a primary category as its parent.";
+    }
+    if (categoryLevel(flat, parentId) !== 1) {
+      return "A secondary category's parent must be a primary category.";
+    }
+    return null;
+  }
+  // level === "sub": keep the row at depth ≤ 3; moving under a depth-2
+  // parent keeps depth 3, moving under a primary (or none) promotes it.
+  if (parentId === null) return null;
+  const parentDepth = categoryLevel(flat, parentId);
+  if (parentDepth === null) {
+    return "The chosen parent category no longer exists.";
+  }
+  if (parentDepth > 2) {
+    return "A sub-category cannot be moved under another sub-category.";
+  }
+  return null;
+}
+
+// ------------------------------------------------------- publication + costs
+
+/** Storefront visibility derived from the two publication signals. */
+export type PublicationVisibility = "visible" | "hidden" | "paused";
+
+export function publicationVisibility(
+  status: string,
+  isPublished: boolean,
+): PublicationVisibility {
+  if (!isPublished) return "hidden";
+  if (status === "published") return "visible";
+  // Published, then set Inactive: the storefront feed requires BOTH
+  // signals, so the product is hidden until it is Active again.
+  return "paused";
+}
+
+export function publicationVisibilityLabel(
+  visibility: PublicationVisibility,
+): string {
+  if (visibility === "visible") return "Published to storefront";
+  if (visibility === "paused") return "Publication paused";
+  return "Not published";
+}
+
+// ------------------------------------------------------------ storage paths
+
+/**
+ * Storage object paths in the product-media bucket are always
+ * `<owner-uuid>/<object-uuid>.<ext>`. Shared by category images, staged
+ * product images and the public-feed media check; a path that does not
+ * match is never trusted as a storage reference.
+ */
+export const CATALOG_STORAGE_PATH_PATTERN =
+  /^[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp)$/;
+
+export function isCatalogStoragePath(path: string): boolean {
+  return path.length <= 200 && CATALOG_STORAGE_PATH_PATTERN.test(path);
+}
+
+export interface SiblingOrderNode {
+  id: string;
+  parent_id: string | null;
+  sort_position: number;
+}
+
+/**
+ * Group categories into sibling groups for order normalization, each
+ * group in current display order (sort_position, then id for
+ * determinism). The root group comes first; other groups follow in
+ * first-seen parent order. Passing one group to
+ * admin_reorder_categories renumbers it 0..n-1, preserving order.
+ */
+export function siblingOrderGroups(
+  nodes: readonly SiblingOrderNode[],
+): string[][] {
+  const groups = new Map<string | null, SiblingOrderNode[]>();
+  for (const node of nodes) {
+    const list = groups.get(node.parent_id) ?? [];
+    list.push(node);
+    groups.set(node.parent_id, list);
+  }
+  const ordered: string[][] = [];
+  const pushGroup = (key: string | null) => {
+    const list = groups.get(key);
+    if (!list || list.length === 0) return;
+    ordered.push(
+      [...list]
+        .sort(
+          (a, b) =>
+            a.sort_position - b.sort_position || a.id.localeCompare(b.id),
+        )
+        .map((node) => node.id),
+    );
+  };
+  pushGroup(null);
+  for (const key of groups.keys()) {
+    if (key !== null) pushGroup(key);
+  }
+  return ordered;
+}
+
+/** True when a sibling group already reads 0..n-1 in display order. */
+export function isNormalizedOrder(
+  nodes: readonly SiblingOrderNode[],
+  orderedIds: readonly string[],
+): boolean {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  return orderedIds.every(
+    (id, index) => byId.get(id)?.sort_position === index,
+  );
 }

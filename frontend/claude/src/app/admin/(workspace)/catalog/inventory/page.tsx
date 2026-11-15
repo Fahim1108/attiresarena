@@ -5,6 +5,11 @@ import {
   readVariantOptions,
 } from "@/lib/admin/catalog-inventory";
 import { formatCount, formatDateTime, parsePage } from "@/lib/admin/format";
+import { resolveDisplayData } from "@/lib/admin/sample-data";
+import {
+  sampleInventoryOverview,
+  sampleInventoryRows,
+} from "@/lib/admin/sample-catalogue";
 import {
   hrefWithParams,
   Notice,
@@ -13,6 +18,7 @@ import {
   Panel,
   StatusBadge,
 } from "@/components/admin/ui";
+import { SampleBadge } from "@/components/admin/SampleBadge";
 import { InventoryAdjustForm } from "@/components/admin/catalog/inventory-adjust-form";
 
 export const metadata = { title: "Inventory" };
@@ -62,7 +68,13 @@ export default async function CatalogInventoryPage({
     readMovementHistory(parsePage(params.mpage)),
     readVariantOptions(),
   ]);
-  const { overview } = inventory;
+  // Null means UNAVAILABLE (not empty): labelled sample rows with no
+  // live querying implied. Movement history is NEVER sampled — an
+  // unavailable history shows an honest notice instead.
+  const display = resolveDisplayData(inventory?.rows ?? null, sampleInventoryRows);
+  const isSample = display.isSample;
+  const overview = inventory?.overview ?? sampleInventoryOverview;
+  const canAdjust = inventory?.canAdjust ?? false;
 
   return (
     <main id="main" tabIndex={-1} className="aa-main">
@@ -70,9 +82,18 @@ export default async function CatalogInventoryPage({
         eyebrow="Catalog"
         title="Inventory"
         description="Variant-level stock, manual adjustments with reasons, and the full movement history."
+        actions={isSample ? <SampleBadge /> : undefined}
       />
 
-      {variantId ? (
+      {isSample ? (
+        <Notice kind="warning">
+          Inventory could not be loaded, so sample stock rows are shown
+          for layout testing only. Sample rows cannot be adjusted, and no
+          changes are saved.
+        </Notice>
+      ) : null}
+
+      {variantId && !isSample ? (
         <Notice kind="info">
           Showing a single variant record.{" "}
           <Link href="/admin/catalog/inventory">Show all inventory</Link>
@@ -117,48 +138,71 @@ export default async function CatalogInventoryPage({
       </div>
 
       <Panel title="Adjust stock">
-        <InventoryAdjustForm
-          variants={variantOptions}
-          canAdjust={inventory.canAdjust}
-        />
+        {isSample ? (
+          <p className="aa-muted">
+            Stock adjustments are unavailable while inventory cannot be
+            loaded. Sample rows are display-only.
+          </p>
+        ) : variantOptions === null ? (
+          <Notice kind="warning">
+            Variant choices could not be loaded. Reload the page to try
+            again — no adjustment has been made.
+          </Notice>
+        ) : (
+          <InventoryAdjustForm
+            variants={variantOptions}
+            canAdjust={canAdjust}
+          />
+        )}
         <p className="aa-muted">
           Order-driven stock changes (delivery, cancellation, returns) are
           handled by order processing, not by manual adjustments.
         </p>
       </Panel>
 
-      <form className="aa-toolbar" action="/admin/catalog/inventory" method="get">
-        <div className="aa-field aa-field--grow">
-          <label htmlFor="inventory-q">Search variants</label>
-          <input
-            id="inventory-q"
-            name="q"
-            type="search"
-            defaultValue={textParam("q")}
-            maxLength={120}
-            placeholder="Search by product, size or color…"
-          />
-        </div>
-        <div className="aa-field">
-          <label htmlFor="inventory-stock">Stock level</label>
-          <select id="inventory-stock" name="stock" defaultValue={stock}>
-            <option value="">Any stock level</option>
-            <option value="in-stock">In stock</option>
-            <option value="low-stock">Low stock</option>
-            <option value="out-of-stock">Out of stock</option>
-          </select>
-        </div>
-        <button type="submit" className="aa-button">
-          Apply filters
-        </button>
-        <Link href="/admin/catalog/inventory" className="aa-secondary">
-          Clear
-        </Link>
-      </form>
+      {!isSample ? (
+        <form className="aa-toolbar" action="/admin/catalog/inventory" method="get">
+          <div className="aa-field aa-field--grow">
+            <label htmlFor="inventory-q">Search variants</label>
+            <input
+              id="inventory-q"
+              name="q"
+              type="search"
+              defaultValue={textParam("q")}
+              maxLength={120}
+              placeholder="Search by product, size or color…"
+            />
+          </div>
+          <div className="aa-field">
+            <label htmlFor="inventory-stock">Stock level</label>
+            <select id="inventory-stock" name="stock" defaultValue={stock}>
+              <option value="">Any stock level</option>
+              <option value="in-stock">In stock</option>
+              <option value="low-stock">Low stock</option>
+              <option value="out-of-stock">Out of stock</option>
+            </select>
+          </div>
+          <button type="submit" className="aa-button">
+            Apply filters
+          </button>
+          <Link href="/admin/catalog/inventory" className="aa-secondary">
+            Clear
+          </Link>
+        </form>
+      ) : null}
 
       <p className="aa-muted" role="status">
-        {inventory.total} matching variant{inventory.total === 1 ? "" : "s"} ·
-        Page {inventory.page} of {inventory.totalPages}
+        {inventory ? (
+          <>
+            {inventory.total} matching variant{inventory.total === 1 ? "" : "s"}{" "}
+            · Page {inventory.page} of {inventory.totalPages}
+          </>
+        ) : (
+          <>
+            {display.items.length} sample variant
+            {display.items.length === 1 ? "" : "s"}
+          </>
+        )}
       </p>
 
       <div className="aa-table-scroll">
@@ -175,12 +219,16 @@ export default async function CatalogInventoryPage({
             </tr>
           </thead>
           <tbody>
-            {inventory.rows.map((row) => (
+            {display.items.map((row) => (
               <tr key={row.variantId}>
                 <th scope="row">
-                  <Link href={`/admin/catalog/products/${row.productId}`}>
+                  {isSample ? (
                     <span className="aa-cell-main">{row.productName}</span>
-                  </Link>
+                  ) : (
+                    <Link href={`/admin/catalog/products/${row.productId}`}>
+                      <span className="aa-cell-main">{row.productName}</span>
+                    </Link>
+                  )}
                   <span className="aa-cell-sub">
                     {row.active ? "Active variant" : "Inactive variant"}
                   </span>
@@ -195,7 +243,7 @@ export default async function CatalogInventoryPage({
                 <td>{stockBadge(row.stockState)}</td>
               </tr>
             ))}
-            {inventory.rows.length === 0 ? (
+            {display.items.length === 0 ? (
               <tr>
                 <td colSpan={7}>No variants match the current filters.</td>
               </tr>
@@ -204,71 +252,82 @@ export default async function CatalogInventoryPage({
         </table>
       </div>
 
-      <Pagination
-        page={inventory.page}
-        totalPages={inventory.totalPages}
-        hrefFor={(page) =>
-          hrefWithParams("/admin/catalog/inventory", params, {
-            page: String(page),
-          })
-        }
-      />
+      {!isSample && inventory ? (
+        <Pagination
+          page={inventory.page}
+          totalPages={inventory.totalPages}
+          hrefFor={(page) =>
+            hrefWithParams("/admin/catalog/inventory", params, {
+              page: String(page),
+            })
+          }
+        />
+      ) : null}
 
       <Panel
         title="Movement history"
         description="Every stock change, newest first. Actor identities are shown shortened because staff profiles are private."
       >
-        <div className="aa-table-scroll">
-          <table className="aa-table">
-            <thead>
-              <tr>
-                <th scope="col">Variant</th>
-                <th scope="col">Change</th>
-                <th scope="col">On hand after</th>
-                <th scope="col">Reason</th>
-                <th scope="col">Actor</th>
-                <th scope="col">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {movements.rows.map((movement) => (
-                <tr key={movement.id}>
-                  <th scope="row">{movement.variantLabel}</th>
-                  <td
-                    style={{
-                      color: movement.delta > 0 ? "#1d4d22" : "#7a1010",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {movement.delta > 0 ? `+${movement.delta}` : movement.delta}
-                  </td>
-                  <td>{movement.onHandAfter}</td>
-                  <td>{movement.reason}</td>
-                  <td>
-                    {movement.actorId
-                      ? `Staff ${movement.actorId.slice(0, 8)}…`
-                      : "Unknown"}
-                  </td>
-                  <td>{formatDateTime(movement.createdAt)}</td>
-                </tr>
-              ))}
-              {movements.rows.length === 0 ? (
-                <tr>
-                  <td colSpan={6}>No stock movements recorded yet.</td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-        <Pagination
-          page={movements.page}
-          totalPages={movements.totalPages}
-          hrefFor={(page) =>
-            hrefWithParams("/admin/catalog/inventory", params, {
-              mpage: String(page),
-            })
-          }
-        />
+        {movements === null ? (
+          <Notice kind="warning">
+            Movement history could not be loaded. No movements are shown —
+            nothing here is sample data.
+          </Notice>
+        ) : (
+          <>
+            <div className="aa-table-scroll">
+              <table className="aa-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Variant</th>
+                    <th scope="col">Change</th>
+                    <th scope="col">On hand after</th>
+                    <th scope="col">Reason</th>
+                    <th scope="col">Actor</th>
+                    <th scope="col">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {movements.rows.map((movement) => (
+                    <tr key={movement.id}>
+                      <th scope="row">{movement.variantLabel}</th>
+                      <td
+                        style={{
+                          color: movement.delta > 0 ? "#1d4d22" : "#7a1010",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {movement.delta > 0 ? `+${movement.delta}` : movement.delta}
+                      </td>
+                      <td>{movement.onHandAfter}</td>
+                      <td>{movement.reason}</td>
+                      <td>
+                        {movement.actorId
+                          ? `Staff ${movement.actorId.slice(0, 8)}…`
+                          : "Unknown"}
+                      </td>
+                      <td>{formatDateTime(movement.createdAt)}</td>
+                    </tr>
+                  ))}
+                  {movements.rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={6}>No stock movements recorded yet.</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={movements.page}
+              totalPages={movements.totalPages}
+              hrefFor={(page) =>
+                hrefWithParams("/admin/catalog/inventory", params, {
+                  mpage: String(page),
+                })
+              }
+            />
+          </>
+        )}
       </Panel>
     </main>
   );

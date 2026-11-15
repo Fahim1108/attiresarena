@@ -179,6 +179,23 @@ function formInt(form: FormData, name: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+/**
+ * Revalidate the storefront page a content block overrides (Admin Panel v2,
+ * item 9a). Only the wired policy pages benefit today; the About override
+ * is unwired, so revalidating /about is harmless but changes nothing until
+ * its wiring lands. Same-deployment only: a Preview save never refreshes
+ * Production. Revalidation-only addition — no other behaviour changed.
+ */
+function revalidateBlockPage(slug: string): void {
+  const managed = MANAGED_BLOCKS.find((block) => block.slug === slug);
+  if (managed) revalidatePath(managed.storefront);
+}
+
+/** Banner changes surface on the homepage once hero/promo wiring lands. */
+function revalidateBannerSurfaces(): void {
+  revalidatePath("/");
+}
+
 export async function saveContentBlock(
   _prev: AdminActionResult | null,
   form: FormData,
@@ -208,6 +225,7 @@ export async function saveContentBlock(
     return actionError(toActionError(result.error, "Content block could not be saved."));
   }
   revalidatePath("/admin/content/pages");
+  revalidateBlockPage(parsed.data.slug);
   return actionOk("Content block saved.");
 }
 
@@ -218,6 +236,7 @@ export async function deleteContentBlock(form: FormData): Promise<void> {
   if (!isValidSlug(slug)) return;
   await session.client.rpc("admin_delete_content_block", { p_slug: slug });
   revalidatePath("/admin/content/pages");
+  revalidateBlockPage(slug);
 }
 
 export async function saveBanner(
@@ -273,6 +292,7 @@ export async function saveBanner(
   revalidatePath("/admin/content/banners");
   revalidatePath("/admin/content/homepage");
   revalidatePath("/admin/marketing/promotions");
+  revalidateBannerSurfaces();
   return actionOk("Banner saved.");
 }
 
@@ -291,6 +311,7 @@ export async function deleteBanner(form: FormData): Promise<void> {
   revalidatePath("/admin/content/banners");
   revalidatePath("/admin/content/homepage");
   revalidatePath("/admin/marketing/promotions");
+  revalidateBannerSurfaces();
 }
 
 export async function moveBanner(form: FormData): Promise<void> {
@@ -318,6 +339,7 @@ export async function moveBanner(form: FormData): Promise<void> {
   revalidatePath("/admin/content/banners");
   revalidatePath("/admin/content/homepage");
   revalidatePath("/admin/marketing/promotions");
+  revalidateBannerSurfaces();
 }
 
 export async function toggleBannerVisibility(form: FormData): Promise<void> {
@@ -344,4 +366,5 @@ export async function toggleBannerVisibility(form: FormData): Promise<void> {
   revalidatePath("/admin/content/banners");
   revalidatePath("/admin/content/homepage");
   revalidatePath("/admin/marketing/promotions");
+  revalidateBannerSurfaces();
 }

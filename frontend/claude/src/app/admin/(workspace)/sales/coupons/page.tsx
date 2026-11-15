@@ -7,10 +7,14 @@ import {
   setCouponActive,
   testCouponEligibility,
 } from "@/lib/admin/coupons";
+import { resolveDisplayData } from "@/lib/admin/sample-data";
+import { SAMPLE_COUPONS } from "@/lib/admin/sample-sales";
 import { PageHeading, Panel, Notice, StatusBadge } from "@/components/admin/ui";
+import { SampleBadge } from "@/components/admin/SampleBadge";
 import { CouponRowActions } from "@/components/admin/sales/CouponRowActions";
 import { CouponTestPanel } from "@/components/admin/sales/CouponTestPanel";
 import { SalesNav } from "@/components/admin/sales/SalesNav";
+import styles from "@/components/admin/sales/sales-refresh.module.css";
 
 export const metadata = { title: "Coupons" };
 
@@ -22,7 +26,14 @@ function windowLabel(coupon: { starts_at: string | null; expires_at: string | nu
 }
 
 export default async function CouponsPage() {
-  const { coupons, usageTruncated } = await readCoupons();
+  const result = await readCoupons();
+  // Null means unavailable: show labeled sample rows with no edit, toggle,
+  // or delete actions. A live empty list stays an honest empty state.
+  const { items: coupons, isSample } = resolveDisplayData(
+    result?.coupons ?? null,
+    SAMPLE_COUPONS,
+  );
+  const usageTruncated = result?.usageTruncated ?? false;
 
   return (
     <main id="main" tabIndex={-1} className="aa-main">
@@ -31,12 +42,25 @@ export default async function CouponsPage() {
         title="Coupons"
         description="Coupons are validated server-side. Usage counts come from recorded redemptions."
         actions={
-          <Link className="aa-button" href="/admin/sales/coupons/new">
-            New coupon
-          </Link>
+          isSample ? undefined : (
+            <Link className="aa-button" href="/admin/sales/coupons/new">
+              New coupon
+            </Link>
+          )
         }
       />
       <SalesNav current="coupons" />
+
+      {isSample ? (
+        <div className={styles.sampleBanner} role="status">
+          <SampleBadge />
+          <span>
+            Live coupon data is unavailable — the coupon data could not be
+            read. These sample rows are for testing the layout only. No
+            changes can be made, and no sample data is saved.
+          </span>
+        </div>
+      ) : null}
 
       <Notice kind="warning">
         Applying a coupon at checkout is pending checkout integration — place_checkout_order
@@ -74,9 +98,13 @@ export default async function CouponsPage() {
               {coupons.map((coupon) => (
                 <tr key={coupon.id}>
                   <th scope="row">
-                    <Link href={`/admin/sales/coupons/${coupon.id}`} className="aa-cell-main">
-                      {coupon.code}
-                    </Link>
+                    {isSample ? (
+                      <span className="aa-cell-main">{coupon.code}</span>
+                    ) : (
+                      <Link href={`/admin/sales/coupons/${coupon.id}`} className="aa-cell-main">
+                        {coupon.code}
+                      </Link>
+                    )}
                   </th>
                   <td>{couponValueLabel(coupon)}</td>
                   <td>{windowLabel(coupon)}</td>
@@ -94,17 +122,23 @@ export default async function CouponsPage() {
                     )}
                   </td>
                   <td className="aa-cell-actions">
-                    <Link className="aa-row-action" href={`/admin/sales/coupons/${coupon.id}`} aria-label={`Edit coupon ${coupon.code}`}>
-                      Edit
-                    </Link>{" "}
-                    <CouponRowActions
-                      couponId={coupon.id}
-                      code={coupon.code}
-                      active={coupon.active}
-                      hasRedemptions={coupon.usageCount > 0}
-                      toggleAction={setCouponActive}
-                      deleteAction={deleteCoupon}
-                    />
+                    {isSample ? (
+                      "—"
+                    ) : (
+                      <>
+                        <Link className="aa-row-action" href={`/admin/sales/coupons/${coupon.id}`} aria-label={`Edit coupon ${coupon.code}`}>
+                          Edit
+                        </Link>{" "}
+                        <CouponRowActions
+                          couponId={coupon.id}
+                          code={coupon.code}
+                          active={coupon.active}
+                          hasRedemptions={coupon.usageCount > 0}
+                          toggleAction={setCouponActive}
+                          deleteAction={deleteCoupon}
+                        />
+                      </>
+                    )}
                   </td>
                 </tr>
               ))}
