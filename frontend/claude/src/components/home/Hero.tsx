@@ -131,7 +131,9 @@ function EditorialHero({ hero, uppercase = true, logoSrc = "/brand/logo-maroon.p
   const [paused, setPaused] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
-  const go = useCallback((i: number) => setIndex((i + slides.length) % slides.length), [slides.length]);
+  // Bumped on every manual navigation so the autoplay effect restarts its interval.
+  const [cycle, setCycle] = useState(0);
+  const go = useCallback((i: number) => { setCycle((c) => c + 1); setIndex((i + slides.length) % slides.length); }, [slides.length]);
 
   useEffect(() => {
     if (!hero.autoplayMs || paused || hovered || focused || slides.length < 2) return;
@@ -149,7 +151,7 @@ function EditorialHero({ hero, uppercase = true, logoSrc = "/brand/logo-maroon.p
     media.addEventListener("change", sync);
     document.addEventListener("visibilitychange", sync);
     return () => { window.clearInterval(timer); media.removeEventListener("change", sync); document.removeEventListener("visibilitychange", sync); };
-  }, [hero.autoplayMs, paused, hovered, focused, slides.length]);
+  }, [hero.autoplayMs, paused, hovered, focused, slides.length, cycle]);
 
   if (slides.length && index >= slides.length) setIndex(0);
 
