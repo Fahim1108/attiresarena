@@ -24,8 +24,12 @@ export function BannerCarousel({hero}:{hero:HeroSettings}) {
     const media=window.matchMedia('(prefers-reduced-motion: reduce)');
     let timer:number|undefined;
     const sync=()=>{
-      window.clearInterval(timer);
-      if(!media.matches&&!document.hidden)timer=window.setInterval(()=>setIndex(current=>(current+1)%count),hero.autoplayMs);
+      // Start/stop only on a real running-state change: visibility and
+      // media events can fire while the timer is already running, and
+      // restarting the interval on each one delayed the first advance.
+      if(media.matches||document.hidden){window.clearInterval(timer);timer=undefined;return;}
+      if(timer!==undefined)return;
+      timer=window.setInterval(()=>setIndex(current=>(current+1)%count),hero.autoplayMs);
     };
     sync();media.addEventListener('change',sync);document.addEventListener('visibilitychange',sync);
     return ()=>{window.clearInterval(timer);media.removeEventListener('change',sync);document.removeEventListener('visibilitychange',sync);};
@@ -42,7 +46,7 @@ export function BannerCarousel({hero}:{hero:HeroSettings}) {
       onTouchEnd={e=>{const t=e.changedTouches[0],start=touch.current;touch.current=null;if(!t||!start)return;const dx=t.clientX-start.x,dy=t.clientY-start.y;if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy))go(dx<0?1:-1);}}
       onTouchCancel={()=>{touch.current=null;}}>
       {hero.slides.map((slide,i)=><div key={slide.id} role="group" aria-roledescription="slide" aria-label={`${i+1} of ${count}: ${slide.title}`} aria-hidden={i!==active} inert={i!==active}
-        className={`absolute inset-0 transition-opacity duration-500 motion-reduce:transition-none ${i===active?'opacity-100':'pointer-events-none opacity-0'}`}>
+        className={`absolute inset-0 transition-[opacity,transform] duration-500 ease-out motion-reduce:transition-none motion-reduce:translate-x-0 ${i===active?'translate-x-0 opacity-100':'pointer-events-none translate-x-[2%] opacity-0'}`}>
         <SmartImage src={slide.image.src} alt={slide.image.alt} fill sizes="100vw" priority={i===0} loading={i===0?undefined:'lazy'} className="object-contain" />
       </div>)}
     </div>

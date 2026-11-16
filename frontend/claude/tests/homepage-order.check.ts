@@ -31,7 +31,7 @@ it('curates only original inventory and preserves photos, prices and lack of fab
  expect(arrivals).toHaveLength(8);expect(featured).toHaveLength(8);expect(new Set([...arrivals,...featured].map(p=>p.id)).size).toBe(16);
  expect([...arrivals,...featured].every(p=>products.includes(p)&&p.createdAt==='')).toBe(true);expect(curatedInventoryCollection(products,'best-sellers')).toEqual([]);
 });
-it('preserves required homepage order and 2s hero auto-rotation',async()=>{
- preview();const settings=await ownerCatalogue.getStorefrontSettings();expect(settings.homepage.filter(s=>s.enabled).map(s=>s.type)).toEqual(['hero','categories','sizes','new-arrivals','featured']);expect(campaignHero.autoplayMs).toBe(2000);expect(campaignHero.slides.map(s=>s.id)).toEqual(['banner-01','banner-02','banner-03']);
+it('preserves required homepage order and 3s hero auto-rotation',async()=>{
+ preview();const settings=await ownerCatalogue.getStorefrontSettings();expect(settings.homepage.filter(s=>s.enabled).map(s=>s.type)).toEqual(['hero','categories','sizes','new-arrivals','featured']);expect(campaignHero.autoplayMs).toBe(3000);expect(campaignHero.slides.map(s=>s.id)).toEqual(['banner-01','banner-02','banner-03']);
  expect(settings.header.navigation.find(n=>n.label==='Shirts')?.children).toEqual([{label:'All Shirts',href:'/category/shirts'}]);
 });

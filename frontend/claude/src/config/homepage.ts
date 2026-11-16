@@ -1,7 +1,7 @@
 import type { Banner, HeroSettings, HomepageSection, ValueProp } from "@/types";
 
 export const hero: HeroSettings = {
-  autoplayMs: 2000,
+  autoplayMs: 3000,
   badges: ["Premium Quality", "Curated Collections", "Designed for Everyday"],
   slides: [
     {

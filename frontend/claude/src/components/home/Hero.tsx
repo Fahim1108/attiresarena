@@ -140,8 +140,11 @@ function EditorialHero({ hero, uppercase = true, logoSrc = "/brand/logo-maroon.p
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
     let timer: number | undefined;
     const sync = () => {
-      window.clearInterval(timer);
-      if (media.matches || document.hidden) return;
+      // Start/stop only on a real running-state change: visibility and
+      // media events can fire while the timer is already running, and
+      // restarting the interval on each one delayed the first advance.
+      if (media.matches || document.hidden) { window.clearInterval(timer); timer = undefined; return; }
+      if (timer !== undefined) return;
       timer = window.setInterval(() => {
         // Also guard the tick itself: preference/visibility events may be delivered later.
         if (!media.matches && !document.hidden) setIndex(i => (i + 1) % slides.length);

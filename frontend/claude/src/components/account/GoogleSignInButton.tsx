@@ -29,7 +29,7 @@ function GoogleSubmitButton() {
       type="submit"
       disabled={pending}
       aria-busy={pending}
-      className="inline-flex h-12 w-full items-center justify-center gap-3 whitespace-nowrap rounded-control border border-line bg-white px-7 text-sm font-medium text-ink shadow-sm transition-colors hover:bg-ink/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+      className="inline-flex h-12 w-full items-center justify-center gap-3 whitespace-nowrap rounded-control border border-ink/25 bg-white px-7 text-sm font-medium text-ink shadow-sm transition-colors hover:border-ink/40 hover:bg-ink/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
     >
       <GoogleMark />
       {pending ? "Connecting…" : "Continue with Google"}

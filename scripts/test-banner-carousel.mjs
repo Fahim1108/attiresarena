@@ -4,14 +4,16 @@ import { mkdir, writeFile } from "node:fs/promises";
 
 /**
  * Banner-carousel behaviour verification (hero section, 2026-11-16 order):
- * full-width 16:9 frame with no side gaps, sequential 2s auto-rotation,
- * hover/focus/manual pause, manual-advance timer reset, reduced motion.
+ * full-width 16:9 frame with no side gaps, sequential 3s auto-rotation,
+ * hover/focus/manual pause, manual-advance timer reset, reduced motion,
+ * and the restart guard (a spurious visibilitychange mid-window must not
+ * restart a running timer).
  * Runs against a local preview only (CLAUDE_PREVIEW_URL, default :3006).
  *
  * Timing is asserted in REAL time with measured windows. Playwright's fake
  * clock was tried first and does not drive this component: with the clock
  * paused, React never flushes the interval's state update to the DOM even
- * across runFor(2000), while the same build rotates every ~2.0s in real
+ * across runFor(3000), while the same build rotates every ~3.0s in real
  * time (verified empirically 2026-11-16). Windows below allow for slow
  * shared-CPU hydration while still discriminating the behaviours.
  *
@@ -107,47 +109,47 @@ try {
     await expect(active()).toHaveAttribute("aria-label", /^3 of 3/, { timeout: 5000 });
     await expect(active()).toHaveAttribute("aria-label", /^1 of 3/, { timeout: 5000 });
 
-    // Measured interval: the gap between two consecutive advances is ~2s.
+    // Measured interval: the gap between two consecutive advances is ~3s.
     const gap = await waitForChange(active, 1, 5000);
-    assert.ok(gap !== null && gap >= 1500 && gap <= 3200, `rotation interval ~2s (measured ${gap}ms)`);
+    assert.ok(gap !== null && gap >= 2500 && gap <= 4200, `rotation interval ~3s (measured ${gap}ms)`);
     assert.equal(await slideNumber(active), 2);
 
     // Manual pause stops rotation; resume restarts it.
     await carousel.getByRole("button", { name: "Pause banners", exact: true }).click();
     await settle(page);
     await expect(carousel.getByRole("button", { name: "Play banners", exact: true })).toBeVisible();
-    assert.equal(await waitForChange(active, 2, 2600), null, "paused carousel must not advance in 2.6s");
+    assert.equal(await waitForChange(active, 2, 3600), null, "paused carousel must not advance in 3.6s");
     await carousel.getByRole("button", { name: "Play banners", exact: true }).click();
     await settle(page);
-    assert.notEqual(await waitForChange(active, 2, 4500), null, "resumed carousel advances");
+    assert.notEqual(await waitForChange(active, 2, 5500), null, "resumed carousel advances");
     assert.equal(await slideNumber(active), 3);
 
     // Hover pauses; leaving resumes with a fresh window.
     await carousel.locator("[data-banner-frame]").hover();
-    assert.equal(await waitForChange(active, 3, 2600), null, "hovered carousel must not advance in 2.6s");
+    assert.equal(await waitForChange(active, 3, 3600), null, "hovered carousel must not advance in 3.6s");
     await page.mouse.move(0, 0);
-    assert.notEqual(await waitForChange(active, 3, 4500), null, "carousel resumes after hover ends");
+    assert.notEqual(await waitForChange(active, 3, 5500), null, "carousel resumes after hover ends");
     assert.equal(await slideNumber(active), 1);
 
     // Keyboard focus within the hero pauses; blur resumes.
     await carousel.getByRole("button", { name: "Next banner" }).focus();
-    assert.equal(await waitForChange(active, 1, 2600), null, "focused carousel must not advance in 2.6s");
+    assert.equal(await waitForChange(active, 1, 3600), null, "focused carousel must not advance in 3.6s");
     await settle(page);
-    assert.notEqual(await waitForChange(active, 1, 4500), null, "carousel resumes after blur");
+    assert.notEqual(await waitForChange(active, 1, 5500), null, "carousel resumes after blur");
     assert.equal(await slideNumber(active), 2);
 
     // Manual advance RESETS the timer (discriminating check): 1.2s into a
     // window, swipe to the next slide without touching hover/focus state, so
     // the navigation itself is the only thing that can restart the timer.
-    // With the reset, the next automatic advance comes ~2s after the swipe;
-    // without it, the old schedule would fire ~0.8s after the swipe.
+    // With the reset, the next automatic advance comes ~3s after the swipe;
+    // without it, the old schedule would fire ~1.8s after the swipe.
     await page.waitForTimeout(1200);
     await swipeLeft(carousel);
     assert.equal(await slideNumber(active), 3);
-    const resetGap = await waitForChange(active, 3, 4500);
+    const resetGap = await waitForChange(active, 3, 5500);
     assert.ok(
-      resetGap !== null && resetGap >= 1500 && resetGap <= 3400,
-      `timer resets on manual advance (advance ${resetGap}ms after swipe, want ~2000ms)`,
+      resetGap !== null && resetGap >= 2500 && resetGap <= 4400,
+      `timer resets on manual advance (advance ${resetGap}ms after swipe, want ~3000ms)`,
     );
     assert.equal(await slideNumber(active), 1);
 
@@ -158,7 +160,7 @@ try {
     assert.equal(await slideNumber(active), 2);
     await page.waitForTimeout(1200);
     assert.equal(await slideNumber(active), 2, "no automatic advance 1.2s after an arrow click");
-    assert.notEqual(await waitForChange(active, 2, 2500), null, "advance follows ~2s after arrow click");
+    assert.notEqual(await waitForChange(active, 2, 3500), null, "advance follows ~3s after arrow click");
     assert.equal(await slideNumber(active), 3);
 
     // Dot navigation: same user-visible behaviour.
@@ -168,8 +170,29 @@ try {
     assert.equal(await slideNumber(active), 1);
     await page.waitForTimeout(1200);
     assert.equal(await slideNumber(active), 1, "no automatic advance 1.2s after a dot click");
-    assert.notEqual(await waitForChange(active, 1, 2500), null, "advance follows ~2s after dot click");
+    assert.notEqual(await waitForChange(active, 1, 3500), null, "advance follows ~3s after dot click");
     assert.equal(await slideNumber(active), 2);
+
+    // Spurious visibilitychange does NOT restart a running timer (restart
+    // guard): 1.2s into a window, dispatch a visibilitychange event while
+    // the tab stays visible, so the event is spurious — nothing about the
+    // running state changed. With the guard, the next advance still lands
+    // on the original schedule, ~1.8s after the event; without it, the
+    // countdown would restart and the advance would come ~3s after the
+    // event. The 2500ms upper bound discriminates the two: a restarted
+    // timer cannot fire before ~2.7s (the fastest steady-state gap seen).
+    // A spurious media-query change is not dispatchable this way: the
+    // listener sits on the real MediaQueryList, and changing the emulated
+    // preference would be a genuine state change (timer must stop), not a
+    // spurious event — so only visibilitychange is covered behaviourally.
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    const guardGap = await waitForChange(active, 2, 4000);
+    assert.ok(
+      guardGap !== null && guardGap >= 1000 && guardGap <= 2500,
+      `spurious visibilitychange must not restart the timer (advance ${guardGap}ms after the event, want ~1800ms)`,
+    );
+    assert.equal(await slideNumber(active), 3);
 
     // Arrows loop, keyboard arrows work, swipe works (pre-existing behaviour).
     // Pause first so auto-rotation cannot interleave with these assertions.
@@ -192,9 +215,11 @@ try {
       frame: `${frame.width}x${frame.height}`,
       fullWidth: true,
       contain: true,
-      rotationMs: 2000,
+      rotationMs: 3000,
       measuredGapMs: gap,
       measuredResetGapMs: resetGap,
+      measuredGuardGapMs: guardGap,
+      spuriousVisibilityNoRestart: true,
       sequential: true,
       wraparound: true,
       manualPause: true,
@@ -208,7 +233,7 @@ try {
       overflow: false,
     });
     await page.close();
-    console.log(`PASS carousel ${width}px (gap ${gap}ms, reset gap ${resetGap}ms)`);
+    console.log(`PASS carousel ${width}px (gap ${gap}ms, reset gap ${resetGap}ms, spurious-visibility gap ${guardGap}ms)`);
   }
 
   // Reduced motion: no auto-advance at all, manual controls still work.
