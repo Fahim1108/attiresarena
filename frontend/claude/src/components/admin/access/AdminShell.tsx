@@ -25,6 +25,7 @@ import {
   KeyRound,
   Bell,
   Menu,
+  Mail,
   ArrowUpRight,
   ImageIcon,
   Blocks,
@@ -199,6 +200,9 @@ export function AdminShell({
           : []),
         ...(hasArea("settings")
           ? [{ href: "/admin/system/redirects", label: "Redirects", Icon: ArrowLeftRight }]
+          : []),
+        ...(hasArea("settings")
+          ? [{ href: "/admin/system/smtp", label: "Email (SMTP)", Icon: Mail }]
           : []),
         ...(staffKnown
           ? [{ href: "/admin/settings/password", label: "Change Password", Icon: KeyRound }]

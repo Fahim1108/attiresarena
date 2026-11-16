@@ -5,20 +5,31 @@ import {
   ORDER_STATUS_TONES,
   PAYMENT_STATUS_LABELS,
 } from "@/lib/admin/constants";
+import {
+  isSteadfastConfigured,
+  readShipmentsForOrders,
+  sendOrderToCourier,
+  toShipmentSummary,
+  type ShipmentSummary,
+} from "@/lib/admin/courier";
 import { formatDateTime, formatMoney } from "@/lib/admin/format";
 import {
   bulkTransitionOrders,
   exportOrdersCsv,
   orderFilters,
+  previewStaleOrderSweep,
   readOrders,
+  runStaleOrderSweep,
+  setPaymentStatus,
   transitionOrder,
 } from "@/lib/admin/orders";
 import { resolveDisplayData } from "@/lib/admin/sample-data";
 import { SAMPLE_ORDERS } from "@/lib/admin/sample-sales";
-import { PageHeading, Pagination, hrefWithParams, Notice, StatusBadge } from "@/components/admin/ui";
+import { PageHeading, Pagination, Panel, hrefWithParams, Notice, StatusBadge } from "@/components/admin/ui";
 import { SampleBadge } from "@/components/admin/SampleBadge";
 import { OrdersTable } from "@/components/admin/sales/OrdersTable";
 import { SalesNav } from "@/components/admin/sales/SalesNav";
+import { StaleOrdersSweepPanel } from "@/components/admin/sales/StaleOrdersSweepPanel";
 import styles from "@/components/admin/sales/sales-refresh.module.css";
 
 export const metadata = { title: "Orders" };
@@ -40,6 +51,19 @@ export default async function OrdersPage({
   const count = result?.count ?? orders.length;
   const narrowed = result?.narrowed ?? false;
   const totalPages = Math.max(1, Math.ceil(count / filters.pageSize));
+  // Shipment state for the expanded cards (live data only; samples never
+  // book). A failed read degrades to an honest per-card notice.
+  const shipmentsResult = isSample
+    ? null
+    : await readShipmentsForOrders(orders.map((order) => order.id));
+  const shipments: Record<string, ShipmentSummary> = {};
+  if (shipmentsResult) {
+    for (const [orderId, row] of shipmentsResult) {
+      shipments[orderId] = toShipmentSummary(row);
+    }
+  }
+  const shipmentsUnavailable = !isSample && shipmentsResult === null;
+  const courierConfigured = isSteadfastConfigured();
 
   return (
     <main id="main" tabIndex={-1} className="aa-main">
@@ -139,6 +163,18 @@ export default async function OrdersPage({
         )}
       </p>
 
+      {!isSample ? (
+        <Panel
+          title="Unverified orders older than 3 hours"
+          description="Pending orders hold their stock until verified. Reviewing them cancels the stale ones and restocks their items — orders already sent to the courier are always skipped."
+        >
+          <StaleOrdersSweepPanel
+            previewAction={previewStaleOrderSweep}
+            runAction={runStaleOrderSweep}
+          />
+        </Panel>
+      ) : null}
+
       {isSample ? (
         <div className="aa-table-scroll">
           <table className="aa-table">
@@ -200,6 +236,11 @@ export default async function OrdersPage({
           bulkAction={bulkTransitionOrders}
           exportAction={exportOrdersCsv}
           statusAction={transitionOrder}
+          paymentAction={setPaymentStatus}
+          courierAction={sendOrderToCourier}
+          shipments={shipments}
+          shipmentsUnavailable={shipmentsUnavailable}
+          courierConfigured={courierConfigured}
         />
       )}
 

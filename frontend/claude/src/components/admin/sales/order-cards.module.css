@@ -130,6 +130,30 @@
   line-height: 1.5;
 }
 
+/* Inline update forms inside an expanded card: status + payment side by
+   side on wide cards, stacked on narrow ones; courier spans full width. */
+.inlineForms {
+  display: grid;
+  gap: 1rem 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  padding-top: 0.5rem;
+  border-top: 1px solid #eaeaea;
+}
+
+.inlineFormTitle {
+  margin: 0 0 0.5rem;
+  color: #171717;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.courierSection {
+  grid-column: 1 / -1;
+  padding-top: 0.75rem;
+  border-top: 1px solid #eaeaea;
+}
+
 .cardActions {
   display: flex;
   flex-wrap: wrap;

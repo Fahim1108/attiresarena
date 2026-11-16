@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireStaff, actionOk, actionError, toActionError, type AdminActionResult, type StaffSession } from "./authorization";
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, areaRoles } from "./constants";
+import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, areaRoles, type StaffRole } from "./constants";
 import { formatDateTime, parsePage, parsePageSize, toCsv } from "./format";
 import { escapeLikePattern, orderRowSchema, type OrderRow } from "./orders";
 
@@ -20,6 +20,48 @@ export const BD_PHONE_PATTERN = /^01[3-9][0-9]{8}$/;
 
 export function isValidBdPhone(value: unknown): value is string {
   return typeof value === "string" && BD_PHONE_PATTERN.test(value);
+}
+
+/**
+ * Normalize a phone to the strict orders form (01XXXXXXXXX) for history
+ * lookup. Checkout sessions accept a +88/88 prefix that orders never
+ * store, so an incomplete checkout's phone is normalized before the
+ * lookup — otherwise its history would always come back empty. Returns
+ * null when the number cannot be a Bangladeshi mobile number.
+ */
+export function normalizeBdPhoneForHistory(value: string): string | null {
+  const compact = value.replace(/[\s-]/g, "");
+  const local = compact.startsWith("+88")
+    ? compact.slice(3)
+    : compact.startsWith("88") && compact.length === 13
+      ? compact.slice(2)
+      : compact;
+  return isValidBdPhone(local) ? local : null;
+}
+
+/** How many previous orders the order/incomplete history panels show. */
+export const CUSTOMER_HISTORY_LIMIT = 10;
+
+/**
+ * Previous orders for display: newest first, excluding the current
+ * order, capped at the limit. Pure, so the ordering/exclusion/limit
+ * rules are unit-testable without a database.
+ */
+export function previousOrdersForDisplay(
+  rows: readonly OrderRow[],
+  excludeOrderId: string | null | undefined,
+  limit: number = CUSTOMER_HISTORY_LIMIT,
+): OrderRow[] {
+  return rows
+    .filter((row) => row.id !== excludeOrderId)
+    .toSorted((a, b) =>
+      a.placed_at === b.placed_at
+        ? (a.id < b.id ? 1 : -1)
+        : a.placed_at < b.placed_at
+          ? 1
+          : -1,
+    )
+    .slice(0, Math.max(0, limit));
 }
 
 export interface CustomerSummary {
@@ -327,6 +369,62 @@ export async function readCustomerProfile(rawPhone: string) {
 /* ------------------------------------------------------------------ */
 /* Server Actions: block / unblock go through RPCs only                */
 /* ------------------------------------------------------------------ */
+
+/**
+ * ONE shared previous-orders helper for the order detail page and the
+ * incomplete-order detail page. Reuses the readCustomerProfile query
+ * shape (orders by phone, newest first, bounded). Permission is
+ * page-area-only: the caller passes its own page area (orders / recovery)
+ * and no new area is introduced.
+ *
+ * The result is panel-scoped, never page-breaking: an unavailable read
+ * returns `unavailable: true` with an empty list, so the page still
+ * renders and the panel says so honestly. An unmatchable phone returns
+ * an honest empty list (no orders can exist under it).
+ */
+export async function readCustomerOrderHistory(
+  rawPhone: string,
+  options: { excludeOrderId?: string | null; area: readonly StaffRole[] },
+): Promise<{
+  phone: string | null;
+  orders: OrderRow[];
+  truncated: boolean;
+  unavailable: boolean;
+}> {
+  const session = await requireStaff(options.area);
+  const phone = normalizeBdPhoneForHistory(rawPhone.trim());
+  if (!phone) {
+    return { phone: null, orders: [], truncated: false, unavailable: false };
+  }
+  // Fetch one row past the display limit so `truncated` stays true
+  // when more orders exist than shown — plus one MORE when the current
+  // order is excluded, because the exclusion removes a fetched row
+  // before the comparison below (fetching only LIMIT+1 would report
+  // "complete" for a customer with LIMIT+1 previous orders or more
+  // whenever the current order is among the newest fetched rows).
+  const limit = CUSTOMER_HISTORY_LIMIT + (options.excludeOrderId ? 2 : 1);
+  const result = await session.client
+    .from("orders")
+    .select(ORDER_COLUMNS)
+    .eq("phone", phone)
+    .order("placed_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(limit);
+  if (result.error) {
+    return { phone, orders: [], truncated: false, unavailable: true };
+  }
+  const parsed = orderRowSchema.array().safeParse(result.data);
+  if (!parsed.success) {
+    return { phone, orders: [], truncated: false, unavailable: true };
+  }
+  const withoutCurrent = parsed.data.filter((row) => row.id !== options.excludeOrderId);
+  return {
+    phone,
+    orders: previousOrdersForDisplay(parsed.data, options.excludeOrderId),
+    truncated: withoutCurrent.length > CUSTOMER_HISTORY_LIMIT,
+    unavailable: false,
+  };
+}
 
 const blockSchema = z.object({
   phone: z.string().regex(BD_PHONE_PATTERN),

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { RECOVERY_STATUS_LABELS } from "@/lib/admin/constants";
+import { RECOVERY_STATUS_LABELS, areaRoles } from "@/lib/admin/constants";
+import { readCustomerOrderHistory } from "@/lib/admin/customers";
 import { formatDateTime, formatMoney } from "@/lib/admin/format";
 import { readIncompleteDetail, setRecoveryStatus } from "@/lib/admin/incomplete";
 import { resolveDisplayRecord } from "@/lib/admin/sample-data";
@@ -7,6 +8,7 @@ import { SAMPLE_INCOMPLETE_DETAIL } from "@/lib/admin/sample-sales";
 import { PageHeading, Panel, Notice, StatusBadge, type BadgeTone } from "@/components/admin/ui";
 import { SampleBadge } from "@/components/admin/SampleBadge";
 import { ProductThumbnail } from "@/components/admin/access/ProductThumbnail";
+import { CustomerOrderHistoryPanel } from "@/components/admin/sales/CustomerOrderHistoryPanel";
 import { RecoveryActions } from "@/components/admin/sales/RecoveryActions";
 import { SalesNav } from "@/components/admin/sales/SalesNav";
 import styles from "@/components/admin/sales/sales-refresh.module.css";
@@ -33,6 +35,12 @@ export default async function IncompleteDetailPage({
     SAMPLE_INCOMPLETE_DETAIL,
   );
   const { session, items, valueMinor, log, progressLabel, recoveryEditable } = record;
+  // Previous orders are live-only (samples carry no detail links). The
+  // read runs under this page's own recovery area; no order is excluded,
+  // so a linked placed order shows here too.
+  const historyResult = isSample
+    ? null
+    : await readCustomerOrderHistory(session.phone, { area: areaRoles("recovery") });
 
   return (
     <main id="main" tabIndex={-1} className="aa-main">
@@ -116,6 +124,20 @@ export default async function IncompleteDetailPage({
           </div>
         </dl>
       </Panel>
+
+      {!isSample && historyResult ? (
+        <Panel
+          title="Previous orders"
+          description="Other orders placed with this phone number, newest first."
+        >
+          <CustomerOrderHistoryPanel
+            orders={historyResult.orders}
+            phone={historyResult.phone}
+            truncated={historyResult.truncated}
+            unavailable={historyResult.unavailable}
+          />
+        </Panel>
+      ) : null}
 
       <Panel title="Items">
         {items.length === 0 ? (

@@ -8,12 +8,16 @@ import {
   ORDER_STATUSES,
   ORDER_STATUS_LABELS,
   ORDER_TRANSITIONS,
+  PAYMENT_STATUSES,
+  PAYMENT_STATUS_LABELS,
+  PAYMENT_TRANSITIONS,
   PRODUCT_MEDIA_BUCKET,
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
   areaRoles,
   isOrderStatus,
   type OrderStatus,
+  type PaymentStatus,
 } from "./constants";
 import { formatDateTime, parsePage, parsePageSize, toCsv } from "./format";
 
@@ -39,6 +43,62 @@ export function commonLegalTransitions(statuses: readonly OrderStatus[]): OrderS
   const first = ORDER_TRANSITIONS[statuses[0] as OrderStatus];
   return first.filter((candidate) =>
     statuses.every((status) => ORDER_TRANSITIONS[status].includes(candidate)),
+  );
+}
+
+/** Legal next payment statuses, mirroring admin_set_payment_status exactly. */
+export function legalPaymentTransitions(status: PaymentStatus): readonly PaymentStatus[] {
+  return PAYMENT_TRANSITIONS[status];
+}
+
+export function isLegalPaymentTransition(from: PaymentStatus, to: PaymentStatus): boolean {
+  return PAYMENT_TRANSITIONS[from].includes(to);
+}
+
+/* ------------------------------------------------------------------ */
+/* 3-hour unverified-order rule (pure selection; the sweep itself is   */
+/* the admin_run_unverified_order_sweep RPC). The predicate mirrors    */
+/* the SQL exactly: status = 'pending' AND placed_at < now - 3 hours.  */
+/* An order exactly 3 hours old is KEPT (strict < on both sides).      */
+/* `nowMs` is injectable so boundary tests never depend on the clock.  */
+/* ------------------------------------------------------------------ */
+
+/** Three hours, in milliseconds. The SQL sweep uses `interval '3 hours'`. */
+export const STALE_ORDER_THRESHOLD_MS = 3 * 60 * 60 * 1000;
+
+export function isStalePendingOrder(
+  order: { status: OrderStatus; placed_at: string },
+  nowMs: number,
+): boolean {
+  if (order.status !== "pending") return false;
+  const placedMs = Date.parse(order.placed_at);
+  if (Number.isNaN(placedMs)) return false;
+  return placedMs < nowMs - STALE_ORDER_THRESHOLD_MS;
+}
+
+/**
+ * Orders the sweep would cancel: stale pending orders WITHOUT a shipment
+ * record. `shippedOrderIds` is the set of order ids that already have a
+ * row in order_shipments; those are skipped, never swept.
+ */
+export function selectSweepableOrders<T extends { id: string; status: OrderStatus; placed_at: string }>(
+  orders: readonly T[],
+  shippedOrderIds: ReadonlySet<string>,
+  nowMs: number,
+): T[] {
+  return orders.filter(
+    (order) => !shippedOrderIds.has(order.id) && isStalePendingOrder(order, nowMs),
+  );
+}
+
+/** Stale pending orders skipped ONLY because they already have a shipment. */
+export function selectSkippedShippedOrders<T extends { id: string; status: OrderStatus; placed_at: string }>(
+  orders: readonly T[],
+  shippedOrderIds: ReadonlySet<string>,
+  nowMs: number,
+): T[] {
+  return orders.filter(
+    (order) => shippedOrderIds.has(order.id) && isStalePendingOrder(order, nowMs),
   );
 }
 
@@ -111,7 +171,7 @@ export const orderRowSchema = z.object({
   address_line: z.string(),
   note: z.string().nullable(),
   payment_method: z.string(),
-  payment_status: z.enum(["unpaid", "paid", "refunded"]),
+  payment_status: z.enum(PAYMENT_STATUSES),
   status: z.enum(ORDER_STATUSES),
   subtotal_minor: z.number().int(),
   delivery_charge_minor: z.number().int(),
@@ -152,14 +212,21 @@ const auditChangeSchema = z.object({
 
 export interface OrderHistoryEntry {
   id: string;
+  /** "status" for order.status_changed rows, "payment" for payment rows. */
+  kind: "status" | "payment";
   before: string | null;
   after: string | null;
   created_at: string;
 }
 
-const ORDER_COLUMNS =
+export const ORDER_COLUMNS =
   "id,order_number,user_id,customer_name,phone,email,division,district,area,address_line,note,payment_method,payment_status,status,subtotal_minor,delivery_charge_minor,discount_minor,total_minor,placed_at,created_at,updated_at";
-const ORDER_ITEM_COLUMNS =
+/**
+ * Snapshot columns only: name/size/color/price as recorded at order time.
+ * Exported so tests can pin that the detail read never re-derives line
+ * items from the live catalogue (and never selects the SKU column).
+ */
+export const ORDER_ITEM_COLUMNS =
   "id,order_id,product_id,variant_id,product_name,size,color,unit_price_minor,quantity,line_total_minor,created_at";
 
 /* ------------------------------------------------------------------ */
@@ -420,16 +487,20 @@ export async function readOrderDetail(id: string) {
     return { ...item, imageUrl: cover?.url ?? null, imageAlt: cover?.alt || item.product_name };
   });
 
+  // Status + payment history share the audit log; both actions are read
+  // together (the payment policy in migration 20261116000100 admits
+  // orders.read holders for the payment action, as 003 does for status).
   const historyResult = await session.client
     .from("admin_audit_logs")
-    .select("id,changes,created_at")
+    .select("id,action,changes,created_at")
     .eq("target_id", id)
-    .eq("action", "order.status_changed")
+    .in("action", ["order.status_changed", "order.payment_status_changed"])
     .order("created_at", { ascending: false })
     .limit(100);
   if (historyResult.error) return null;
   const historyRow = z.object({
     id: z.uuid(),
+    action: z.enum(["order.status_changed", "order.payment_status_changed"]),
     changes: z.unknown(),
     created_at: z.iso.datetime({ offset: true }),
   });
@@ -439,6 +510,7 @@ export async function readOrderDetail(id: string) {
     const changes = auditChangeSchema.safeParse(row.changes);
     return {
       id: row.id,
+      kind: row.action === "order.payment_status_changed" ? "payment" : "status",
       before: changes.success ? (changes.data.before ?? null) : null,
       after: changes.success ? (changes.data.after ?? null) : null,
       created_at: row.created_at,
@@ -534,6 +606,57 @@ export async function transitionOrder(
 }
 
 const MAX_BULK = 50;
+
+const paymentStatusSchema = z.object({
+  id: z.uuid(),
+  expected_updated_at: z.iso.datetime({ offset: true }),
+  new_payment_status: z.enum(PAYMENT_STATUSES),
+});
+
+function mapPaymentError(error: unknown): string {
+  if (error && typeof error === "object" && "code" in error && error.code === "PT409") {
+    return "This order changed. Reload to see the latest payment status before trying again.";
+  }
+  return toActionError(
+    error,
+    "Payment status could not be changed. Check your access and try again.",
+  );
+}
+
+/**
+ * Payment-status update via the admin_set_payment_status RPC. Mirrors
+ * transitionOrder: zod-validate → requireStaff(orders) → RPC →
+ * revalidatePath → actionOk/actionError, never leaking DB errors. The
+ * RPC enforces the legal payment table server-side (unpaid → paid /
+ * refunded, paid → refunded, refunded terminal, paid → unpaid
+ * forbidden); the UI only offers legal moves as a courtesy.
+ */
+export async function setPaymentStatus(
+  _prev: AdminActionResult | null,
+  formData: FormData,
+): Promise<AdminActionResult> {
+  "use server";
+  const parsed = paymentStatusSchema.safeParse({
+    id: formData.get("id"),
+    expected_updated_at: formData.get("expected_updated_at"),
+    new_payment_status: formData.get("new_payment_status"),
+  });
+  if (!parsed.success) {
+    return actionError("Enter a valid order and payment status. Reload and try again.");
+  }
+  const session = await requireStaff(areaRoles("orders"));
+  const result = await session.client.rpc("admin_set_payment_status", {
+    target_order: parsed.data.id,
+    expected_updated_at: parsed.data.expected_updated_at,
+    new_payment_status: parsed.data.new_payment_status,
+  });
+  if (result.error) return actionError(mapPaymentError(result.error));
+  revalidatePath("/admin/sales/orders");
+  revalidatePath(`/admin/sales/orders/${parsed.data.id}`);
+  return actionOk(
+    `Payment status changed to ${PAYMENT_STATUS_LABELS[parsed.data.new_payment_status]}.`,
+  );
+}
 
 export async function bulkTransitionOrders(
   _prev: AdminActionResult | null,
@@ -684,4 +807,98 @@ export async function exportOrdersCsv(input: {
     truncated: total > rows.length || (scope?.narrowed ?? false),
     total,
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* 3-hour unverified-order sweep: owner-triggered manual run only.     */
+/*                                                                     */
+/* NO SCHEDULER EXISTS (no pg_cron, no Vercel cron, no in-app          */
+/* scheduler). The sweep runs ONLY when a staff member with            */
+/* orders.manage runs it from the All Orders page. Automatic execution */
+/* needs a scheduler that does not exist yet — a separate,             */
+/* owner-approved step. Nothing here pretends otherwise.               */
+/* ------------------------------------------------------------------ */
+
+const sweepPreviewSchema = z.object({
+  stale: z.number().int().nonnegative(),
+  would_cancel: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+});
+
+export type SweepPreview = z.infer<typeof sweepPreviewSchema>;
+
+const sweepResultSchema = z.object({
+  cancelled: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+});
+
+export type SweepResult = z.infer<typeof sweepResultSchema>;
+
+/**
+ * Dry-run counts for the confirmation dialog: how many stale pending
+ * orders exist, how many the sweep would cancel, and how many would be
+ * skipped because they already have a courier booking. Writes nothing.
+ * Called directly from the client panel (same pattern as exportOrdersCsv).
+ */
+export async function previewStaleOrderSweep(): Promise<
+  | { ok: true; preview: SweepPreview }
+  | { ok: false; error: string }
+> {
+  "use server";
+  const session = await requireStaff(areaRoles("orders"));
+  const result = await session.client.rpc("admin_preview_unverified_order_sweep");
+  if (result.error) {
+    return {
+      ok: false,
+      error: "The unverified-order count could not be read. The database setup for the sweep may not be applied yet.",
+    };
+  }
+  const parsed = sweepPreviewSchema.safeParse(result.data);
+  if (!parsed.success) {
+    return { ok: false, error: "The unverified-order count could not be read. Try again." };
+  }
+  return { ok: true, preview: parsed.data };
+}
+
+/**
+ * Manual sweep run. Returns counts, never throws into the boundary. The
+ * RPC cancels stale pending orders (restoring stock) and skips orders
+ * with a courier booking; the result message reports both counts.
+ */
+export async function runStaleOrderSweep(
+  _prev: AdminActionResult | null,
+  formData: FormData,
+): Promise<AdminActionResult> {
+  "use server";
+  // The confirmation dialog posts confirm=1; anything else is refused so
+  // the sweep can never run from a stray or forged submission.
+  if (formData.get("confirm") !== "1") {
+    return actionError("Confirm the review in the dialog before running it.");
+  }
+  const session = await requireStaff(areaRoles("orders"));
+  const result = await session.client.rpc("admin_run_unverified_order_sweep");
+  if (result.error) {
+    return actionError(
+      toActionError(
+        result.error,
+        "Unverified orders could not be reviewed. No orders were changed. Check your access and try again.",
+      ),
+    );
+  }
+  const parsed = sweepResultSchema.safeParse(result.data);
+  if (!parsed.success) {
+    return actionError("The sweep result could not be read. Reload the orders list to see the current statuses.");
+  }
+  revalidatePath("/admin/sales/orders");
+  const { cancelled, skipped } = parsed.data;
+  if (cancelled === 0 && skipped === 0) {
+    return actionOk("No unverified orders are older than 3 hours. Nothing was changed.");
+  }
+  const skippedPart =
+    skipped > 0
+      ? ` ${skipped} stale order${skipped === 1 ? " was" : "s were"} skipped because ${skipped === 1 ? "it already has" : "they already have"} a courier booking.`
+      : "";
+  return actionOk(
+    `${cancelled} unverified order${cancelled === 1 ? " was" : "s were"} cancelled and restocked.${skippedPart}`,
+  );
 }

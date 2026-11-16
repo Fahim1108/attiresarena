@@ -146,6 +146,45 @@ describe("footer merge", () => {
       footer,
     );
   });
+
+  it("merges all four social links at once (facebook, instagram, youtube, tiktok)", () => {
+    const merged = applyFooterOverride(footer, {
+      social_facebook: "https://facebook.com/attiresarena",
+      social_instagram: "https://instagram.com/attiresarena",
+      social_youtube: "https://youtube.com/@attiresarena",
+      social_tiktok: "https://tiktok.com/@attiresarena",
+    });
+    expect(
+      merged.social.find((link) => link.network === "facebook")?.href,
+    ).toBe("https://facebook.com/attiresarena");
+    expect(
+      merged.social.find((link) => link.network === "instagram")?.href,
+    ).toBe("https://instagram.com/attiresarena");
+    expect(
+      merged.social.find((link) => link.network === "youtube")?.href,
+    ).toBe("https://youtube.com/@attiresarena");
+    expect(
+      merged.social.find((link) => link.network === "tiktok")?.href,
+    ).toBe("https://tiktok.com/@attiresarena");
+    expect(merged.social).toHaveLength(4);
+  });
+
+  it("keeps an invalid youtube link from breaking the other three", () => {
+    const merged = applyFooterOverride(footer, {
+      social_facebook: "https://facebook.com/attiresarena",
+      social_youtube: "not-a-url",
+      social_tiktok: "https://tiktok.com/@attiresarena",
+    });
+    expect(
+      merged.social.find((link) => link.network === "facebook")?.href,
+    ).toBe("https://facebook.com/attiresarena");
+    expect(
+      merged.social.find((link) => link.network === "youtube")?.href,
+    ).toBe("#");
+    expect(
+      merged.social.find((link) => link.network === "tiktok")?.href,
+    ).toBe("https://tiktok.com/@attiresarena");
+  });
 });
 
 describe("hero slide merge", () => {

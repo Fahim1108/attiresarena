@@ -4,15 +4,26 @@ import {
   ORDER_STATUS_TONES,
   PAYMENT_METHOD_LABELS,
   PAYMENT_STATUS_LABELS,
+  areaRoles,
 } from "@/lib/admin/constants";
+import {
+  isSteadfastConfigured,
+  readOrderShipment,
+  sendOrderToCourier,
+  toShipmentSummary,
+} from "@/lib/admin/courier";
+import { readCustomerOrderHistory } from "@/lib/admin/customers";
 import { formatDateTime, formatMoney } from "@/lib/admin/format";
-import { readOrderDetail, transitionOrder } from "@/lib/admin/orders";
+import { readOrderDetail, setPaymentStatus, transitionOrder } from "@/lib/admin/orders";
 import { resolveDisplayRecord } from "@/lib/admin/sample-data";
 import { SAMPLE_ORDER_DETAIL } from "@/lib/admin/sample-sales";
 import { PageHeading, Panel, Notice, StatusBadge } from "@/components/admin/ui";
 import { SampleBadge } from "@/components/admin/SampleBadge";
 import { ProductThumbnail } from "@/components/admin/access/ProductThumbnail";
+import { CourierBookingPanel } from "@/components/admin/sales/CourierBookingPanel";
+import { CustomerOrderHistoryPanel } from "@/components/admin/sales/CustomerOrderHistoryPanel";
 import { OrderStatusForm } from "@/components/admin/sales/OrderStatusForm";
+import { PaymentStatusForm } from "@/components/admin/sales/PaymentStatusForm";
 import { PrintInvoiceButton } from "@/components/admin/sales/PrintInvoiceButton";
 import { SalesNav } from "@/components/admin/sales/SalesNav";
 import styles from "@/components/admin/sales/sales-refresh.module.css";
@@ -33,6 +44,23 @@ export default async function OrderDetailPage({
   );
   const { order, items, history } = record;
   const orderLabel = order.order_number ? `#${order.order_number}` : "Order";
+  // Previous orders + courier state are live-only (samples carry no
+  // working actions or detail links). Both reads run in parallel; each
+  // degrades honestly on its own if unavailable.
+  const [historyResult, shipmentResult] = isSample
+    ? [null, null]
+    : await Promise.all([
+        readCustomerOrderHistory(order.phone, {
+          excludeOrderId: order.id,
+          area: areaRoles("orders"),
+        }),
+        readOrderShipment(order.id),
+      ]);
+  const shipment = shipmentResult?.shipment
+    ? toShipmentSummary(shipmentResult.shipment)
+    : null;
+  const shipmentUnavailable = !isSample && shipmentResult === null;
+  const courierConfigured = isSteadfastConfigured();
 
   return (
     <main id="main" tabIndex={-1} className="aa-main">
@@ -194,12 +222,65 @@ export default async function OrderDetailPage({
           </Panel>
         )}
 
+        {isSample ? (
+          <Panel title="Payment status">
+            <Notice kind="warning">
+              Payment changes are unavailable while live order data cannot
+              be loaded. This sample record cannot be changed.
+            </Notice>
+          </Panel>
+        ) : (
+          <Panel title="Payment status" description="Cash on delivery only. Only the payment moves allowed by the payment workflow are offered.">
+            <PaymentStatusForm
+              orderId={order.id}
+              currentPaymentStatus={order.payment_status}
+              expectedUpdatedAt={order.updated_at}
+              action={setPaymentStatus}
+            />
+          </Panel>
+        )}
+
+        {isSample ? (
+          <Panel title="Send to courier">
+            <Notice kind="warning">
+              Courier booking is unavailable while live order data cannot
+              be loaded. This sample record cannot be booked.
+            </Notice>
+          </Panel>
+        ) : (
+          <Panel title="Send to courier" description="One tap books a parcel with Steadfast using the details saved on this order.">
+            <CourierBookingPanel
+              orderId={order.id}
+              orderLabel={orderLabel}
+              orderStatus={order.status}
+              recipientName={order.customer_name}
+              recipientPhone={order.phone}
+              codMinor={order.total_minor}
+              shipment={shipment}
+              shipmentUnavailable={shipmentUnavailable}
+              configured={courierConfigured}
+              action={sendOrderToCourier}
+            />
+          </Panel>
+        )}
+
         <Panel title="Status history" description="Recorded in the admin audit log.">
           {history.length === 0 ? (
             <p>No status changes recorded yet.</p>
           ) : (
             <ul>
               {history.map((entry) => {
+                if (entry.kind === "payment") {
+                  const before =
+                    PAYMENT_STATUS_LABELS[entry.before ?? ""] ?? (entry.before ?? "—");
+                  const after =
+                    PAYMENT_STATUS_LABELS[entry.after ?? ""] ?? (entry.after ?? "—");
+                  return (
+                    <li key={entry.id}>
+                      Payment: {before} → {after} · {formatDateTime(entry.created_at)}
+                    </li>
+                  );
+                }
                 const before =
                   entry.before && entry.before in ORDER_STATUS_LABELS
                     ? ORDER_STATUS_LABELS[entry.before as keyof typeof ORDER_STATUS_LABELS]
@@ -217,6 +298,20 @@ export default async function OrderDetailPage({
             </ul>
           )}
         </Panel>
+
+        {!isSample && historyResult ? (
+          <Panel
+            title="Previous orders"
+            description="Other orders placed with this phone number, newest first."
+          >
+            <CustomerOrderHistoryPanel
+              orders={historyResult.orders}
+              phone={historyResult.phone}
+              truncated={historyResult.truncated}
+              unavailable={historyResult.unavailable}
+            />
+          </Panel>
+        ) : null}
       </div>
     </main>
   );

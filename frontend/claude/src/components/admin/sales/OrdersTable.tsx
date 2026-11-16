@@ -8,11 +8,15 @@ import {
   ORDER_TRANSITIONS,
   PAYMENT_STATUS_LABELS,
   type OrderStatus,
+  type PaymentStatus,
 } from "@/lib/admin/constants";
 import { formatDateTime, formatMoney } from "@/lib/admin/format";
+import type { ShipmentSummary } from "@/lib/admin/courier";
 import { StatusBadge } from "@/components/admin/ui";
 import { FormMessage, SubmitButton } from "@/components/admin/ui-client";
+import { CourierBookingPanel } from "./CourierBookingPanel";
 import { OrderStatusForm } from "./OrderStatusForm";
+import { PaymentStatusForm } from "./PaymentStatusForm";
 import styles from "./order-cards.module.css";
 import {
   downloadCsv,
@@ -27,7 +31,7 @@ export interface OrderListRow {
   customer_name: string;
   phone: string;
   status: OrderStatus;
-  payment_status: string;
+  payment_status: PaymentStatus;
   total_minor: number;
   placed_at: string;
   updated_at: string;
@@ -57,6 +61,11 @@ export function OrdersTable({
   bulkAction,
   exportAction,
   statusAction,
+  paymentAction,
+  courierAction,
+  shipments,
+  shipmentsUnavailable,
+  courierConfigured,
 }: {
   rows: OrderListRow[];
   exportFilters: { q: string; status: string; payment: string; from: string; to: string; sort: string };
@@ -64,6 +73,16 @@ export function OrdersTable({
   exportAction: OrdersExportAction;
   /** Per-order status-change action (transitionOrder), reused by expanded cards. */
   statusAction: SalesAction;
+  /** Per-order payment-status action (setPaymentStatus), reused by expanded cards. */
+  paymentAction: SalesAction;
+  /** One-tap courier booking action (sendOrderToCourier), shared with the detail page. */
+  courierAction: SalesAction;
+  /** Booked shipments by order id, for the expanded cards. */
+  shipments: Record<string, ShipmentSummary>;
+  /** True when the shipment read failed: cards show an honest notice instead of booking blind. */
+  shipmentsUnavailable: boolean;
+  /** True when the Steadfast API keys are configured server-side. */
+  courierConfigured: boolean;
 }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -243,13 +262,46 @@ export function OrdersTable({
                         <dd>{PAYMENT_STATUS_LABELS[row.payment_status] ?? row.payment_status}</dd>
                       </div>
                     </dl>
-                    <OrderStatusForm
-                      orderId={row.id}
-                      currentStatus={row.status}
-                      expectedUpdatedAt={row.updated_at}
-                      action={statusAction}
-                      idPrefix={`order-${row.id}`}
-                    />
+                    <div className={styles.inlineForms}>
+                      <section aria-label={`Change status for order ${label}`}>
+                        <h3 className={styles.inlineFormTitle}>Order status</h3>
+                        <OrderStatusForm
+                          orderId={row.id}
+                          currentStatus={row.status}
+                          expectedUpdatedAt={row.updated_at}
+                          action={statusAction}
+                          idPrefix={`order-${row.id}`}
+                        />
+                      </section>
+                      <section aria-label={`Change payment status for order ${label}`}>
+                        <h3 className={styles.inlineFormTitle}>Payment status</h3>
+                        <PaymentStatusForm
+                          orderId={row.id}
+                          currentPaymentStatus={row.payment_status}
+                          expectedUpdatedAt={row.updated_at}
+                          action={paymentAction}
+                          idPrefix={`payment-${row.id}`}
+                        />
+                      </section>
+                      <section
+                        className={styles.courierSection}
+                        aria-label={`Courier booking for order ${label}`}
+                      >
+                        <h3 className={styles.inlineFormTitle}>Courier</h3>
+                        <CourierBookingPanel
+                          orderId={row.id}
+                          orderLabel={label}
+                          orderStatus={row.status}
+                          recipientName={row.customer_name}
+                          recipientPhone={row.phone}
+                          codMinor={row.total_minor}
+                          shipment={shipments[row.id] ?? null}
+                          shipmentUnavailable={shipmentsUnavailable}
+                          configured={courierConfigured}
+                          action={courierAction}
+                        />
+                      </section>
+                    </div>
                     <div className={styles.cardActions}>
                       <Link
                         className="aa-row-action"
@@ -260,8 +312,8 @@ export function OrdersTable({
                       </Link>
                     </div>
                     <p className={styles.cardNote}>
-                      Line items and invoice printing live on the order details
-                      page.
+                      Line items, invoice printing and previous orders live
+                      on the order details page.
                     </p>
                   </div>
                 ) : null}

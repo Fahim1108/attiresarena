@@ -76,11 +76,47 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   cod: "Cash on Delivery",
 };
 
+export const PAYMENT_STATUSES = ["unpaid", "paid", "refunded"] as const;
+
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+
+/**
+ * Legal payment-status moves, mirroring the admin_set_payment_status RPC
+ * (migration 20261116000100) exactly. paid → unpaid is forbidden and
+ * refunded is terminal. There is no order-status precondition. The RPC
+ * enforces this table server-side; the UI must only offer these moves.
+ */
+export const PAYMENT_TRANSITIONS: Record<PaymentStatus, readonly PaymentStatus[]> = {
+  unpaid: ["paid", "refunded"],
+  paid: ["refunded"],
+  refunded: [],
+};
+
+export function isPaymentStatus(value: unknown): value is PaymentStatus {
+  return (
+    typeof value === "string" &&
+    (PAYMENT_STATUSES as readonly string[]).includes(value)
+  );
+}
+
 export const PAYMENT_STATUS_LABELS: Record<string, string> = {
   unpaid: "Unpaid",
   paid: "Paid",
   refunded: "Refunded",
 };
+
+/**
+ * Order statuses from which a Steadfast booking is allowed (coordinator
+ * decision). Lives here — not in courier.ts — because the client-side
+ * booking panel needs it and courier.ts is server-only. The
+ * admin_record_shipment RPC enforces the same rule server-side, so a
+ * bypassed client is still refused.
+ */
+export const BOOKABLE_ORDER_STATUSES: readonly OrderStatus[] = ["confirmed", "packed"];
+
+export function canBookCourier(status: OrderStatus): boolean {
+  return BOOKABLE_ORDER_STATUSES.includes(status);
+}
 
 /**
  * Database roles from the user_roles CHECK constraint. The first six are

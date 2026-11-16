@@ -1,0 +1,51 @@
+/* Courier booking panel. Theme tokens only: primary #6B0202,
+   primaryDark #460101, surface #FFFFFF, text #171717, muted #5F5A57,
+   border #EAEAEA, selected #F6EAEA; 6px radius. */
+
+.facts {
+  display: grid;
+  gap: 0.25rem 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  margin: 0.75rem 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.facts dt {
+  color: #5f5a57;
+}
+
+.facts dd {
+  margin: 0;
+  color: #171717;
+  overflow-wrap: anywhere;
+}
+
+.tracking {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.note {
+  margin: 0 0 0.75rem;
+  color: #5f5a57;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.note strong {
+  color: #171717;
+}
+
+.warning {
+  margin: 0 0 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #eaeaea;
+  border-left: 3px solid #6b0202;
+  border-radius: 6px;
+  background: #f6eaea;
+  color: #171717;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}

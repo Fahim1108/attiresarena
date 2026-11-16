@@ -145,6 +145,7 @@ const SAMPLE_ORDER_ITEMS: OrderItemView[] = [
 const SAMPLE_ORDER_HISTORY: OrderHistoryEntry[] = [
   {
     id: "50000000-0000-4000-8000-000000000012",
+    kind: "status",
     before: null,
     after: "pending",
     created_at: "2026-11-12T04:30:00.000Z",

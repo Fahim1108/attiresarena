@@ -13,8 +13,8 @@ export default async function StoreSettingsPage() {
         description="Contact details, social links and footer text. Only owners can change settings."
       />
       <Notice kind="info">
-        Saved values apply on the next page load once the storefront wiring
-        for the footer and contact page reads them. Nothing here changes
+        Saved values apply on the next page load — the storefront footer
+        and contact details read these settings live. Nothing here changes
         products, prices or checkout.
       </Notice>
       {settings === null ? (
