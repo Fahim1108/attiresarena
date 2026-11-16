@@ -11,7 +11,7 @@ import {
 import Link from "next/link";
 import styles from "./Header.module.css";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { CartBadge } from "@/components/motion/CartBadge";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { IconButton } from "@/components/ui/IconButton";
@@ -27,7 +27,8 @@ import { Logo } from "./Logo";
 import { MobileMenu } from "./MobileMenu";
 import { SearchBar } from "./SearchBar";
 
-export function Header() {
+/** The account menu is passed in from the server layout so its signed-in state comes from a verified session; without it, the signed-out menu renders. */
+export function Header({ accountMenu }: { accountMenu?: ReactNode }) {
   const { header } = useStorefront();
   const pathname = usePathname();
   const compact = usesCompactHeader(pathname);
@@ -145,7 +146,7 @@ export function Header() {
               >
                 <Search className="h-5 w-5" strokeWidth={1.6} />
               </IconButton>}
-              <CustomerMenu />
+              {accountMenu ?? <CustomerMenu />}
               <Link
                 href="/wishlist"
                 aria-label={`Wishlist${wishlist.ids.length ? ` (${wishlist.ids.length})` : ""}`}

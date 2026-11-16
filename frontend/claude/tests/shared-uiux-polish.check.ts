@@ -73,11 +73,15 @@ describe('shared ui/ux polish regressions', () => {
   it('announces async notices and focuses the first invalid field', () => {
     expect(read('src/components/ui/DemoNotice.tsx')).toContain('aria-live="polite"');
     const auth = read('src/components/account/AuthForms.tsx');
-    expect(auth).toContain('focusFirstError("login-identifier")');
+    // Email-only identifiers since the customer login build (D5):
+    // the login/forgot fields are email fields, not generic identifiers.
+    expect(auth).toContain('focusFirstError("login-email")');
     expect(auth).toContain('focusFirstError("register-fullName")');
-    expect(auth).toContain('focusFirstError("forgot-identifier")');
+    expect(auth).toContain('focusFirstError("forgot-email")');
     expect(auth).toContain('name="username"');
-    expect(read('src/components/account/ProfileForm.tsx')).toContain('focusFirstError("profile-email")');
+    // Profile email is read-only since the customer login build (D8),
+    // so the first invalid EDITABLE field is the full name.
+    expect(read('src/components/account/ProfileForm.tsx')).toContain('focusFirstError("profile-fullName")');
     expect(read('src/components/account/AddressManager.tsx')).toContain('focusFirstError("addr-phone")');
   });
 

@@ -5,7 +5,7 @@ import { defaultStorefrontSettings } from '@/config';
 import { STORAGE_KEYS } from '@/lib/storage';
 describe('isolated Claude preview adapter contracts — no live Supabase calls',()=>{
  it('keeps auth actions disconnected and never reports successful authentication',async()=>{
-  const attempts=await Promise.all([signInAction({identifier:'test@example.invalid',password:'not-a-real-password'}),registerAction({fullName:'Fixture',email:'test@example.invalid',phone:'01700000000',password:'not-a-real-password'}),requestPasswordResetAction({identifier:'test@example.invalid'})]);
+  const attempts=await Promise.all([signInAction({email:'test@example.invalid',password:'not-a-real-password'}),registerAction({fullName:'Fixture',email:'test@example.invalid',phone:'01700000000',password:'not-a-real-password'}),requestPasswordResetAction({email:'test@example.invalid'})]);
   for(const result of attempts)expect(result).toMatchObject({ok:false,reason:'not_connected'});
  });
  it('cannot claim a successful newsletter submission',async()=>{expect(await subscribeNewsletterAction('test@example.invalid')).toMatchObject({ok:false,reason:'not_connected'});});

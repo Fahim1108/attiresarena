@@ -84,10 +84,13 @@ export interface StorefrontDataSource {
   // ---- Mutations (all require backend) ----
   /** `total` is the server-calculated order total in BDT. Browser totals are never trusted. */
   placeOrder(payload: CheckoutPayload): Promise<ActionResult<{ orderNumber: string; total?: Money }>>;
-  signIn(input: { identifier: string; password: string }): Promise<ActionResult>;
-  register(input: { fullName: string; email: string; phone: string; password: string }): Promise<ActionResult>;
-  requestPasswordReset(input: { identifier: string }): Promise<ActionResult>;
-  updateProfile(input: Pick<Customer, "fullName" | "email" | "phone">): Promise<ActionResult>;
+  /** Email-only sign-in; phone identifiers are rejected, never resolved. */
+  signIn(input: { email: string; password: string }): Promise<ActionResult>;
+  /** `signedIn` is false when email confirmation is required (or the email is already registered — same non-enumerating outcome). */
+  register(input: { fullName: string; email: string; phone: string; password: string }): Promise<ActionResult<{ signedIn: boolean }>>;
+  requestPasswordReset(input: { email: string }): Promise<ActionResult>;
+  /** Name + phone only; email is read-only and never accepted here. */
+  updateProfile(input: Pick<Customer, "fullName" | "phone">): Promise<ActionResult>;
   saveAddress(address: Address): Promise<ActionResult<Address>>;
   deleteAddress(addressId: string): Promise<ActionResult>;
   subscribeNewsletter(email: string): Promise<ActionResult>;

@@ -57,6 +57,37 @@ export async function proxy(request?: NextRequest) {
     }
     return response;
   }
+  if (request && (request.nextUrl.pathname === "/account" || request.nextUrl.pathname.startsWith("/account/") || request.nextUrl.pathname.startsWith("/auth/"))) {
+    let response = NextResponse.next({ request });
+    response.headers.set("Cache-Control", "private, no-store");
+    const config = publicSupabaseConfiguration();
+    if (config) {
+      const {url,key}=config;
+      const client = createServerClient(url, key, {
+        cookieOptions: {
+          name: "aa-customer-auth",
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/",
+        },
+        cookies: {
+          getAll: () => request.cookies.getAll(),
+          setAll: (values) => {
+            for (const v of values) request.cookies.set(v.name, v.value);
+            response = NextResponse.next({ request });
+            response.headers.set("Cache-Control", "private, no-store");
+            for (const v of values)
+              response.cookies.set(v.name, v.value, v.options);
+          },
+        },
+      });
+      // Validate/refresh only customer sessions. Authorization still runs in every data/action boundary.
+      // Never runs for /admin paths (handled above) or other storefront paths.
+      await client.auth.getUser();
+    }
+    return response;
+  }
   const response=NextResponse.next();
   if(reviewInventoryEnabled()){
     response.headers.set('Cache-Control','private, no-store');

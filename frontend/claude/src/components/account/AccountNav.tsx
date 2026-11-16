@@ -1,9 +1,10 @@
 "use client";
 
-import { Heart, LogIn, MapPin, Package, Truck, User } from "lucide-react";
+import { Heart, LogOut, MapPin, Package, Truck, User } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
+import { signOutCustomer } from "@/lib/customer/actions";
 
 const links = [
   { href: "/account", label: "Profile", Icon: User },
@@ -33,9 +34,11 @@ export function AccountNav() {
           );
         })}
         <li className="shrink-0 lg:mt-3 lg:border-t lg:border-line lg:pt-3">
-          <Link href="/account/login" className="flex items-center gap-2.5 whitespace-nowrap rounded-control border border-line px-3.5 py-3 text-sm text-ink-muted hover:text-primary lg:border-transparent">
-            <LogIn className="h-4 w-4" aria-hidden /> Sign In
-          </Link>
+          <form action={signOutCustomer}>
+            <button type="submit" className="flex w-full cursor-pointer items-center gap-2.5 whitespace-nowrap rounded-control border border-line px-3.5 py-3 text-sm text-ink-muted hover:text-primary lg:border-transparent">
+              <LogOut className="h-4 w-4" aria-hidden /> Sign Out
+            </button>
+          </form>
         </li>
       </ul>
     </nav>

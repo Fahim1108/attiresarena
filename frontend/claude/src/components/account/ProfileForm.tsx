@@ -1,15 +1,17 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { DemoNotice } from "@/components/ui/DemoNotice";
 import { Input } from "@/components/ui/Field";
-import { isValidBdPhone, isValidEmail, type FieldErrors } from "@/lib/validation";
+import { isValidBdPhone, type FieldErrors } from "@/lib/validation";
 import { updateProfileAction } from "@/services/actions";
 import type { Customer } from "@/types";
 
 export function ProfileForm({ customer }: { customer: Customer }) {
-  const [form, setForm] = useState({ fullName: customer.fullName, email: customer.email, phone: customer.phone });
+  const router = useRouter();
+  const [form, setForm] = useState({ fullName: customer.fullName, phone: customer.phone });
   const [errors, setErrors] = useState<FieldErrors<keyof typeof form>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -24,16 +26,19 @@ export function ProfileForm({ customer }: { customer: Customer }) {
         if (pending) return;
         const errs: typeof errors = {};
         if (form.fullName.trim().length < 3) errs.fullName = "Enter your full name";
-        if (!isValidEmail(form.email)) errs.email = "Enter a valid email";
         if (!isValidBdPhone(form.phone)) errs.phone = "Enter a valid mobile number";
         setErrors(errs);
         if (errs.fullName) return focusFirstError("profile-fullName");
-        if (errs.email) return focusFirstError("profile-email");
         if (errs.phone) return focusFirstError("profile-phone");
         start(async () => {
           try {
             const r = await updateProfileAction(form);
-            setMessage(r.ok ? "Profile updated." : r.message);
+            if (r.ok) {
+              setMessage(r.message ?? "Profile updated.");
+              router.refresh();
+            } else {
+              setMessage(r.message);
+            }
           } catch {
             setMessage("The request could not be completed. Please try again.");
           }
@@ -42,7 +47,7 @@ export function ProfileForm({ customer }: { customer: Customer }) {
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <Input id="profile-fullName" name="name" label="Full Name" autoComplete="name" value={form.fullName} onChange={set("fullName")} error={errors.fullName} wrapperClassName="sm:col-span-2" />
-        <Input id="profile-email" name="email" label="Email" type="email" autoComplete="email" spellCheck={false} value={form.email} onChange={set("email")} error={errors.email} />
+        <Input id="profile-email" name="email" label="Email" type="email" autoComplete="email" spellCheck={false} value={customer.email} readOnly hint="Email cannot be changed here." />
         <Input id="profile-phone" name="tel" label="Mobile Number" type="tel" autoComplete="tel" value={form.phone} onChange={set("phone")} error={errors.phone} />
       </div>
       {message && <DemoNotice force>{message}</DemoNotice>}

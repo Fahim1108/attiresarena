@@ -5,6 +5,7 @@ import { reviewInventoryEnabled } from "@/lib/storefront-policy";
 import { officialShirtSizeGuide } from "@/config/shirt-size-guide";
 import { previewPaymentConfiguration } from "@/config/payment-receiving";
 import { unavailableServices } from "./unavailable";
+import { customerServices } from "./customer";
 import {campaignHero} from '@/config/campaign-banners';
 import {reviewShirts} from './review-thrift';
 import {publishedShirts,approvedReviews,readPublishedFeed,readThriftFeed,readAdminFeed} from './published-thrift';
@@ -43,7 +44,7 @@ export function curatedInventoryCollection(products:Product[],kind:'new-arrivals
  const inventory=products.filter(p=>/^aa-shirt-\d{3}$/.test(p.slug)).sort((a,b)=>a.slug.localeCompare(b.slug));
  return (kind==='new-arrivals'?inventory:inventory.slice(8)).slice(0,Math.max(0,Math.min(limit,8)));
 }
-export const ownerCatalogue:StorefrontDataSource={...unavailableServices,
+export const ownerCatalogue:StorefrontDataSource={...unavailableServices,...customerServices,
  // Real orders on verified Staging only; otherwise this reports "not connected".
  async placeOrder(payload){return placeCheckoutOrder(payload);},
  async getHomepageProducts(){return []; /* Publication dates must come from trusted publication metadata. */},

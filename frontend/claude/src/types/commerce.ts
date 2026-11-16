@@ -108,7 +108,9 @@ export interface Order {
  * Result shape returned by any action that requires a backend.
  * The mock adapter always returns `{ ok: false, reason: "not_connected" }`
  * so the UI never claims a successful order, payment, or sign-in.
+ * A success may carry an optional `message` notice (e.g. a partial
+ * save where one part did not persist); failures always carry one.
  */
 export type ActionResult<T = undefined> =
-  | { ok: true; data: T }
+  | { ok: true; data: T; message?: string }
   | { ok: false; reason: "not_connected" | "validation" | "error"; message: string };

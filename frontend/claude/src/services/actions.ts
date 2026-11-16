@@ -2,11 +2,10 @@
 
 /**
  * Server Actions callable from client components. Each one delegates to the
- * active data source. With the mock adapter every mutation returns
- * `{ ok: false, reason: "not_connected" }` — the UI shows that honestly.
- *
- * Codex: add auth/session checks and input validation (e.g. zod) here when
- * connecting Supabase.
+ * active data source. The customer slice is connected (see
+ * src/services/adapters/customer.ts): validation and session checks run
+ * inside the customer actions. Newsletter/contact/storefront/media
+ * mutations still return `{ ok: false, reason: "not_connected" }`.
  */
 import type { Address, CheckoutPayload, Customer, StorefrontSettings } from "@/types";
 import { dataSource } from "./adapters";
@@ -33,7 +32,7 @@ export async function placeOrderAction(payload: CheckoutPayload) {
   return dataSource.placeOrder(payload);
 }
 
-export async function signInAction(input: { identifier: string; password: string }) {
+export async function signInAction(input: { email: string; password: string }) {
   return dataSource.signIn(input);
 }
 
@@ -41,11 +40,11 @@ export async function registerAction(input: { fullName: string; email: string; p
   return dataSource.register(input);
 }
 
-export async function requestPasswordResetAction(input: { identifier: string }) {
+export async function requestPasswordResetAction(input: { email: string }) {
   return dataSource.requestPasswordReset(input);
 }
 
-export async function updateProfileAction(input: Pick<Customer, "fullName" | "email" | "phone">) {
+export async function updateProfileAction(input: Pick<Customer, "fullName" | "phone">) {
   return dataSource.updateProfile(input);
 }
 

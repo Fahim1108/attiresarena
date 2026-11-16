@@ -15,19 +15,21 @@ import type { Address } from "@/types";
 
 const empty: Address = { id: "", label: "Home", fullName: "", phone: "", division: "", district: "", area: "", addressLine: "", isDefault: false };
 
-/** Address book. Edits are applied to local state for the demo; the server action reports "not connected". */
+/** Address book. Every change round-trips to the server; the list only changes when the server confirms it. */
 export function AddressManager({ initial }: { initial: Address[] }) {
   const [addresses, setAddresses] = useState(initial);
   const [editing, setEditing] = useState<Address | null>(null);
   const [errors, setErrors] = useState<FieldErrors<keyof Address>>({});
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const districts = useMemo(() => districtsOf(editing?.division ?? ""), [editing?.division]);
   const areas = useMemo(() => areasOf(editing?.district ?? ""), [editing?.district]);
   const focusFirstError = (id: string) => requestAnimationFrame(() => document.getElementById(id)?.focus());
 
   const save = async () => {
-    if (!editing) return;
+    if (!editing || saving) return;
     const e: typeof errors = {};
     if (editing.fullName.trim().length < 3) e.fullName = "Required";
     if (!isValidBdPhone(editing.phone)) e.phone = "Enter a valid mobile number";
@@ -42,20 +44,56 @@ export function AddressManager({ initial }: { initial: Address[] }) {
     if (e.district) return focusFirstError("addr-district");
     if (e.area) return focusFirstError("addr-area");
     if (e.addressLine) return focusFirstError("addr-addressLine");
-    const saved = { ...editing, id: editing.id || `local_${Date.now()}` };
-    setAddresses((list) => {
-      const next = list.some((a) => a.id === saved.id) ? list.map((a) => (a.id === saved.id ? saved : a)) : [...list, saved];
-      return saved.isDefault ? next.map((a) => ({ ...a, isDefault: a.id === saved.id })) : next;
-    });
-    setEditing(null);
-    const r = await saveAddressAction(saved);
-    setNotice(r.ok ? null : `${r.message} The change is shown on this page only.`);
+    setSaving(true);
+    try {
+      const r = await saveAddressAction(editing);
+      if (!r.ok) {
+        setNotice(r.message);
+        return;
+      }
+      const saved = r.data;
+      setAddresses((list) => {
+        const next = list.some((a) => a.id === saved.id) ? list.map((a) => (a.id === saved.id ? saved : a)) : [...list, saved];
+        return saved.isDefault ? next.map((a) => ({ ...a, isDefault: a.id === saved.id })) : next;
+      });
+      setNotice(null);
+      setEditing(null);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const remove = async (id: string) => {
-    setAddresses((list) => list.filter((a) => a.id !== id));
-    const r = await deleteAddressAction(id);
-    setNotice(r.ok ? null : `${r.message} The change is shown on this page only.`);
+    if (busyId) return;
+    setBusyId(id);
+    try {
+      const r = await deleteAddressAction(id);
+      if (r.ok) {
+        setAddresses((list) => list.filter((a) => a.id !== id));
+        setNotice(null);
+      } else {
+        setNotice(r.message);
+      }
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const makeDefault = async (address: Address) => {
+    if (busyId) return;
+    setBusyId(address.id);
+    try {
+      const r = await saveAddressAction({ ...address, isDefault: true });
+      if (r.ok) {
+        const saved = r.data;
+        setAddresses((list) => list.map((a) => (a.id === saved.id ? saved : { ...a, isDefault: false })));
+        setNotice(null);
+      } else {
+        setNotice(r.message);
+      }
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const upd = (patch: Partial<Address>) => setEditing((a) => (a ? { ...a, ...patch } : a));
@@ -88,7 +126,7 @@ export function AddressManager({ initial }: { initial: Address[] }) {
                   Edit
                 </Button>
                 {!a.isDefault && (
-                  <Button variant="ghost" aria-label={`Set ${a.label} as the default address`} leftIcon={<Star className="h-3.5 w-3.5" />} onClick={() => setAddresses((l) => l.map((x) => ({ ...x, isDefault: x.id === a.id })))}>
+                  <Button variant="ghost" aria-label={`Set ${a.label} as the default address`} leftIcon={<Star className="h-3.5 w-3.5" />} disabled={busyId !== null} onClick={() => void makeDefault(a)}>
                     Set default
                   </Button>
                 )}
@@ -97,6 +135,7 @@ export function AddressManager({ initial }: { initial: Address[] }) {
                   className="text-danger"
                   aria-label={confirmDeleteId === a.id ? `Confirm delete ${a.label} address` : `Delete ${a.label} address`}
                   leftIcon={<Trash2 className="h-3.5 w-3.5" />}
+                  disabled={busyId !== null}
                   onClick={() => {
                     if (confirmDeleteId === a.id) {
                       setConfirmDeleteId(null);
@@ -122,15 +161,17 @@ export function AddressManager({ initial }: { initial: Address[] }) {
         title={editing?.id ? "Edit Address" : "New Address"}
         footer={
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setEditing(null)}>
+            <Button variant="ghost" onClick={() => setEditing(null)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={save}>Save Address</Button>
+            <Button onClick={save} loading={saving}>Save Address</Button>
           </div>
         }
       >
         {editing && (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <>
+            {notice && <DemoNotice force className="mb-4">{notice}</DemoNotice>}
+            <div className="grid gap-4 sm:grid-cols-2">
             <Select label="Label" name="address-label" options={["Home", "Office", "Other"].map((v) => ({ value: v, label: v }))} value={editing.label} onChange={(e) => upd({ label: e.target.value })} />
             <Input id="addr-fullName" name="name" label="Full Name" autoComplete="name" value={editing.fullName} onChange={(e) => upd({ fullName: e.target.value })} error={errors.fullName} />
             <Input id="addr-phone" name="tel" label="Mobile Number" type="tel" autoComplete="tel" placeholder="01XXXXXXXXX" value={editing.phone} onChange={(e) => upd({ phone: e.target.value })} error={errors.phone} wrapperClassName="sm:col-span-2" />
@@ -143,7 +184,8 @@ export function AddressManager({ initial }: { initial: Address[] }) {
             )}
             <Textarea id="addr-addressLine" name="address" label="Detailed Address" autoComplete="street-address" value={editing.addressLine} onChange={(e) => upd({ addressLine: e.target.value })} error={errors.addressLine} wrapperClassName="sm:col-span-2" className="min-h-[80px]" />
             <Checkbox name="default-address" label="Set as default address" checked={editing.isDefault} onChange={(e) => upd({ isDefault: e.target.checked })} className="sm:col-span-2" />
-          </div>
+            </div>
+          </>
         )}
       </Modal>
     </section>
