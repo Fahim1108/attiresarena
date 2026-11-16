@@ -213,6 +213,203 @@ export function validateVariantList(
   return null;
 }
 
+// ------------------------------------------------------- main-level sizes
+//
+// MATERIALIZATION (coordinator decision OQ-2, sizes build): a size entered
+// at the main place of the product form is stored as an ORDINARY
+// product_variants row, created by the existing admin_create_product /
+// admin_update_product RPCs from the existing p.variants payload. The
+// "main place" is a UX fact — a Sizes field group in the main section of
+// the form — not a storage fact: there is no sizes column on products,
+// no size table, and no new RPC. The rejected alternative (a
+// products.sizes column) would have needed a column migration, two RPC
+// replacements, a feed replacement, and a drift rule for when the column
+// disagreed with variant rows, while adding no capability: stock,
+// ordering, reservation and restore are all keyed by variant_id, so a
+// size without a variant row could never be ordered. Materialization
+// makes main-level sizes visible to the feed, the projector, facets,
+// Shop-by-Size, the cart, checkout, inventory, orders and the sweep
+// with zero schema/feed/checkout changes.
+//
+// Each main-level size carries its OWN stock counter (its variant's
+// inventory row). Listing one physical garment under several main sizes
+// therefore makes it sellable once per size; the intake flow remains
+// the path for true single pieces (one verified actual_size, stock 0/1).
+// The admin UI says this plainly. No "first sale wins across sizes"
+// rule exists (coordinator decision OQ-7).
+//
+// The helpers below are the ONLY expansion/merge implementation. They
+// live here (not in the "use server" module) so the vitest checks can
+// exercise them; parseProductForm calls mergeMainSizes and maps its
+// field error onto the form. Validation parity is by construction: every
+// generated row is parsed through variantInputSchema itself — the rules
+// are reused, never forked. variantInputSchema, validateVariantList and
+// both RPCs are unchanged.
+
+/** Default main color, matching the default-variant precedent (One Size / Standard). */
+export const MAIN_SIZES_DEFAULT_COLOR = "Standard";
+
+/** One size row from the main-sizes editor, as serialized to main_sizes_json. */
+export interface MainSizeRowInput {
+  size: string;
+  /** Initial stock; honoured for NEW variants only (same rule as variants). */
+  stock: number;
+}
+
+export interface MainSizesMergeResult {
+  /** Explicit variants first (unchanged order), then generated rows. */
+  variants: VariantInput[];
+  /** Field-keyed error for the form, or null when the merge succeeded. */
+  fieldError: { field: "main_sizes" | "main_color"; message: string } | null;
+}
+
+/**
+ * Expand main-level size rows into variant inputs and merge them with
+ * the explicit variant-editor rows.
+ *
+ * Merge rules:
+ * - Generated rows use the base prices, the single main color, and
+ *   active:true, and carry NO id (new variants on create AND on update).
+ * - An explicit row WINS over a generated row with the same (size,
+ *   color) pair: the generated row is dropped silently. This covers
+ *   sizes the admin also defined explicitly, with their own prices.
+ * - EXCEPT on edit: a generated pair colliding with an EXISTING variant
+ *   (an explicit row carrying an id) is a FIELD ERROR naming the size
+ *   ("Size M already exists — edit it in Variants"). Main sizes are
+ *   additive-only on edit; existing sizes are managed in Variants.
+ * - Duplicate main-size rows, invalid sizes/stock, a missing or too-long
+ *   main color, and a merged total over the 100-variant cap are field
+ *   errors naming the main-sizes field. An empty row list merges to the
+ *   explicit variants unchanged and the main color is ignored.
+ * - A base price of ৳0 or less with sizes present is a field error: a
+ *   generated row is active, and active variants need a price above ৳0.
+ */
+export function mergeMainSizes(input: {
+  /** Explicit variant-editor rows, already validated. */
+  explicitVariants: readonly VariantInput[];
+  /** Parsed main_sizes_json payload (unknown shape: validated here). */
+  rows: unknown;
+  /** Raw main-color input; required iff any size row exists. */
+  mainColor: string;
+  basePriceMinor: number;
+  baseSalePriceMinor: number | null;
+  baseCostPriceMinor: number | null;
+}): MainSizesMergeResult {
+  const explicit = [...input.explicitVariants];
+  const fail = (
+    field: "main_sizes" | "main_color",
+    message: string,
+  ): MainSizesMergeResult => ({ variants: explicit, fieldError: { field, message } });
+
+  if (!Array.isArray(input.rows)) {
+    return fail(
+      "main_sizes",
+      "Sizes data could not be read. Reload and try again.",
+    );
+  }
+  if (input.rows.length === 0) {
+    return { variants: explicit, fieldError: null };
+  }
+
+  // Main color: same rule as a variant color (1–80 chars after trim),
+  // required iff any size row exists. The generated-row schema parse
+  // below re-checks it; this explicit check exists so the error lands
+  // on the main-color field instead of the sizes field.
+  const mainColor = input.mainColor.trim();
+  if (mainColor === "") {
+    return fail("main_color", "Enter a main color for the sizes.");
+  }
+  if (mainColor.length > 80) {
+    return fail("main_color", "Main color must be 80 characters or fewer.");
+  }
+  if (input.basePriceMinor <= 0) {
+    return fail(
+      "main_sizes",
+      "Enter a regular price above ৳0.00 for the main sizes.",
+    );
+  }
+
+  const generated: VariantInput[] = [];
+  const seenSizes = new Set<string>();
+  for (const raw of input.rows) {
+    if (
+      typeof raw !== "object" ||
+      raw === null ||
+      Array.isArray(raw) ||
+      typeof (raw as { size?: unknown }).size !== "string" ||
+      typeof (raw as { stock?: unknown }).stock !== "number"
+    ) {
+      return fail(
+        "main_sizes",
+        "Sizes: each row needs a size and a stock quantity.",
+      );
+    }
+    const row = raw as MainSizeRowInput;
+    if (
+      !Number.isInteger(row.stock) ||
+      row.stock < 0 ||
+      row.stock > 999_999_999
+    ) {
+      return fail(
+        "main_sizes",
+        "Sizes: stock must be a whole number of 0 or more.",
+      );
+    }
+    // Full parity with variant rows: the candidate is validated by
+    // variantInputSchema itself (size 1–40, no placeholder sizes,
+    // sale <= regular, active needs a price above ৳0).
+    const candidate = {
+      size: row.size,
+      color: mainColor,
+      price_minor: input.basePriceMinor,
+      sale_price_minor: input.baseSalePriceMinor,
+      cost_price_minor: input.baseCostPriceMinor,
+      stock: row.stock,
+      active: true,
+    };
+    const parsed = variantInputSchema.safeParse(candidate);
+    if (!parsed.success) {
+      const first = parsed.error.issues[0];
+      return fail("main_sizes", `Sizes: ${first?.message ?? "Check the sizes."}`);
+    }
+    if (seenSizes.has(parsed.data.size)) {
+      return fail(
+        "main_sizes",
+        `Sizes: size "${parsed.data.size}" appears more than once.`,
+      );
+    }
+    seenSizes.add(parsed.data.size);
+    generated.push(parsed.data);
+  }
+
+  const merged: VariantInput[] = [...explicit];
+  for (const row of generated) {
+    const clash = explicit.find(
+      (v) => v.size === row.size && v.color === row.color,
+    );
+    if (clash) {
+      // An id marks a variant that already exists in the database:
+      // main sizes are additive-only, so this is a field error, not a
+      // silent drop. A new explicit row (no id) wins silently instead.
+      if (clash.id !== undefined) {
+        return fail(
+          "main_sizes",
+          `Size ${row.size} already exists — edit it in Variants.`,
+        );
+      }
+      continue;
+    }
+    merged.push(row);
+  }
+  if (merged.length > MAX_VARIANTS_PER_PRODUCT) {
+    return fail(
+      "main_sizes",
+      `A product may have at most ${MAX_VARIANTS_PER_PRODUCT} variants, including main sizes.`,
+    );
+  }
+  return { variants: merged, fieldError: null };
+}
+
 /** Field-level price errors for one variant (used by the editor hints). */
 export function variantPriceErrors(variant: {
   price_minor: number;

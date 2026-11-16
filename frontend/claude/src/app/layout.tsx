@@ -8,6 +8,7 @@ import { StorefrontProvider } from "@/context/StorefrontContext";
 import { ToastProvider } from "@/context/ToastContext";
 import { WishlistProvider } from "@/context/WishlistContext";
 import { applyFooterOverride, getStorefrontContent, parseMarketingSettings, resolveStorefrontMetadata } from "@/lib/store-settings";
+import { checkoutOrdersEnabled } from "@/lib/checkout/config";
 import { getInitialCart, getStorefrontSettings, getProducts } from "@/services";
 import "@fontsource-variable/cormorant-garamond";
 import "@fontsource-variable/inter";
@@ -52,7 +53,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <CustomCodeSlot code={marketing.headCode} label="header" />
         <MarketingScripts marketing={marketing} />
-        <aside className="design-preview-notice" aria-label="Design preview notice">Our collection is being prepared. Ordering is not yet available.</aside>
+        {!checkoutOrdersEnabled() ? (
+          <aside className="design-preview-notice" aria-label="Design preview notice">Our collection is being prepared. Ordering is not yet available.</aside>
+        ) : null}
         <StorefrontProvider settings={{ ...settings, footer }}>
           <ToastProvider>
             <WishlistProvider approvedProductIds={catalogue.items.map(p=>p.id)}>

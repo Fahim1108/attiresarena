@@ -417,9 +417,14 @@ export function projectPublishedAdminProduct(row: unknown): Product | null {
   const imagesByColor: Record<string, ProductImage[]> = {};
   for (const color of colors) imagesByColor[color.id] = images;
 
-  const firstSize = sizes[0];
-  const apparelSizing =
-    firstSize !== undefined && canonicalSize(firstSize) !== undefined;
+  // Apparel sizing is true when ANY variant size is an apparel size:
+  // the feed orders variants by (color, size), so the first size may be
+  // "One Size" while later variants carry real apparel sizes. Deriving
+  // this from the first size only hid such products from Shop-by-Size
+  // and canonical size filtering. Main-level sizes are materialized as
+  // ordinary variants (see catalog-variants.ts), so they flow through
+  // this same derivation with no special case.
+  const apparelSizing = sizes.some((s) => canonicalSize(s) !== undefined);
 
   return {
     id: parsed.id,

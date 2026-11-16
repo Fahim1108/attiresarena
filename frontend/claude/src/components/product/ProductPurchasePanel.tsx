@@ -77,7 +77,7 @@ export function ProductPurchasePanel({ product, brandName, colorId, sizeGuide, c
 
       <SizeSelector
         sizes={product.apparelSizing && canonicalSize(product.sizes[0] ?? "") ? APPAREL_SIZES.map(label=>(product.sizeOptions ?? product.sizes).find(s=>canonicalSize(s)===label) ?? label) : product.sizeOptions ?? product.sizes}
-        locked
+        locked={product.reviewOnly === true}
         labels={product.sizeLabels}
         value={size}
         onChange={(s) => {

@@ -17,6 +17,7 @@ import type {
 } from "@/lib/admin/catalog-products";
 import { Notice, Panel } from "../ui";
 import { focusFirstInvalid, SubmitButton } from "../ui-client";
+import { MainSizesEditor } from "./main-sizes-editor";
 import { RadioOptionGroup } from "./radio-option-cards";
 import { VariantEditor, type VariantDraftInitial } from "./variant-editor";
 
@@ -368,7 +369,7 @@ export function ProductForm({
 
           <Panel
             title="Pricing"
-            description="Used for the default variant when the product has no variants below. When variants exist, each variant carries its own prices."
+            description="Used for the default variant when the product has no variants or sizes below, and for the sizes in the Sizes section. When variants exist, each variant carries its own prices."
           >
             <div className="aa-form-grid aa-form-grid--3">
               <div className="aa-field">
@@ -437,6 +438,13 @@ export function ProductForm({
                 {errorText("base_stock", "product-stock")}
               </div>
             </div>
+          </Panel>
+
+          <Panel title="Sizes">
+            <MainSizesEditor
+              fieldError={fieldError("main_sizes")}
+              colorError={fieldError("main_color")}
+            />
           </Panel>
 
           <Panel title="Images">

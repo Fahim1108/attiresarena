@@ -6,9 +6,10 @@ import { useProductSize } from "./ProductSizeContext";
 import { ProductGallery } from "./ProductGallery";
 import { ProductPurchasePanel } from "./ProductPurchasePanel";
 
-/** Fixed-SKU display: customer products carry exactly one size and colour, so the
- *  gallery and purchase panel always use the product's first (only) colour.
- *  Colour/size switching is intentionally unavailable — see fixedCustomerItem. */
+/** Fixed-first-colour display: the gallery and purchase panel always use the
+ *  product's first colour; colour switching is intentionally unavailable.
+ *  Size selection is unlocked for verified products and stays locked for
+ *  reviewOnly products — see ProductPurchasePanel. */
 export function ProductDetailClient({ product, brandName, sizeGuide }: { product: Product; brandName?: string; sizeGuide?: SizeGuide | null; initialColorId?: string }) {
   const selection = useProductSize();
   const colorId = product.colors[0]?.id ?? "";

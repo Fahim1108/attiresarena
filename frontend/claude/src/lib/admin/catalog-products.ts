@@ -77,6 +77,7 @@ import {
   classifyStock,
   isCatalogStoragePath,
   isValidSlug,
+  mergeMainSizes,
   parseTagsInput,
   publicationVisibility,
   validateVariantList,
@@ -966,6 +967,9 @@ const productFormSchema = z.object({
   base_sale_price_minor: z.number().int().min(0).nullable(),
   base_cost_price_minor: z.number().int().min(0).nullable(),
   base_stock: z.number().int().min(0),
+  // Merged variants: explicit variant-editor rows plus main-level sizes
+  // expanded by mergeMainSizes in parseProductForm (materialization —
+  // see catalog-variants.ts). Generated rows carry no id.
   variants: z.array(variantInputSchema).max(100),
 });
 
@@ -1042,6 +1046,41 @@ function parseProductForm(form: FormData): {
       }
     } catch {
       fieldErrors.variants = "Variant data could not be read. Reload and try again.";
+    }
+  }
+  // Main-level sizes (sizes build): rows from the Sizes section expand
+  // into ordinary variant rows via mergeMainSizes (materialization —
+  // see catalog-variants.ts) and join the variants array before the
+  // price check and schema validation below, so the merged total is
+  // what the RPC receives. The merge runs only once the base price
+  // parsed: without a price the save is already blocked, and generated
+  // rows price from it. toRpcPayload needs no change: it serializes
+  // this same array, and generated rows carry no id.
+  let mainSizesRows: unknown = [];
+  let mainSizesUnreadable = false;
+  const mainSizesRaw = text("main_sizes_json");
+  if (mainSizesRaw.trim()) {
+    try {
+      mainSizesRows = JSON.parse(mainSizesRaw);
+    } catch {
+      mainSizesUnreadable = true;
+      fieldErrors.main_sizes =
+        "Sizes data could not be read. Reload and try again.";
+    }
+  }
+  if (!mainSizesUnreadable && basePrice !== null) {
+    const merged = mergeMainSizes({
+      explicitVariants: variants,
+      rows: mainSizesRows,
+      mainColor: text("main_color"),
+      basePriceMinor: basePrice,
+      baseSalePriceMinor: baseSale,
+      baseCostPriceMinor: baseCost,
+    });
+    if (merged.fieldError) {
+      fieldErrors[merged.fieldError.field] = merged.fieldError.message;
+    } else {
+      variants = merged.variants;
     }
   }
   if (variants.length === 0 && basePrice !== null && basePrice <= 0) {
@@ -1159,6 +1198,23 @@ function rpcFailureState(
   return { ok: false, error: message };
 }
 
+/**
+ * True when the submitted form carried at least one main-size row.
+ * The merge leaves no marker on generated rows, so the raw field is
+ * re-read: an empty list means the duplicate came from explicit
+ * variant rows and must not be blamed on the main-sizes field.
+ */
+function submittedMainSizes(form: FormData): boolean {
+  const raw = form.get("main_sizes_json");
+  if (typeof raw !== "string") return false;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 // -------------------------------------------------------------------- actions
 
 export async function createCatalogProduct(
@@ -1268,7 +1324,25 @@ export async function updateCatalogProduct(
     p: toRpcPayload(data, true),
   });
   if (result.error) {
-    return rpcFailureState(result.error, "Product could not be saved.");
+    const state = rpcFailureState(result.error, "Product could not be saved.");
+    // A main size colliding with a variant that failed to load
+    // (variantsSkipped > 0) is rejected by the RPC after the merge
+    // has already run, so the field mapping happens here: surface
+    // the rejection on the main-sizes field as well as the form
+    // level, so the admin sees which field to fix.
+    if (
+      state.error?.includes("Duplicate size and color combination") &&
+      submittedMainSizes(form)
+    ) {
+      return {
+        ...state,
+        fieldErrors: {
+          ...state.fieldErrors,
+          main_sizes: "A size you added already exists — edit it in Variants.",
+        },
+      };
+    }
+    return state;
   }
   const flags: string[] = [];
   const outcome = await saveProductCategoryAssignment(
