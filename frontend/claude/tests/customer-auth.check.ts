@@ -175,6 +175,12 @@ function stubCustomerEnv() {
   vi.stubEnv("SUPABASE_URL", STAGING_URL);
   vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", FAKE_PUBLISHABLE_KEY);
   vi.stubEnv("SITE_URL", "https://preview.test.invalid");
+  // Pin the Vercel branch-origin inputs to empty so an ambient VERCEL_ENV /
+  // VERCEL_BRANCH_URL (e.g. Vercel CI) can never leak into tests that read
+  // the origin through getCustomerAuthOrigin(); tests that need preview
+  // values stub them explicitly after this runs.
+  vi.stubEnv("VERCEL_ENV", "");
+  vi.stubEnv("VERCEL_BRANCH_URL", "");
 }
 
 function stubCheckoutEnv() {
@@ -270,7 +276,13 @@ describe("customer callback destinations (exact-match allowlist)", () => {
   });
 });
 
-describe("customer auth origin (SITE_URL)", () => {
+describe("customer auth origin (Preview branch URL, then SITE_URL)", () => {
+  const BRANCH_HOST =
+    "attires-arena-frontend-preview-git-fea-9734c3-fahim-s-projects1.vercel.app";
+  const UNIQUE_HOST =
+    "attires-arena-frontend-preview-pqupcdtzf-fahim-s-projects1.vercel.app";
+  const OLD_BRANCH_URL =
+    "https://attires-arena-frontend-preview-git-fea-6ecbe9-fahim-s-projects1.vercel.app";
   it("accepts a clean https origin and strips a trailing slash", () => {
     expect(customerAuthOrigin({ SITE_URL: "https://preview.test.invalid" })).toBe("https://preview.test.invalid");
     expect(customerAuthOrigin({ SITE_URL: "https://preview.test.invalid/" })).toBe("https://preview.test.invalid");
@@ -313,6 +325,117 @@ describe("customer auth origin (SITE_URL)", () => {
     vi.stubEnv("SITE_URL", "");
     expect(getCustomerAuthOrigin()).toBeNull();
     vi.stubEnv("SITE_URL", "https://example.com/path");
+    expect(getCustomerAuthOrigin()).toBeNull();
+  });
+
+  it("prefers the Preview branch URL over SITE_URL in preview", () => {
+    // The reported bug: SITE_URL names the OLD branch while the
+    // deployment is the NEW branch — the branch URL must win, so the
+    // OAuth callback returns to the branch the user is actually on.
+    expect(
+      customerAuthOrigin({
+        SITE_URL: OLD_BRANCH_URL,
+        VERCEL_ENV: "preview",
+        VERCEL_BRANCH_URL: BRANCH_HOST,
+      }),
+    ).toBe(`https://${BRANCH_HOST}`);
+    expect(
+      customerAuthOrigin({
+        SITE_URL: "https://example.com",
+        VERCEL_ENV: "preview",
+        VERCEL_BRANCH_URL: BRANCH_HOST,
+      }),
+    ).toBe(`https://${BRANCH_HOST}`);
+    expect(
+      customerAuthOrigin({ VERCEL_ENV: "preview", VERCEL_BRANCH_URL: BRANCH_HOST }),
+    ).toBe(`https://${BRANCH_HOST}`);
+    expect(
+      customerAuthOrigin({
+        SITE_URL: "https://example.com",
+        VERCEL_ENV: "preview",
+        VERCEL_BRANCH_URL: UNIQUE_HOST,
+      }),
+    ).toBe(`https://${UNIQUE_HOST}`);
+    // Surrounding whitespace is tolerated, mirroring SITE_URL.
+    expect(
+      customerAuthOrigin({ VERCEL_ENV: "preview", VERCEL_BRANCH_URL: `  ${BRANCH_HOST}  ` }),
+    ).toBe(`https://${BRANCH_HOST}`);
+    // Hostnames are case-insensitive: an uppercase branch value (including
+    // an uppercase .VERCEL.APP suffix) normalizes to the lowercase origin.
+    expect(
+      customerAuthOrigin({ VERCEL_ENV: "preview", VERCEL_BRANCH_URL: BRANCH_HOST.toUpperCase() }),
+    ).toBe(`https://${BRANCH_HOST}`);
+  });
+
+  it("ignores the branch URL outside preview", () => {
+    const site = "https://example.com";
+    expect(
+      customerAuthOrigin({ SITE_URL: site, VERCEL_ENV: "production", VERCEL_BRANCH_URL: BRANCH_HOST }),
+    ).toBe(site);
+    expect(customerAuthOrigin({ SITE_URL: site, VERCEL_BRANCH_URL: BRANCH_HOST })).toBe(site);
+    expect(
+      customerAuthOrigin({ SITE_URL: site, VERCEL_ENV: "development", VERCEL_BRANCH_URL: BRANCH_HOST }),
+    ).toBe(site);
+    expect(
+      customerAuthOrigin({ SITE_URL: site, VERCEL_ENV: "Preview", VERCEL_BRANCH_URL: BRANCH_HOST }),
+    ).toBe(site);
+    // Production with a branch URL but no SITE_URL stays unconfigured.
+    expect(
+      customerAuthOrigin({ VERCEL_ENV: "production", VERCEL_BRANCH_URL: BRANCH_HOST }),
+    ).toBeNull();
+  });
+
+  it("falls back to SITE_URL for an invalid branch URL in preview", () => {
+    const site = "https://example.com";
+    for (const branchUrl of [
+      "",
+      "   ",
+      `https://${BRANCH_HOST}`,
+      `${BRANCH_HOST}/auth/callback`,
+      `${BRANCH_HOST}?x=1`,
+      `${BRANCH_HOST}#top`,
+      `user@${BRANCH_HOST}`,
+      `${BRANCH_HOST}:8443`,
+      `${BRANCH_HOST}\\evil`,
+      "foo bar.vercel.app",
+      "evil.example.com",
+      "attires-arena-frontend-preview-git-fea-9734c3-fahim-s-projects1.vercel.app.evil.com",
+      "attires-arena-frontend-preview-git-fea-9734c3-fahim-s-projects1.vercel.appx",
+      "vercel.app",
+    ]) {
+      expect(
+        customerAuthOrigin({ SITE_URL: site, VERCEL_ENV: "preview", VERCEL_BRANCH_URL: branchUrl }),
+      ).toBe(site);
+    }
+  });
+
+  it("returns null when neither source is usable", () => {
+    expect(customerAuthOrigin({})).toBeNull();
+    expect(customerAuthOrigin({ VERCEL_ENV: "preview" })).toBeNull();
+    expect(customerAuthOrigin({ VERCEL_ENV: "preview", VERCEL_BRANCH_URL: "" })).toBeNull();
+    expect(
+      customerAuthOrigin({ VERCEL_ENV: "preview", VERCEL_BRANCH_URL: "evil.example.com" }),
+    ).toBeNull();
+    expect(
+      customerAuthOrigin({
+        SITE_URL: "https://example.com/path",
+        VERCEL_ENV: "preview",
+        VERCEL_BRANCH_URL: `${BRANCH_HOST}/auth/callback`,
+      }),
+    ).toBeNull();
+  });
+
+  it("reads the Preview branch URL through getCustomerAuthOrigin", () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_BRANCH_URL", BRANCH_HOST);
+    expect(getCustomerAuthOrigin()).toBe(`https://${BRANCH_HOST}`);
+    vi.stubEnv("VERCEL_ENV", "production");
+    expect(getCustomerAuthOrigin()).toBe("https://preview.test.invalid");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_BRANCH_URL", "evil.example.com");
+    expect(getCustomerAuthOrigin()).toBe("https://preview.test.invalid");
+    vi.stubEnv("VERCEL_BRANCH_URL", "");
+    vi.stubEnv("SITE_URL", "");
     expect(getCustomerAuthOrigin()).toBeNull();
   });
 });
@@ -1709,6 +1832,19 @@ describe("source pins (diff hygiene: no forbidden strings, no secrets, no new ga
     expect(body).not.toContain("STAGING_");
     expect(body).not.toContain("storefront-policy");
     expect(body).toContain("publicSupabaseConfiguration");
+  });
+
+  it("keeps the auth origin free of request-derived state", () => {
+    const origin = readFileSync(join(srcDir, "lib", "customer", "origin.ts"), "utf8");
+    expect(origin).not.toContain("headers");
+    expect(origin).not.toContain("Host");
+    expect(origin).not.toContain("next/headers");
+    // actions.ts builds every redirectTo from getCustomerAuthOrigin and
+    // must never switch to a request-derived origin either.
+    const actions = readFileSync(join(srcDir, "lib", "customer", "actions.ts"), "utf8");
+    expect(actions).not.toContain("headers");
+    expect(actions).not.toContain("Host");
+    expect(actions).not.toContain("next/headers");
   });
 
   it("uses reset-specific phone copy and a non-empty login password pre-check", () => {
