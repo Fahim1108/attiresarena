@@ -1,9 +1,18 @@
 import type { Metadata } from "next";
+import { logo, site } from "@/config";
 import { BrandCard } from "@/components/brand/BrandCard";
+import { buildPageMetadata, PRIVATE_PAGE_ROBOTS, resolveDefaultOgImage, resolveTwitterCard } from "@/lib/seo";
+import { getStorefrontContent } from "@/lib/store-settings";
 import { Breadcrumbs, ButtonLink, DemoNotice, EmptyState } from "@/components/ui";
 import { getBrands, getProducts } from "@/services";
 
-export const metadata: Metadata = { title: "Brands" };
+// The brands index is noindex for the same demo-only reason as the
+// brand pages: brand listings are demonstration entries only until
+// brands are real; revisit when real brands exist.
+export async function generateMetadata(): Promise<Metadata> {
+  const content = await getStorefrontContent();
+  return buildPageMetadata({ siteName: site.name, path: "/brands", title: "Brands", description: "Brand listings will appear here once the collection is ready.", defaultImage: resolveDefaultOgImage(content?.settings, logo.badge, site.name), twitterCard: resolveTwitterCard(content?.settings) ?? "summary_large_image", robots: PRIVATE_PAGE_ROBOTS });
+}
 
 export default async function BrandsPage() {
   const [brands, all] = await Promise.all([getBrands(), getProducts({ pageSize: 1 })]);

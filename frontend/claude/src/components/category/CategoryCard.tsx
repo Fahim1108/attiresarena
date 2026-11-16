@@ -9,6 +9,7 @@ export function CategoryCard({ category, variant = "tile", productCount }: { cat
     return (
       <Link href={`/category/${category.slug}`} className="aa-press group flex flex-col items-center gap-2 text-center">
         <span className="relative h-[68px] w-[68px] overflow-hidden rounded-full border border-line bg-[#F4F2F0] transition-colors group-hover:border-primary/50 sm:h-20 sm:w-20">
+          {/* alt="" is intentional: the link's visible text names the category, so a descriptive alt would be announced redundantly. */}
           <SmartImage src={category.image.src} alt="" fill sizes="80px" className="object-cover transition-transform duration-[var(--motion-slow)] ease-out group-hover:scale-[1.03]" />
         </span>
         <span className="text-xs text-ink group-hover:text-primary">{category.name}</span>
@@ -18,6 +19,7 @@ export function CategoryCard({ category, variant = "tile", productCount }: { cat
   return (
     <Link href={`/category/${category.slug}`} className="aa-press group block">
       <div className={cn("relative overflow-hidden rounded-card bg-[#F4F2F0]", variant === "feature" ? "aspect-[4/5]" : "aspect-[8/9]")}>
+        {/* alt="" is intentional: the link's visible text names the category (overlay/caption), so a descriptive alt would be announced redundantly. */}
         <SmartImage src={category.image.src} alt="" fill sizes="(min-width:1024px) 16vw, 33vw" className="object-cover transition-transform duration-[var(--motion-slow)] ease-out group-hover:scale-[1.03]" />
         {variant === "feature" && <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-ink/40 to-transparent" />}
         {variant === "feature" && (

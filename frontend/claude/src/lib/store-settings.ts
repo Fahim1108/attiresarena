@@ -10,6 +10,16 @@ import {
   parseSeoRobots,
   type PixelEventsConfig,
 } from "./admin/settings-shared";
+import {
+  isProductionEnv,
+  parseGoogleVerification,
+  resolveCanonicalBase,
+  resolveDefaultOgImage,
+  resolveGlobalKeywords,
+  resolveIndexingPolicy,
+  SEO_OG_LOCALE,
+  type SeoEnv,
+} from "./seo";
 import type {
   Banner,
   FooterSettings,
@@ -439,65 +449,89 @@ export interface StaticSeoBase {
   logoBadge: string;
 }
 
-function parseHttpUrl(value: string | null): string | null {
-  if (value === null || !/^https?:\/\//.test(value)) return null;
-  try {
-    return new URL(value).toString();
-  } catch {
-    return null;
-  }
+/**
+ * Default document title, shared by the layout and the home page's
+ * override branch: the stored `seo_default_title`, else
+ * "<Site> — Thrift Shirts in Bangladesh".
+ */
+export function resolveSeoDefaultTitle(
+  siteName: string,
+  settings: Record<string, unknown> | null | undefined,
+): string {
+  return (
+    settingText(settings, "seo_default_title") ??
+    `${siteName} — Thrift Shirts in Bangladesh`
+  );
+}
+
+/** Default document description: the stored `seo_default_description`, else the static base description. */
+export function resolveSeoDefaultDescription(
+  fallbackDescription: string,
+  settings: Record<string, unknown> | null | undefined,
+): string {
+  return settingText(settings, "seo_default_description") ?? fallbackDescription;
 }
 
 /**
  * Resolve document metadata from the static base plus stored SEO settings.
  * Static fallbacks are unchanged when nothing is configured or a value is
  * invalid: same default title, same description, same noindex robots,
- * same OG image. Robots stay noindex/nofollow unless the owner explicitly
- * stores robots toggles — search indexing is never enabled by accident.
- * Per-page overrides (seo_page_overrides) are NOT applied here: the root
- * layout has no page context, so applying them needs per-page
- * generateMetadata wiring (a follow-up; see the build report).
+ * same OG image. Robots follow the shared indexing policy (see lib/seo):
+ * Preview/dev is NEVER indexable regardless of the stored toggle, and
+ * production follows the toggle, failing closed when it is unset or
+ * malformed — search indexing is never enabled by accident. Per-page
+ * overrides (seo_page_overrides) are NOT applied here: the root layout
+ * has no page context; each page's generateMetadata applies them.
+ * The `env` parameter exists for testability (pure given an env record,
+ * mirroring customerAuthOrigin); production code uses process.env.
  */
 export function resolveStorefrontMetadata(
   base: StaticSeoBase,
   settings: Record<string, unknown> | null | undefined,
+  env: SeoEnv = process.env,
 ): Metadata {
-  const defaultTitle =
-    settingText(settings, "seo_default_title") ??
-    `${base.siteName} — Thrift Shirts in Bangladesh`;
-  const description =
-    settingText(settings, "seo_default_description") ?? base.description;
-  const canonical = parseHttpUrl(settingText(settings, "seo_canonical_base_url"));
-  const robots = parseSeoRobots(settings?.["seo_robots"]) ?? {
-    index: false,
-    follow: false,
-  };
-  const keywordsValue = settingText(settings, "seo_keywords");
-  const keywords = keywordsValue
-    ? keywordsValue
-        .split(",")
-        .map((keyword) => keyword.trim())
-        .filter(Boolean)
-        .slice(0, 20)
-    : undefined;
-  const ogImage = parseHttpUrl(settingText(settings, "seo_og_image_url"));
+  const defaultTitle = resolveSeoDefaultTitle(base.siteName, settings);
+  const description = resolveSeoDefaultDescription(base.description, settings);
+  const canonicalBase = resolveCanonicalBase(
+    settingText(settings, "seo_canonical_base_url"),
+    base.siteUrl,
+  );
+  const policy = resolveIndexingPolicy({
+    isProduction: isProductionEnv(env),
+    robots: parseSeoRobots(settings?.["seo_robots"]),
+  });
+  const keywords = resolveGlobalKeywords(settings);
+  // Shared with every page (see lib/seo): a stored OG URL wins, else the
+  // logo badge with measured dimensions. The private seo_social_image_path
+  // is deliberately NOT used here: it is a private Storage path crawlers
+  // cannot fetch (see forms copy).
+  const defaultImage = resolveDefaultOgImage(settings, base.logoBadge, base.siteName);
   const twitterCard = settingText(settings, "seo_twitter_card");
+  const googleVerification = parseGoogleVerification(
+    settings?.["google_search_console_verification"],
+  );
   return {
-    metadataBase: new URL(canonical ?? base.siteUrl),
-    robots: { index: robots.index, follow: robots.follow },
+    metadataBase: new URL(canonicalBase),
+    robots: { index: policy.metaRobots.index, follow: policy.metaRobots.follow },
     title: {
       default: defaultTitle,
       template: `%s | ${base.siteName}`,
     },
     description,
-    ...(keywords !== undefined && keywords.length > 0 ? { keywords } : {}),
+    alternates: { canonical: "/" },
+    ...(keywords.length > 0 ? { keywords } : {}),
+    ...(googleVerification
+      ? { verification: { google: googleVerification } }
+      : {}),
     icons: { icon: "/brand/icon.png", apple: "/brand/apple-icon.png" },
     openGraph: {
       siteName: base.siteName,
       type: "website",
       title: settingText(settings, "seo_og_title") ?? defaultTitle,
       description: settingText(settings, "seo_og_description") ?? description,
-      images: [{ url: ogImage ?? base.logoBadge }],
+      url: "/",
+      locale: SEO_OG_LOCALE,
+      images: [defaultImage],
     },
     ...(twitterCard === "summary" || twitterCard === "summary_large_image"
       ? {
@@ -506,6 +540,7 @@ export function resolveStorefrontMetadata(
             title: settingText(settings, "seo_og_title") ?? defaultTitle,
             description:
               settingText(settings, "seo_og_description") ?? description,
+            images: [defaultImage.url],
           },
         }
       : {}),

@@ -243,10 +243,9 @@ export const SEO_ROBOTS_SCHEMA = z.object({
 export type SeoRobotsConfig = z.infer<typeof SEO_ROBOTS_SCHEMA>;
 
 /**
- * Sitemap inclusion toggles. Stored only: no sitemap route exists in the
- * storefront today, so these toggles have no effect until sitemap
- * generation is built. The UI says so plainly; nothing here invents a
- * sitemap.
+ * Sitemap inclusion toggles, honoured by the live sitemap route
+ * (src/app/sitemap.ts) on the production store. Preview deployments
+ * always serve an empty sitemap regardless of these choices.
  */
 export const SEO_SITEMAP_SCHEMA = z.object({
   includeShop: z.boolean(),

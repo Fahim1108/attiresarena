@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
+import { logo, site } from "@/config";
+import { buildPageMetadata, PRIVATE_PAGE_ROBOTS, resolveDefaultOgImage, resolveTwitterCard } from "@/lib/seo";
+import { getStorefrontContent } from "@/lib/store-settings";
 import { TrackOrderForm } from "@/components/account/TrackOrderForm";
 import { Breadcrumbs } from "@/components/ui";
 
-export const metadata: Metadata = { title: "Track Order" };
+export async function generateMetadata(): Promise<Metadata> {
+  const content = await getStorefrontContent();
+  return buildPageMetadata({ siteName: site.name, path: "/track-order", title: "Track Order", defaultImage: resolveDefaultOgImage(content?.settings, logo.badge, site.name), twitterCard: resolveTwitterCard(content?.settings) ?? "summary_large_image", robots: PRIVATE_PAGE_ROBOTS });
+}
 
 export default function TrackOrderPage() {
   return (

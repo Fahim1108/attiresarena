@@ -14,6 +14,7 @@ export function HomeCategories({ categories }: { categories: Category[] }) {
           <li key={category.id}>
             <Link href={`/category/${category.slug}`} className={styles.category}>
               <span className={styles.photo}>
+                {/* alt="" is intentional: the link's visible caption names the category, so a descriptive alt would be announced redundantly. */}
                 <SmartImage src={image.src} alt="" fill sizes="(min-width: 768px) 16vw, 33vw" className="object-cover" />
               </span>
               <span className={styles.caption}>

@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
+import { logo, site } from "@/config";
+import { buildPageMetadata, PRIVATE_PAGE_ROBOTS, resolveDefaultOgImage, resolveTwitterCard } from "@/lib/seo";
+import { getStorefrontContent } from "@/lib/store-settings";
 import { CartView } from "@/components/cart/CartView";
 import { Breadcrumbs } from "@/components/ui";
 
-export const metadata: Metadata = { title: "Your Cart" };
+export async function generateMetadata(): Promise<Metadata> {
+  const content = await getStorefrontContent();
+  return buildPageMetadata({ siteName: site.name, path: "/cart", title: "Your Cart", defaultImage: resolveDefaultOgImage(content?.settings, logo.badge, site.name), twitterCard: resolveTwitterCard(content?.settings) ?? "summary_large_image", robots: PRIVATE_PAGE_ROBOTS });
+}
 
 export default function CartPage() {
   return (

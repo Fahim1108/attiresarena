@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { buildSeoHeaders, buildSeoRedirects } from "./src/lib/seo";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -12,8 +13,12 @@ const nextConfig: NextConfig = {
     },
   },
   // The admin page for categories, brands and collections moved from /admin/taxonomy.
-  async redirects() { return [{source:"/admin/taxonomy",destination:"/admin/catalogue",permanent:true}]; },
-  async headers() { return [{source:"/:path*",headers:[{key:"X-Content-Type-Options",value:"nosniff"},{key:"X-Frame-Options",value:"DENY"},{key:"Referrer-Policy",value:"strict-origin-when-cross-origin"},{key:"X-Robots-Tag",value:"noindex, nofollow"}]}]; },
+  // Redirects + headers branch on BUILD-TIME env only (see src/lib/seo):
+  // production builds scope X-Robots-Tag to private paths and add the
+  // host-scoped www -> apex redirect; every other build fails closed to
+  // the global noindex header with no www redirect.
+  async redirects() { return buildSeoRedirects(process.env); },
+  async headers() { return buildSeoHeaders(process.env); },
   images: {
     // Placeholder artwork ships as local SVG. When real product photography is
     // served from Supabase Storage / a CDN, add its host to `remotePatterns`.

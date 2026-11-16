@@ -433,16 +433,24 @@ describe("storefront metadata resolution", () => {
   });
 
   it("applies stored SEO overrides and robots opt-in", () => {
-    const meta = resolveStorefrontMetadata(base, {
-      seo_default_title: "Custom Title",
-      seo_default_description: "Custom description.",
-      seo_keywords: "shirts, Dhaka, , thrift",
-      seo_og_title: "OG Title",
-      seo_og_image_url: "https://example.com/og.jpg",
-      seo_twitter_card: "summary",
-      seo_canonical_base_url: "https://shop.example.com",
-      seo_robots: { index: true, follow: true },
-    });
+    // DELIBERATE behavior change (SEO build): the robots opt-in only takes
+    // effect on production. The test env is non-production, so the opt-in
+    // is passed an explicit production env record; see the Preview test
+    // below proving the same stored toggle is ignored off-production.
+    const meta = resolveStorefrontMetadata(
+      base,
+      {
+        seo_default_title: "Custom Title",
+        seo_default_description: "Custom description.",
+        seo_keywords: "shirts, Dhaka, , thrift",
+        seo_og_title: "OG Title",
+        seo_og_image_url: "https://example.com/og.jpg",
+        seo_twitter_card: "summary",
+        seo_canonical_base_url: "https://shop.example.com",
+        seo_robots: { index: true, follow: true },
+      },
+      { VERCEL_ENV: "production" },
+    );
     expect(meta.metadataBase?.toString()).toBe("https://shop.example.com/");
     const robots = meta.robots as unknown as { index?: boolean; follow?: boolean };
     expect(robots.index).toBe(true);
@@ -469,5 +477,62 @@ describe("storefront metadata resolution", () => {
     expect(meta.metadataBase?.toString()).toBe("https://attiresarena.com/");
     const og = meta.openGraph as unknown as { images?: { url?: unknown }[] };
     expect(og.images?.[0]?.url).toBe("/brand/logo-badge.jpg");
+  });
+
+  it("ignores the robots opt-in off-production (Preview is never indexable)", () => {
+    const settings = { seo_robots: { index: true, follow: true } };
+    for (const env of [
+      { VERCEL_ENV: "preview", NODE_ENV: "production" },
+      { NODE_ENV: "development" },
+      {},
+    ]) {
+      const meta = resolveStorefrontMetadata(base, settings, env);
+      const robots = meta.robots as unknown as { index?: boolean; follow?: boolean };
+      expect(robots.index).toBe(false);
+      expect(robots.follow).toBe(false);
+    }
+  });
+
+  it("fails closed on production when the toggle is unset or malformed", () => {
+    for (const settings of [null, {}, { seo_robots: { index: true } }, { seo_robots: "yes" }]) {
+      const meta = resolveStorefrontMetadata(base, settings, { VERCEL_ENV: "production" });
+      const robots = meta.robots as unknown as { index?: boolean; follow?: boolean };
+      expect(robots.index).toBe(false);
+      expect(robots.follow).toBe(false);
+    }
+  });
+
+  it("emits the root canonical, OG url/locale, badge dimensions/alt, and Twitter images", () => {
+    const meta = resolveStorefrontMetadata(base, { seo_twitter_card: "summary_large_image" }, { VERCEL_ENV: "production" });
+    const alternates = meta.alternates as unknown as { canonical?: unknown };
+    expect(alternates.canonical).toBe("/");
+    const og = meta.openGraph as unknown as {
+      url?: unknown;
+      locale?: unknown;
+      images?: Array<{ url?: unknown; width?: unknown; height?: unknown; alt?: unknown }>;
+    };
+    expect(og.url).toBe("/");
+    expect(og.locale).toBe("en_US");
+    expect(og.images).toEqual([{ url: "/brand/logo-badge.jpg", width: 540, height: 540, alt: "Attires Arena" }]);
+    const twitter = meta.twitter as unknown as { images?: unknown };
+    expect(twitter.images).toEqual(["/brand/logo-badge.jpg"]);
+  });
+
+  it("omits dimensions for a stored OG image URL (unknown, never guessed)", () => {
+    const meta = resolveStorefrontMetadata(base, { seo_og_image_url: "https://example.com/og.jpg" });
+    const og = meta.openGraph as unknown as { images?: Array<Record<string, unknown>> };
+    expect(og.images).toEqual([{ url: "https://example.com/og.jpg" }]);
+  });
+
+  it("renders Search Console verification only when a valid token is stored", () => {
+    const withToken = resolveStorefrontMetadata(base, { google_search_console_verification: "abc123TOKEN" });
+    expect(withToken.verification).toEqual({ google: "abc123TOKEN" });
+    expect(resolveStorefrontMetadata(base, null).verification).toBeUndefined();
+    expect(
+      resolveStorefrontMetadata(base, { google_search_console_verification: "  " }).verification,
+    ).toBeUndefined();
+    expect(
+      resolveStorefrontMetadata(base, { google_search_console_verification: "has space" }).verification,
+    ).toBeUndefined();
   });
 });

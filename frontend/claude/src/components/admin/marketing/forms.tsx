@@ -266,8 +266,11 @@ export function SeoExtendedForm({
             {preview.robotsTxt}
           </pre>
           <p style={{ marginTop: "0.25rem" }}>
-            Preview only: no robots.txt file is generated, and the follow
-            choice is a page-level directive, not a robots.txt rule.
+            Simplified preview. The live robots.txt follows the index
+            choice on the production store — it also disallows private
+            pages and links the sitemap when indexing is on — and always
+            refuses crawling on preview deployments. The follow choice is
+            a page-level directive, not a robots.txt rule.
           </p>
         </div>
       </fieldset>
@@ -308,8 +311,10 @@ export function SeoExtendedForm({
           </label>
         </div>
         <p className={styles.groupNote}>
-          No sitemap exists yet, so these choices are stored and do nothing
-          until sitemap generation is built. Nothing here creates a sitemap.
+          The live sitemap follows these choices on the production store
+          when indexing is on; it returns empty while indexing is off or
+          on preview deployments. The home, about, contact, and FAQ pages
+          are always included.
         </p>
       </fieldset>
       <div className="aa-form-actions">

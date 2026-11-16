@@ -63,6 +63,15 @@ export interface Product {
   /** Images per color id. Falls back to `defaultImages` when a color has none. */
   imagesByColor: Record<string, ProductImage[]>;
   defaultImages: ProductImage[];
+  /**
+   * Stored SEO overrides (seo_title/seo_description/meta_keywords). Absent
+   * until the follow-up feed-RPC extension returns them; generateMetadata
+   * falls back to name/description. Thrift products never carry
+   * metaKeywords (no keywords column on thrift_intake).
+   */
+  seoTitle?: string;
+  seoDescription?: string;
+  metaKeywords?: string;
   /** YouTube video ID (11 chars) for the product video slide, when set. Absent means no video UI at all. */
   youtubeVideoId?: string;
   details: string[];
@@ -93,6 +102,14 @@ export interface Category {
   slug: string;
   name: string;
   description: string;
+  /**
+   * Stored category SEO overrides (categories.seo_title/seo_description).
+   * Absent today: the storefront reads static category config, never DB
+   * category rows, so these need a new public read path (follow-up).
+   * generateMetadata falls back to name/description.
+   */
+  seoTitle?: string;
+  seoDescription?: string;
   image: ProductImage;
   /** Photo used by the mobile category cards. Falls back to `image`. */
   thumbnail?: ProductImage;

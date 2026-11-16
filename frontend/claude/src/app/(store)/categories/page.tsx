@@ -1,9 +1,15 @@
 import type { Metadata } from "next";
+import { logo, site } from "@/config";
 import { CategoryCard } from "@/components/category/CategoryCard";
+import { buildPageMetadata, resolveDefaultOgImage, resolveTwitterCard } from "@/lib/seo";
+import { getStorefrontContent } from "@/lib/store-settings";
 import { Breadcrumbs, ButtonLink, EmptyState } from "@/components/ui";
 import { getCategories, getProducts } from "@/services";
 
-export const metadata: Metadata = { title: "Categories" };
+export async function generateMetadata(): Promise<Metadata> {
+  const content = await getStorefrontContent();
+  return buildPageMetadata({ siteName: site.name, path: "/categories", title: "Categories", description: "Everything you need for a complete, considered wardrobe.", defaultImage: resolveDefaultOgImage(content?.settings, logo.badge, site.name), twitterCard: resolveTwitterCard(content?.settings) ?? "summary_large_image" });
+}
 
 export default async function CategoriesPage() {
   const [categories, all] = await Promise.all([getCategories(), getProducts({ pageSize: 1 })]);

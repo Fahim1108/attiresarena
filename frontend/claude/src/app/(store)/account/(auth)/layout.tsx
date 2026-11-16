@@ -1,4 +1,9 @@
+import type { Metadata } from "next";
 import { publicSupabaseConfiguration } from "@/lib/supabase-public";
+import { PRIVATE_PAGE_ROBOTS } from "@/lib/seo";
+
+// Private segment: noindex in every environment, regardless of the global toggle.
+export const metadata: Metadata = { robots: PRIVATE_PAGE_ROBOTS };
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const configured = publicSupabaseConfiguration() !== null;

@@ -4,9 +4,12 @@ import { notFound } from "next/navigation";
 import { ProductDetailClient } from "@/components/product/ProductDetailClient";
 import { ProductSizeProvider, SameSizeRecommendations } from "@/components/product/ProductSizeContext";
 import { ReviewList } from "@/components/product/ReviewList";
+import { ProductJsonLd } from "@/components/seo/JsonLd";
 import { Accordion, Breadcrumbs } from "@/components/ui";
-import { commerce } from "@/config";
+import { commerce, logo, site } from "@/config";
 import { formatPrice } from "@/lib/format";
+import { buildPageMetadata, mergeSeoKeywords, resolveDefaultOgImage, resolveEntitySeo, resolveGlobalKeywords, resolveTwitterCard } from "@/lib/seo";
+import { getStorefrontContent } from "@/lib/store-settings";
 import { getBrands, getCategories, getProductBySlug, getProducts, getReviews, getSizeGuide } from "@/services";
 
 type Params = Promise<{ slug: string }>;
@@ -16,13 +19,27 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
-  const product = await getProductBySlug((await params).slug);
+  const [product, content] = await Promise.all([getProductBySlug((await params).slug), getStorefrontContent()]);
   if (!product) return {};
-  return {
-    title: product.name,
-    description: product.shortDescription,
-    openGraph: { images: product.defaultImages[0] ? [{ url: product.defaultImages[0].src }] : undefined },
-  };
+  // Stored SEO values win when the feed carries them (SEO-7); otherwise
+  // name + shortDescription/description, exactly as before.
+  const seo = resolveEntitySeo(product, {
+    name: product.name,
+    description: product.shortDescription || product.description,
+  });
+  const image = product.defaultImages[0];
+  return buildPageMetadata({
+    siteName: site.name,
+    path: `/product/${product.slug}`,
+    title: seo.title,
+    ...(seo.description ? { description: seo.description } : {}),
+    // Page keywords replace the layout globals, so the entity keywords
+    // carry the globals along (deduped, capped).
+    keywords: mergeSeoKeywords(resolveGlobalKeywords(content?.settings), seo.keywords),
+    image: image ? { url: image.src, alt: image.alt } : null,
+    defaultImage: resolveDefaultOgImage(content?.settings, logo.badge, site.name),
+    twitterCard: resolveTwitterCard(content?.settings) ?? "summary_large_image",
+  });
 }
 
 export default async function ProductPage({ params, searchParams }: { params: Params; searchParams: SearchParams }) {
@@ -40,16 +57,18 @@ export default async function ProductPage({ params, searchParams }: { params: Pa
   const reviewRating={average:reviews.length?reviews.reduce((sum,r)=>sum+r.rating,0)/reviews.length:0,count:reviews.length};
   const brand = brands.find((b) => b.id === product.brandId);
   const category = categories.find((c) => c.id === product.categoryId);
+  const breadcrumbItems = [
+    { label: "Home", href: "/" },
+    ...(category ? [{ label: category.name, href: `/category/${category.slug}` }] : []),
+    { label: product.name },
+  ];
 
   return (
     <ProductSizeProvider product={product}><div className="pb-10">
       <div className="container pt-5 sm:pt-8">
+        <ProductJsonLd product={product} reviews={reviews} brandName={brand?.name} breadcrumbs={breadcrumbItems} currentPath={`/product/${product.slug}`} />
         <Breadcrumbs
-          items={[
-            { label: "Home", href: "/" },
-            ...(category ? [{ label: category.name, href: `/category/${category.slug}` }] : []),
-            { label: product.name },
-          ]}
+          items={breadcrumbItems}
         />
         <div className="mt-5">
           <ProductDetailClient product={{...product,rating:reviewRating}} brandName={brand?.name} sizeGuide={sizeGuide} initialColorId={typeof sp.color === "string" ? sp.color : undefined} />

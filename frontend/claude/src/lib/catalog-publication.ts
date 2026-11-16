@@ -118,6 +118,7 @@
 
 import { isCatalogStoragePath } from "@/lib/admin/catalog-variants";
 import { canonicalSize } from "@/lib/catalogue-dimensions";
+import { extractRowSeoFields } from "@/lib/seo";
 import { isYoutubeVideoId } from "@/lib/youtube-video";
 import type {
   ColorOption,
@@ -214,6 +215,14 @@ export interface PublishedAdminRow {
   published_at: string | null;
   /** YouTube video ID from products.youtube_video_id (migration 014); null/absent when no video. */
   youtube_video_id: string | null;
+  /**
+   * Stored SEO fields from products.seo_title/seo_description/meta_keywords.
+   * Null/absent until the follow-up RPC extension returns them; lenient
+   * like the video ID — SEO is an enhancement, never a reason to drop a row.
+   */
+  seo_title: string | null;
+  seo_description: string | null;
+  meta_keywords: string | null;
   variants: PublishedAdminVariantRow[];
   media: PublishedAdminMediaRow[];
 }
@@ -279,6 +288,10 @@ export function parsePublishedAdminRow(value: unknown): PublishedAdminRow | null
   const youtubeVideoId = isYoutubeVideoId(value.youtube_video_id)
     ? value.youtube_video_id
     : null;
+  // SEO fields are likewise lenient: absent/invalid degrades to nulls and
+  // the product still projects. The fields are absent entirely until the
+  // follow-up RPC extension returns them.
+  const seo = extractRowSeoFields(value, { keywords: true });
   if (
     !isUuid(value.id) ||
     typeof value.slug !== "string" ||
@@ -328,6 +341,9 @@ export function parsePublishedAdminRow(value: unknown): PublishedAdminRow | null
     created_at: value.created_at,
     published_at: publishedAt,
     youtube_video_id: youtubeVideoId,
+    seo_title: seo.seoTitle,
+    seo_description: seo.seoDescription,
+    meta_keywords: seo.metaKeywords,
     variants,
     media,
   };
@@ -444,6 +460,12 @@ export function projectPublishedAdminProduct(row: unknown): Product | null {
     ...(parsed.youtube_video_id
       ? { youtubeVideoId: parsed.youtube_video_id }
       : {}),
+    // SEO passthrough: present only when the RPC returned the fields.
+    ...(parsed.seo_title ? { seoTitle: parsed.seo_title } : {}),
+    ...(parsed.seo_description
+      ? { seoDescription: parsed.seo_description }
+      : {}),
+    ...(parsed.meta_keywords ? { metaKeywords: parsed.meta_keywords } : {}),
     description: parsed.description,
     shortDescription: parsed.description.slice(0, 160).trim(),
     details: [...parsed.highlights],

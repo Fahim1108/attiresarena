@@ -17,15 +17,19 @@ const enter = (intro: boolean, step: number) =>
 
 function Slide({ banner, active, priority, uppercase, intro }: { banner: Banner; active: boolean; priority: boolean; uppercase: boolean; intro: boolean }) {
   const light = banner.tone === "light";
+  // Inactive slides stay in the DOM (aria-hidden) for the crossfade; their
+  // headline demotes to <p> so hidden slides contribute no headings.
+  // Visuals are identical — same classes, same text.
+  const Heading = active ? "h2" : "p";
   return (
     <div className={cn("aa-hero-slide absolute inset-0", active ? "opacity-100" : "pointer-events-none opacity-0")} aria-hidden={!active}>
       <SmartImage src={banner.image.src} alt={banner.image.alt} fill priority={priority} sizes="(min-width:1024px) 70vw, 100vw" className="object-cover object-[72%_center]" />
       <div className="absolute inset-0" style={{ background: `linear-gradient(90deg, rgba(20,10,8,${(banner.overlay ?? 30) / 100 + 0.25}) 0%, rgba(20,10,8,${(banner.overlay ?? 30) / 100}) 40%, rgba(20,10,8,0) 75%)` }} />
       <div className={cn("relative flex h-full flex-col justify-center px-6 sm:px-24 lg:px-[12%]", light ? "text-white" : "text-ink")}>
         {banner.eyebrow && <p className={cn("mb-3 text-[11px] font-medium uppercase tracking-[0.35em] opacity-90 sm:text-xs", enter(intro, 0).className)} style={enter(intro, 0).style}>{banner.eyebrow}</p>}
-        <h2 className={cn("max-w-[11ch] font-serif text-[44px] leading-[0.95] sm:text-5xl lg:text-[64px]", uppercase && "uppercase", enter(intro, 0).className)} style={enter(intro, 0).style}>
+        <Heading className={cn("max-w-[11ch] font-serif text-[44px] leading-[0.95] sm:text-5xl lg:text-[64px]", uppercase && "uppercase", enter(intro, 0).className)} style={enter(intro, 0).style}>
           {banner.title}
-        </h2>
+        </Heading>
         {banner.subtitle && <p className={cn("mt-4 max-w-sm text-sm opacity-90 sm:text-base lg:text-lg", enter(intro, 1).className)} style={enter(intro, 1).style}>{banner.subtitle}</p>}
         {banner.cta && (
           <Link href={banner.cta.href} tabIndex={active ? 0 : -1} style={enter(intro, 2).style} className={`aa-press group/cta mt-6 inline-flex h-11 w-fit items-center gap-2 rounded-control bg-primary px-6 text-xs font-semibold uppercase tracking-[0.14em] text-white shadow-lift transition-colors duration-300 hover:bg-primary-dark sm:h-12 sm:px-7 ${enter(intro, 2).className}`}>
@@ -43,6 +47,8 @@ const lines = (s?: string) => (s ? s.split("|").map((l) => l.trim()) : []);
 function MobileEditorialSlide({ banner, active, priority, logoSrc, intro }: { banner: Banner; active: boolean; priority: boolean; logoSrc: string; intro: boolean }) {
   const accent = banner.titleAccent;
   const main = accent && banner.title.endsWith(accent) ? banner.title.slice(0, -accent.length).trim() : banner.title;
+  // Same demotion as Slide: inactive (aria-hidden) slides render no headings.
+  const Heading = active ? "h2" : "p";
   return (
     <div className={cn("absolute inset-0 overflow-hidden bg-[#EFE9E2] aa-hero-slide", active ? "opacity-100" : "pointer-events-none opacity-0")} aria-hidden={!active}>
       {/* soft light from the left, like the mockup's sunlit wall */}
@@ -71,10 +77,10 @@ function MobileEditorialSlide({ banner, active, priority, logoSrc, intro }: { ba
             <SmartImage src={logoSrc} alt="" width={312} height={300} className="h-auto w-[min(8.5vw,40px)] sm:w-[clamp(44px,5vw,72px)]" />
           </span>
         )}
-        <h2 className={cn("font-display text-[min(8.4vw,38px)] font-bold sm:text-[clamp(44px,5.6vw,82px)] leading-[0.95] tracking-[-0.01em] text-ink", enter(intro, 0).className)} style={enter(intro, 0).style}>
+        <Heading className={cn("font-display text-[min(8.4vw,38px)] font-bold sm:text-[clamp(44px,5.6vw,82px)] leading-[0.95] tracking-[-0.01em] text-ink", enter(intro, 0).className)} style={enter(intro, 0).style}>
           {main}
           {accent && <span className="block text-primary">{accent}</span>}
-        </h2>
+        </Heading>
         {banner.tagline && (
           <p style={enter(intro, 1).style} className={cn(enter(intro, 1).className, "mt-[3%] text-[min(2.3vw,10px)] font-medium uppercase leading-[1.6] tracking-[0.3em] text-ink sm:text-[clamp(10px,1vw,15px)] sm:tracking-[0.45em]")}>
             {lines(banner.tagline).map((l) => (

@@ -1,5 +1,6 @@
 import "server-only";
 import { publicSupabaseConfiguration } from "@/lib/supabase-public";
+import { extractRowSeoFields } from "@/lib/seo";
 import { isProductionStorefront } from "@/lib/storefront-policy";
 import projects from "@/config/supabase-projects.json";
 import intake from "@/data/inventory/thrift-shirts.json";
@@ -162,6 +163,11 @@ function projectThriftRow(row: unknown): Product | null {
   )
     return null;
   const image = { src: r.image_path, alt: r.name };
+  // SEO passthrough: lenient, never a reason to drop a row. Thrift rows
+  // carry no keywords column, so keywords are never extracted here. The
+  // fields are absent entirely until the follow-up RPC extension returns
+  // them; until then every thrift product falls back to name/description.
+  const seo = extractRowSeoFields(r, { keywords: false });
   const variant = {
     id: r.variant_id,
     sku: typeof r.sku === "string" ? r.sku : r.variant_id,
@@ -184,6 +190,8 @@ function projectThriftRow(row: unknown): Product | null {
     variants: [variant],
     imagesByColor: { fixed: [image] },
     defaultImages: [image],
+    ...(seo.seoTitle ? { seoTitle: seo.seoTitle } : {}),
+    ...(seo.seoDescription ? { seoDescription: seo.seoDescription } : {}),
     description: typeof r.description === "string" ? r.description : "",
     shortDescription: "",
     details: [],

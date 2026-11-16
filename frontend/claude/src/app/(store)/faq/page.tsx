@@ -1,13 +1,29 @@
 import type { Metadata } from "next";
+import { logo, site } from "@/config";
 import { HelpAside, InfoHeader } from "@/components/info/InfoPage";
+import { FaqJsonLd } from "@/components/seo/JsonLd";
 import { Accordion } from "@/components/ui";
 import { faqs } from "@/content/policies";
+import { getStorefrontContent } from "@/lib/store-settings";
+import { buildPageMetadata, resolveDefaultOgImage, resolveTwitterCard } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "FAQ" };
+export async function generateMetadata(): Promise<Metadata> {
+  const content = await getStorefrontContent();
+  return buildPageMetadata({
+    siteName: site.name,
+    path: "/faq",
+    title: "FAQ",
+    // Description reuses the page's own intro copy verbatim.
+    description: "Quick answers about orders, delivery, returns and sizing.",
+    defaultImage: resolveDefaultOgImage(content?.settings, logo.badge, site.name),
+    twitterCard: resolveTwitterCard(content?.settings) ?? "summary_large_image",
+  });
+}
 
 export default function FaqPage() {
   return (
     <>
+      <FaqJsonLd />
       <InfoHeader title="Frequently Asked Questions" eyebrow="Help Centre" intro="Quick answers about orders, delivery, returns and sizing." />
       <div className="container grid gap-10 py-10 lg:grid-cols-[1fr_300px]">
         <div className="max-w-3xl space-y-10">

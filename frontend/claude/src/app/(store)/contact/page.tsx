@@ -2,9 +2,23 @@ import { Clock, Mail, MapPin, Phone } from "lucide-react";
 import type { Metadata } from "next";
 import { ContactForm } from "@/components/info/ContactForm";
 import { InfoHeader } from "@/components/info/InfoPage";
-import { footer } from "@/config";
+import { footer, logo, site } from "@/config";
+import { buildPageMetadata, parsePageSeoOverride, resolveDefaultOgImage, resolveTwitterCard } from "@/lib/seo";
+import { getStorefrontContent } from "@/lib/store-settings";
 
-export const metadata: Metadata = { title: "Contact Us" };
+export async function generateMetadata(): Promise<Metadata> {
+  const content = await getStorefrontContent();
+  const override = parsePageSeoOverride(content?.settings?.["seo_page_overrides"], "contact");
+  return buildPageMetadata({
+    siteName: site.name,
+    path: "/contact",
+    title: override?.title ?? "Contact Us",
+    // Fallback description reuses the page's own intro copy verbatim.
+    description: override?.description ?? "Questions about an order, sizing or returns? Send us a message and our team will get back to you.",
+    defaultImage: resolveDefaultOgImage(content?.settings, logo.badge, site.name),
+    twitterCard: resolveTwitterCard(content?.settings) ?? "summary_large_image",
+  });
+}
 
 export default function ContactPage() {
   const c = footer.contact;

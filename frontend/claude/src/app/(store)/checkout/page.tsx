@@ -1,10 +1,16 @@
 import type { Metadata } from "next";
+import { logo, site } from "@/config";
 import { CheckoutForm } from "@/components/checkout/CheckoutForm";
+import { buildPageMetadata, PRIVATE_PAGE_ROBOTS, resolveDefaultOgImage, resolveTwitterCard } from "@/lib/seo";
+import { getStorefrontContent } from "@/lib/store-settings";
 import { Breadcrumbs } from "@/components/ui";
 import { getManualPaymentConfiguration } from "@/services";
 import { checkoutOrdersEnabled } from "@/lib/checkout/config";
 
-export const metadata: Metadata = { title: "Checkout", robots: { index: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const content = await getStorefrontContent();
+  return buildPageMetadata({ siteName: site.name, path: "/checkout", title: "Checkout", defaultImage: resolveDefaultOgImage(content?.settings, logo.badge, site.name), twitterCard: resolveTwitterCard(content?.settings) ?? "summary_large_image", robots: PRIVATE_PAGE_ROBOTS });
+}
 
 export default async function CheckoutPage() {
   const configuration = await getManualPaymentConfiguration();

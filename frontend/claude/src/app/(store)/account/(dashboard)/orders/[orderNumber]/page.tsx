@@ -1,5 +1,9 @@
 import { ArrowLeft } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
+import { PRIVATE_PAGE_ROBOTS } from "@/lib/seo";
+
+export const metadata: Metadata = { title: "Order Details", robots: PRIVATE_PAGE_ROBOTS };
 import { notFound } from "next/navigation";
 import { OrderDetail } from "@/components/account/OrderDetail";
 import { getOrderByNumber } from "@/services";

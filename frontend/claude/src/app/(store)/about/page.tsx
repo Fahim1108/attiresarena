@@ -1,9 +1,24 @@
 import { Banknote, Gem, HeartHandshake, Truck } from "lucide-react";
 import type { Metadata } from "next";
+import { logo, site } from "@/config";
 import { InfoHeader } from "@/components/info/InfoPage";
 import { ButtonLink, SmartImage } from "@/components/ui";
+import { buildPageMetadata, parsePageSeoOverride, resolveDefaultOgImage, resolveTwitterCard } from "@/lib/seo";
+import { getStorefrontContent } from "@/lib/store-settings";
 
-export const metadata: Metadata = { title: "About Us" };
+export async function generateMetadata(): Promise<Metadata> {
+  const content = await getStorefrontContent();
+  const override = parsePageSeoOverride(content?.settings?.["seo_page_overrides"], "about");
+  return buildPageMetadata({
+    siteName: site.name,
+    path: "/about",
+    title: override?.title ?? "About Us",
+    // Fallback description reuses the page's own intro copy verbatim.
+    description: override?.description ?? "Timeless menswear and accessories for the modern Bangladeshi man — curated for everyday confidence.",
+    defaultImage: resolveDefaultOgImage(content?.settings, logo.badge, site.name),
+    twitterCard: resolveTwitterCard(content?.settings) ?? "summary_large_image",
+  });
+}
 
 const values = [
   { Icon: Gem, title: "Considered quality", text: "Fabrics and finishes chosen to last through Bangladesh's heat, humidity and monsoon." },

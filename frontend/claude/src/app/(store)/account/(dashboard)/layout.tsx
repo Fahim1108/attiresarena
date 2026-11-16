@@ -1,4 +1,9 @@
+import type { Metadata } from "next";
 import { AccountNav } from "@/components/account/AccountNav";
+import { PRIVATE_PAGE_ROBOTS } from "@/lib/seo";
+
+// Private segment: noindex in every environment, regardless of the global toggle.
+export const metadata: Metadata = { robots: PRIVATE_PAGE_ROBOTS };
 import { redirect } from "next/navigation";
 import { getCurrentCustomer } from "@/services";
 
