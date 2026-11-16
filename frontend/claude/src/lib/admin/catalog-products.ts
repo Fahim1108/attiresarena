@@ -1195,13 +1195,14 @@ export async function createCatalogProduct(
   const productId = result.data;
   const flags: string[] = [];
   if (data.secondary_category_id) {
-    const assigned = await assignProductCategories(
+    const outcome = await saveProductCategoryAssignment(
       session.client,
       productId,
       data.category_id,
       data.secondary_category_id,
     );
-    if (!assigned) flags.push("categories=failed");
+    if (outcome === "failed") flags.push("categories=failed");
+    else if (outcome === "unverified") flags.push("categories=unverified");
   }
   const staged = parseStagedImages(form, session.user.id);
   if (staged.attempted > 0) {
@@ -1270,13 +1271,14 @@ export async function updateCatalogProduct(
     return rpcFailureState(result.error, "Product could not be saved.");
   }
   const flags: string[] = [];
-  const assigned = await assignProductCategories(
+  const outcome = await saveProductCategoryAssignment(
     session.client,
     id,
     data.category_id,
     data.secondary_category_id,
   );
-  if (!assigned) flags.push("categories=failed");
+  if (outcome === "failed") flags.push("categories=failed");
+  else if (outcome === "unverified") flags.push("categories=unverified");
   revalidatePath("/admin/catalog/products");
   revalidatePath(`/admin/catalog/products/${id}`);
   revalidatePath("/admin/catalog/inventory");
@@ -1295,11 +1297,16 @@ async function readProductRevision(
   client: Awaited<ReturnType<typeof staffSession>>["client"],
   id: string,
 ): Promise<{ updatedAt: string; slug: string } | null> {
-  const row = await client
-    .from("products")
-    .select("updated_at,slug")
-    .eq("id", id)
-    .maybeSingle();
+  let row: { data: unknown; error: unknown };
+  try {
+    row = await client
+      .from("products")
+      .select("updated_at,slug")
+      .eq("id", id)
+      .maybeSingle();
+  } catch {
+    return null;
+  }
   if (row.error || !row.data) return null;
   const parsed = z
     .object({ updated_at: z.string(), slug: z.string() })
@@ -1311,9 +1318,11 @@ async function readProductRevision(
 
 /**
  * Set the product's primary + secondary categories atomically via
- * migration 009. Returns false when the revision cannot be read or
- * the RPC fails (including when migration 009 is unapplied) — the
- * caller surfaces a retry flag; the product save itself stands.
+ * migration 009. Returns false when the revision cannot be read, the
+ * RPC fails (including when migration 009 is unapplied), or the call
+ * rejects. False does NOT prove the assignment was lost — the product
+ * save RPC already persists category_id — so callers must verify via
+ * saveProductCategoryAssignment instead of reporting failure directly.
  */
 async function assignProductCategories(
   client: Awaited<ReturnType<typeof staffSession>>["client"],
@@ -1323,13 +1332,87 @@ async function assignProductCategories(
 ): Promise<boolean> {
   const revision = await readProductRevision(client, productId);
   if (!revision) return false;
-  const result = await client.rpc("admin_assign_product_categories", {
-    target_id: productId,
-    expected_updated_at: revision.updatedAt,
-    primary_category_id: primaryId,
-    secondary_category_id: secondaryId,
-  });
-  return !result.error;
+  try {
+    const result = await client.rpc("admin_assign_product_categories", {
+      target_id: productId,
+      expected_updated_at: revision.updatedAt,
+      primary_category_id: primaryId,
+      secondary_category_id: secondaryId,
+    });
+    return !result.error;
+  } catch {
+    return false;
+  }
+}
+
+const productCategoryPairSchema = z.object({
+  category_id: z.uuid().nullable(),
+  secondary_category_id: z.uuid().nullable(),
+});
+
+/**
+ * The stored category pair for one product. Null when unreadable
+ * (query error, rejection, missing row, or malformed row) — callers
+ * must treat null as "could not verify", never as a failed save.
+ */
+async function readProductCategoryPair(
+  client: Awaited<ReturnType<typeof staffSession>>["client"],
+  productId: string,
+): Promise<{
+  categoryId: string | null;
+  secondaryCategoryId: string | null;
+} | null> {
+  let row: { data: unknown; error: unknown };
+  try {
+    row = await client
+      .from("products")
+      .select("category_id,secondary_category_id")
+      .eq("id", productId)
+      .maybeSingle();
+  } catch {
+    return null;
+  }
+  if (row.error || !row.data) return null;
+  const parsed = productCategoryPairSchema.safeParse(row.data);
+  return parsed.success
+    ? {
+        categoryId: parsed.data.category_id,
+        secondaryCategoryId: parsed.data.secondary_category_id,
+      }
+    : null;
+}
+
+export type CategoryAssignmentOutcome = "saved" | "failed" | "unverified";
+
+/**
+ * Assign the category pair, then VERIFY against the stored row before
+ * reporting failure. The product save RPC already persists
+ * category_id, so a failed assign RPC does not prove the assignment
+ * was lost: the assign RPC rejects pairs the save RPC accepts (for
+ * example a non-top-level primary), and in that case the stored pair
+ * is exactly what was submitted. Only a read-back mismatch is a
+ * genuine failure; an unreadable read-back is "unverified", never a
+ * false "could not be saved" claim.
+ */
+async function saveProductCategoryAssignment(
+  client: Awaited<ReturnType<typeof staffSession>>["client"],
+  productId: string,
+  primaryId: string | null,
+  secondaryId: string | null,
+): Promise<CategoryAssignmentOutcome> {
+  const assigned = await assignProductCategories(
+    client,
+    productId,
+    primaryId,
+    secondaryId,
+  );
+  if (assigned) return "saved";
+  const stored = await readProductCategoryPair(client, productId);
+  if (!stored) return "unverified";
+  return stored.categoryId === primaryId &&
+    stored.secondaryCategoryId === secondaryId
+    ? "saved"
+    : "failed";
 }
 
 interface StagedImageInput {

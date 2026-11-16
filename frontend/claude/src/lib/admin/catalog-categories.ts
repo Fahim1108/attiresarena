@@ -115,26 +115,44 @@ export async function listCategories(): Promise<{
   malformedRows: number;
 } | null> {
   const session = await requireStaff(areaRoles("catalogue"));
-  const result = await session.client
-    .from("categories")
-    .select(
-      "id,parent_id,name,slug,published,description,image_storage_path," +
-        "banner_storage_path,seo_title,seo_description,sort_position,updated_at",
-    )
-    .order("sort_position", { ascending: true })
-    .order("name", { ascending: true })
-    .order("id", { ascending: true })
-    .limit(500);
+  // A rejecting query (timeout, abort, transport failure) must degrade
+  // exactly like an error result: the categories page has no other way
+  // to render, and an uncaught rejection throws into the error boundary
+  // even though the page already handles "unavailable" honestly.
+  let result: { data: unknown; error: unknown };
+  try {
+    result = await session.client
+      .from("categories")
+      .select(
+        "id,parent_id,name,slug,published,description,image_storage_path," +
+          "banner_storage_path,seo_title,seo_description,sort_position,updated_at",
+      )
+      .order("sort_position", { ascending: true })
+      .order("name", { ascending: true })
+      .order("id", { ascending: true })
+      .limit(500);
+  } catch {
+    result = { data: null, error: new Error("Categories could not be read.") };
+  }
   let rows: CategoryFlat[];
   let malformedRows = 0;
   if (result.error) {
     // Pre-migration fallback: base columns only, new fields defaulted.
-    const fallback = await session.client
-      .from("categories")
-      .select("id,parent_id,name,slug,published,updated_at")
-      .order("name", { ascending: true })
-      .order("id", { ascending: true })
-      .limit(500);
+    // The fallback degrades the same way on rejection.
+    let fallback: { data: unknown; error: unknown };
+    try {
+      fallback = await session.client
+        .from("categories")
+        .select("id,parent_id,name,slug,published,updated_at")
+        .order("name", { ascending: true })
+        .order("id", { ascending: true })
+        .limit(500);
+    } catch {
+      fallback = {
+        data: null,
+        error: new Error("Categories could not be read."),
+      };
+    }
     if (fallback.error) {
       // Unavailable (not empty): the page renders labelled sample data.
       return null;
@@ -250,10 +268,15 @@ function rpcCode(error: unknown): string | undefined {
 async function readCategoryHierarchy(
   client: Awaited<ReturnType<typeof staffSession>>["client"],
 ): Promise<CategoryHierarchyNode[] | null> {
-  const result = await client
-    .from("categories")
-    .select("id,parent_id")
-    .limit(500);
+  let result: { data: unknown; error: unknown };
+  try {
+    result = await client
+      .from("categories")
+      .select("id,parent_id")
+      .limit(500);
+  } catch {
+    return null;
+  }
   if (result.error) return null;
   const parsed = z
     .array(z.object({ id: z.uuid(), parent_id: z.uuid().nullable() }))
@@ -363,13 +386,24 @@ export async function saveCategory(
   }
   const oldImage = text("old_image_storage_path").trim() || null;
   const oldBanner = text("old_banner_storage_path").trim() || null;
-  const result = await session.client.rpc("admin_save_category", {
-    p: {
-      id,
-      expected_updated_at: isUpdate ? expectedUpdatedAt : null,
-      ...parsed.data,
-    },
-  });
+  let result: { data: unknown; error: unknown };
+  try {
+    result = await session.client.rpc("admin_save_category", {
+      p: {
+        id,
+        expected_updated_at: isUpdate ? expectedUpdatedAt : null,
+        ...parsed.data,
+      },
+    });
+  } catch {
+    // A rejecting RPC must return a form error, never throw into the
+    // page's error boundary: the save may or may not have gone through,
+    // and the form message tells the owner to check before retrying.
+    return {
+      ok: false,
+      error: "Category could not be saved. Reload and try again.",
+    };
+  }
   if (result.error) {
     const message = rpcMessage(result.error, "Category could not be saved.");
     if (rpcCode(result.error) === "PT409") {
@@ -395,7 +429,11 @@ export async function saveCategory(
   if (oldImage && oldImage !== parsed.data.image_storage_path) stale.push(oldImage);
   if (oldBanner && oldBanner !== parsed.data.banner_storage_path) stale.push(oldBanner);
   if (stale.length > 0) {
-    await session.client.storage.from(PRODUCT_MEDIA_BUCKET).remove(stale);
+    try {
+      await session.client.storage.from(PRODUCT_MEDIA_BUCKET).remove(stale);
+    } catch {
+      // Best-effort cleanup only; a failed removal never fails the save.
+    }
   }
   revalidatePath("/admin/catalog/categories");
   revalidatePath("/admin/catalog/products");
@@ -412,24 +450,44 @@ export async function deleteCategory(
   if (!z.uuid().safeParse(categoryId).success) {
     return actionError("Invalid category.");
   }
-  const existing = await session.client
-    .from("categories")
-    .select("image_storage_path,banner_storage_path")
-    .eq("id", categoryId)
-    .maybeSingle();
-  const result = await session.client.rpc("admin_delete_category", {
-    target_id: categoryId,
-  });
+  // Best-effort read of the stored image paths for cleanup: a rejection
+  // degrades to "no cleanup", never a throw.
+  let existingPaths: {
+    image_storage_path: string | null;
+    banner_storage_path: string | null;
+  } | null = null;
+  try {
+    const existing = await session.client
+      .from("categories")
+      .select("image_storage_path,banner_storage_path")
+      .eq("id", categoryId)
+      .maybeSingle();
+    if (!existing.error && existing.data) existingPaths = existing.data;
+  } catch {
+    existingPaths = null;
+  }
+  let result: { data: unknown; error: unknown };
+  try {
+    result = await session.client.rpc("admin_delete_category", {
+      target_id: categoryId,
+    });
+  } catch {
+    return actionError("Category could not be deleted. Reload and try again.");
+  }
   if (result.error) {
     return actionError(rpcMessage(result.error, "Category could not be deleted."));
   }
-  if (!existing.error && existing.data) {
+  if (existingPaths) {
     const stale = [
-      existing.data.image_storage_path,
-      existing.data.banner_storage_path,
+      existingPaths.image_storage_path,
+      existingPaths.banner_storage_path,
     ].filter((v): v is string => typeof v === "string" && v.length > 0);
     if (stale.length > 0) {
-      await session.client.storage.from(PRODUCT_MEDIA_BUCKET).remove(stale);
+      try {
+        await session.client.storage.from(PRODUCT_MEDIA_BUCKET).remove(stale);
+      } catch {
+        // Best-effort cleanup only; a failed removal never fails the delete.
+      }
     }
   }
   revalidatePath("/admin/catalog/categories");
@@ -446,9 +504,14 @@ export async function reorderCategories(
   if (new Set(parsed.data).size !== parsed.data.length) {
     return actionError("The new order contains a duplicate category.");
   }
-  const result = await session.client.rpc("admin_reorder_categories", {
-    ordered_ids: parsed.data,
-  });
+  let result: { data: unknown; error: unknown };
+  try {
+    result = await session.client.rpc("admin_reorder_categories", {
+      ordered_ids: parsed.data,
+    });
+  } catch {
+    return actionError("Categories could not be reordered. Reload and try again.");
+  }
   if (result.error) {
     return actionError(rpcMessage(result.error, "Categories could not be reordered."));
   }
@@ -472,11 +535,16 @@ const categoryOrderRowSchema = z.object({
  */
 export async function normalizeCategoryOrder(): Promise<AdminActionResult> {
   const session = await requireStaff(areaRoles("catalogue"));
-  const result = await session.client
-    .from("categories")
-    .select("id,parent_id,sort_position")
-    .order("sort_position", { ascending: true })
-    .limit(2001);
+  let result: { data: unknown; error: unknown };
+  try {
+    result = await session.client
+      .from("categories")
+      .select("id,parent_id,sort_position")
+      .order("sort_position", { ascending: true })
+      .limit(2001);
+  } catch {
+    return actionError("Categories could not be read for normalization.");
+  }
   if (result.error) {
     return actionError("Categories could not be read for normalization.");
   }
@@ -493,9 +561,16 @@ export async function normalizeCategoryOrder(): Promise<AdminActionResult> {
       );
     }
     if (isNormalizedOrder(rows.data, ids)) continue;
-    const reorder = await session.client.rpc("admin_reorder_categories", {
-      ordered_ids: ids,
-    });
+    let reorder: { data: unknown; error: unknown };
+    try {
+      reorder = await session.client.rpc("admin_reorder_categories", {
+        ordered_ids: ids,
+      });
+    } catch {
+      return actionError(
+        "Category order could not be normalized. Reload and try again.",
+      );
+    }
     if (reorder.error) {
       return actionError(
         rpcMessage(reorder.error, "Category order could not be normalized."),

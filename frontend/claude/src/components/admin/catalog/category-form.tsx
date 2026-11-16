@@ -23,13 +23,9 @@ import {
 import { CompressToggle } from "./compress-toggle";
 import { RadioOptionGroup } from "./radio-option-cards";
 import { focusFirstInvalid, SubmitButton } from "../ui-client";
+import type { CategoryParentOption } from "@/lib/admin/catalog-variants";
 
-export interface CategoryParentOption {
-  id: string;
-  label: string;
-  /** Tree depth: 1 = primary, 2 = secondary, 3 = sub-category. */
-  depth: number;
-}
+export type { CategoryParentOption } from "@/lib/admin/catalog-variants";
 
 function CategoryImageField({
   fieldName,

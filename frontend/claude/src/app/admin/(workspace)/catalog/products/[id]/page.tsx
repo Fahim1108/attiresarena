@@ -73,6 +73,7 @@ export default async function EditCatalogProductPage({
   const { product, variants, canManage, canViewCosts } = detail;
   const saved = typeof query.saved === "string" ? query.saved : "";
   const categoriesFailed = query.categories === "failed";
+  const categoriesUnverified = query.categories === "unverified";
   const imagesFailed = Number.parseInt(
     typeof query.images_failed === "string" ? query.images_failed : "0",
     10,
@@ -138,6 +139,13 @@ export default async function EditCatalogProductPage({
         <Notice kind="warning">
           Product saved, but the category assignment could not be saved.
           Check the categories below and save again.
+        </Notice>
+      ) : null}
+      {categoriesUnverified ? (
+        <Notice kind="warning">
+          Product saved, but the category assignment could not be
+          verified. Check the categories below before saving again — the
+          assignment may already be saved.
         </Notice>
       ) : null}
       {query.images === "partial" && imagesFailed > 0 ? (

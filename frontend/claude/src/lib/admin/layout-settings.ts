@@ -46,15 +46,25 @@ export async function getLayoutSettings(): Promise<Partial<
   Record<LayoutSettingKey, unknown>
 > | null> {
   const session = await staffSession();
-  const result = await session.client
-    .from("layout_settings")
-    .select("key, value");
+  // A rejecting query must degrade to null (unavailable) like an error
+  // result — never throw into the calling page's error boundary.
+  let result: { data: unknown; error: unknown };
+  try {
+    result = await session.client
+      .from("layout_settings")
+      .select("key, value");
+  } catch {
+    return null;
+  }
   if (result.error) return null;
   const settings: Partial<Record<LayoutSettingKey, unknown>> = {};
-  for (const row of result.data ?? []) {
-    if (!isLayoutSettingKey(row.key)) continue;
-    const parsed = parseLayoutSetting(row.key, row.value);
-    if (parsed !== null) settings[row.key] = parsed;
+  const rows = Array.isArray(result.data) ? result.data : [];
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const key = (row as { key?: unknown }).key;
+    if (!isLayoutSettingKey(key)) continue;
+    const parsed = parseLayoutSetting(key, (row as { value?: unknown }).value);
+    if (parsed !== null) settings[key] = parsed;
   }
   return settings;
 }

@@ -453,6 +453,48 @@ export function buildCategoryTree<T extends CategoryFlat>(
   return roots;
 }
 
+/** A flattened tree entry offered as a parent choice in the category form. */
+export interface CategoryParentOption {
+  id: string;
+  label: string;
+  /** Tree depth: 1 = primary, 2 = secondary, 3 = sub-category. */
+  depth: number;
+}
+
+/**
+ * Flatten a category tree to labelled parent options, skipping excluded ids.
+ *
+ * This lives in the shared (server-safe) module on purpose: the categories
+ * page is a Server Component and calls it during render. It MUST NOT move
+ * back into a "use client" module — calling a client-module function from
+ * server code throws at runtime and crashes the whole page.
+ */
+export function flattenCategoryOptions<T extends CategoryFlat>(
+  nodes: readonly CategoryNode<T>[],
+  exclude: ReadonlySet<string>,
+): CategoryParentOption[] {
+  const options: CategoryParentOption[] = [];
+  // The builder guarantees an acyclic tree; the visited guard keeps this
+  // walk total even if a cyclic tree ever arrives (no infinite recursion).
+  const visited = new Set<string>();
+  const walk = (list: readonly CategoryNode<T>[]) => {
+    for (const node of list) {
+      if (visited.has(node.id)) continue;
+      visited.add(node.id);
+      if (!exclude.has(node.id)) {
+        options.push({
+          id: node.id,
+          label: `${"— ".repeat(node.depth - 1)}${node.name}`,
+          depth: node.depth,
+        });
+      }
+      walk(node.children);
+    }
+  };
+  walk(nodes);
+  return options;
+}
+
 /** All descendant ids of a category (for parent-eligibility checks). */
 export function collectDescendantIds(
   flat: readonly CategoryFlat[],

@@ -1,5 +1,8 @@
 import { listCategories } from "@/lib/admin/catalog-categories";
-import { buildCategoryTree } from "@/lib/admin/catalog-variants";
+import {
+  buildCategoryTree,
+  flattenCategoryOptions,
+} from "@/lib/admin/catalog-variants";
 import { hasAnyRole } from "@/lib/admin/authorization";
 import { staffSession } from "@/lib/admin/access";
 import { areaRoles } from "@/lib/admin/constants";
@@ -14,10 +17,7 @@ import { Notice, PageHeading, Panel } from "@/components/admin/ui";
 import { SampleBadge } from "@/components/admin/SampleBadge";
 import { CategoryForm } from "@/components/admin/catalog/category-form";
 import { FeaturedCountForm } from "@/components/admin/catalog/featured-count-form";
-import {
-  CategoryList,
-  flattenCategoryOptions,
-} from "@/components/admin/catalog/category-list";
+import { CategoryList } from "@/components/admin/catalog/category-list";
 
 export const metadata = { title: "Categories" };
 

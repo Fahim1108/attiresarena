@@ -13,41 +13,15 @@ import {
 import {
   categoryLevelName,
   collectDescendantIds,
+  flattenCategoryOptions,
   moveIdInOrder,
   type CategoryNode,
 } from "@/lib/admin/catalog-variants";
 import { EmptyState, StatusBadge } from "../ui";
-import { CategoryForm, type CategoryParentOption } from "./category-form";
+import { CategoryForm } from "./category-form";
 import styles from "./catalogue-v2.module.css";
 
 export type CategoryTreeNode = CategoryNode<CategoryWithUrls>;
-
-/** Flatten a category tree to labelled parent options, skipping excluded ids. */
-export function flattenCategoryOptions(
-  nodes: readonly CategoryTreeNode[],
-  exclude: ReadonlySet<string>,
-): CategoryParentOption[] {
-  const options: CategoryParentOption[] = [];
-  // The builder guarantees an acyclic tree; the visited guard keeps this
-  // walk total even if a cyclic tree ever arrives (no infinite recursion).
-  const visited = new Set<string>();
-  const walk = (list: readonly CategoryTreeNode[]) => {
-    for (const node of list) {
-      if (visited.has(node.id)) continue;
-      visited.add(node.id);
-      if (!exclude.has(node.id)) {
-        options.push({
-          id: node.id,
-          label: `${"— ".repeat(node.depth - 1)}${node.name}`,
-          depth: node.depth,
-        });
-      }
-      walk(node.children);
-    }
-  };
-  walk(nodes);
-  return options;
-}
 
 export function CategoryList({
   tree,
