@@ -100,7 +100,6 @@ describe("youtube video link parsing", () => {
   });
 });
 
-const BASE_URL = "https://jwccyndyaamodxjtjtfo.supabase.co";
 const PRODUCT_ID = "11111111-1111-4111-8111-111111111111";
 const VARIANT_ID = "22222222-2222-4222-8222-222222222222";
 const CATEGORY_ID = "44444444-4444-4444-8444-444444444444";
@@ -128,24 +127,24 @@ function validRow(overrides: Record<string, unknown> = {}): Record<string, unkno
 
 describe("publication projector video field", () => {
   it("projects the video ID only when present and valid", () => {
-    const withVideo = projectPublishedAdminProduct(validRow({ youtube_video_id: ID }), BASE_URL);
+    const withVideo = projectPublishedAdminProduct(validRow({ youtube_video_id: ID }));
     expect(withVideo?.youtubeVideoId).toBe(ID);
     const parsed = parsePublishedAdminRow(validRow({ youtube_video_id: ID }));
     expect(parsed?.youtube_video_id).toBe(ID);
   });
 
   it("omits the video field when absent or null (pre-migration rows)", () => {
-    const absent = projectPublishedAdminProduct(validRow(), BASE_URL);
+    const absent = projectPublishedAdminProduct(validRow());
     expect(absent).not.toBe(null);
     expect(absent).not.toHaveProperty("youtubeVideoId");
     expect(parsePublishedAdminRow(validRow())?.youtube_video_id).toBe(null);
-    const nulled = projectPublishedAdminProduct(validRow({ youtube_video_id: null }), BASE_URL);
+    const nulled = projectPublishedAdminProduct(validRow({ youtube_video_id: null }));
     expect(nulled).not.toHaveProperty("youtubeVideoId");
   });
 
   it("degrades an invalid video value to no video without dropping the product", () => {
     for (const bad of ["short", "https://youtu.be/dQw4w9WgXcQ", 42, ["x"]]) {
-      const product = projectPublishedAdminProduct(validRow({ youtube_video_id: bad }), BASE_URL);
+      const product = projectPublishedAdminProduct(validRow({ youtube_video_id: bad }));
       expect(product).not.toBe(null);
       expect(product).not.toHaveProperty("youtubeVideoId");
     }

@@ -4,18 +4,17 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   parsePublishedAdminRow,
   projectPublishedAdminProduct,
-  publishedMediaPublicUrl,
+  publishedMediaUrl,
   type PublishedAdminRow,
 } from "../src/lib/catalog-publication";
 import { imagesForColor } from "../src/lib/product";
 import {
-  isSupabaseStoragePublicUrl,
+  isPublishedMediaUrl,
   SmartImage,
 } from "../src/components/ui/SmartImage";
 import { ProductGallery } from "../src/components/product/ProductGallery";
 import type { Product, ProductImage } from "../src/types";
 
-const BASE_URL = "https://jwccyndyaamodxjtjtfo.supabase.co";
 const PRODUCT_ID = "11111111-1111-4111-8111-111111111111";
 const VARIANT_ID = "22222222-2222-4222-8222-222222222222";
 const CATEGORY_ID = "44444444-4444-4444-8444-444444444444";
@@ -82,11 +81,11 @@ function stubProduct(overrides: Partial<Product>): Product {
 
 describe("projector multi-image projection", () => {
   it("projects every media row, in RPC (position) order, with alts", () => {
-    const product = projectPublishedAdminProduct(validRow(), BASE_URL);
+    const product = projectPublishedAdminProduct(validRow());
     expect(product).not.toBe(null);
     expect(product?.defaultImages).toHaveLength(3);
     expect(product?.defaultImages.map((image) => image.src)).toEqual(
-      MEDIA_PATHS.map((path) => publishedMediaPublicUrl(BASE_URL, path)),
+      MEDIA_PATHS.map((path) => publishedMediaUrl(path)),
     );
     expect(product?.defaultImages.map((image) => image.alt)).toEqual([
       "View 1",
@@ -103,7 +102,6 @@ describe("projector multi-image projection", () => {
           { path: MEDIA_PATHS[1], alt: "Side view" },
         ],
       }),
-      BASE_URL,
     );
     expect(product?.defaultImages.map((image) => image.alt)).toEqual([
       "Sample Oxford Shirt",
@@ -112,7 +110,7 @@ describe("projector multi-image projection", () => {
   });
 
   it("shares the same image list across every color", () => {
-    const product = projectPublishedAdminProduct(validRow(), BASE_URL);
+    const product = projectPublishedAdminProduct(validRow());
     expect(product?.imagesByColor["navy-blue"]).toBe(product?.defaultImages);
     expect(product?.imagesByColor["navy-blue"]).toHaveLength(3);
   });
@@ -133,11 +131,11 @@ describe("projector multi-image projection", () => {
     ]);
   });
 
-  it("builds a public Storage URL per media path", () => {
-    expect(publishedMediaPublicUrl(BASE_URL, MEDIA_PATHS[0])).toBe(
-      `${BASE_URL}/storage/v1/object/public/attires-product-drafts/${OWNER_ID}/66666666-6666-4666-8666-666666666666.jpg`,
+  it("builds a same-origin delivery URL per media path", () => {
+    expect(publishedMediaUrl(MEDIA_PATHS[0])).toBe(
+      `/api/product-media/${OWNER_ID}/66666666-6666-4666-8666-666666666666.jpg`,
     );
-    expect(publishedMediaPublicUrl(BASE_URL, "/etc/passwd")).toBe(null);
+    expect(publishedMediaUrl("/etc/passwd")).toBe(null);
   });
 });
 
@@ -181,47 +179,53 @@ describe("imagesForColor fallback", () => {
   });
 });
 
-describe("Supabase Storage URLs bypass the image optimizer", () => {
-  const storageUrl = publishedMediaPublicUrl(BASE_URL, MEDIA_PATHS[0])!;
+describe("Published media URLs bypass the image optimizer", () => {
+  const mediaUrl = publishedMediaUrl(MEDIA_PATHS[0])!;
 
-  it("matches only the Storage public-object shape", () => {
-    expect(isSupabaseStoragePublicUrl(storageUrl)).toBe(true);
+  it("matches only the same-origin delivery-route prefix", () => {
+    expect(isPublishedMediaUrl(mediaUrl)).toBe(true);
     expect(
-      isSupabaseStoragePublicUrl("/inventory/thrift-shirts/AA-SHIRT-001-front.jpg"),
+      isPublishedMediaUrl("/inventory/thrift-shirts/AA-SHIRT-001-front.jpg"),
     ).toBe(false);
     expect(
-      isSupabaseStoragePublicUrl("https://example.com/storage/v1/object/public/x.jpg"),
+      isPublishedMediaUrl("https://example.com/storage/v1/object/public/x.jpg"),
     ).toBe(false);
     expect(
-      isSupabaseStoragePublicUrl(
+      isPublishedMediaUrl(
         "https://jwccyndyaamodxjtjtfo.supabase.co.evil.com/storage/v1/object/public/x.jpg",
       ),
     ).toBe(false);
     expect(
-      isSupabaseStoragePublicUrl(
+      isPublishedMediaUrl(
         "http://jwccyndyaamodxjtjtfo.supabase.co/storage/v1/object/public/x.jpg",
       ),
     ).toBe(false);
     expect(
-      isSupabaseStoragePublicUrl(
-        `${BASE_URL}/storage/v1/object/sign/attires-product-drafts/x.jpg?token=abc`,
+      isPublishedMediaUrl(
+        "https://jwccyndyaamodxjtjtfo.supabase.co/storage/v1/object/sign/attires-product-drafts/x.jpg?token=abc",
       ),
     ).toBe(false);
+    expect(
+      isPublishedMediaUrl("https://example.com/api/product-media/x/y.jpg"),
+    ).toBe(false);
+    expect(isPublishedMediaUrl("/api/other/x.jpg")).toBe(false);
+    expect(isPublishedMediaUrl("/api/product-media")).toBe(false);
+    expect(isPublishedMediaUrl("/api/product-mediax/y.jpg")).toBe(false);
   });
 
-  it("renders a Storage URL as-is instead of through /_next/image", () => {
-    // Regression: with remotePatterns empty, the optimizer rejects
-    // Supabase hosts, so an optimized render throws (dev/test) or 400s
-    // (production) and published photos never display.
+  it("renders a published-media URL as-is instead of through /_next/image", () => {
+    // Regression: published photos must render as-is from the
+    // delivery route, never through /_next/image (which would add a
+    // second hop and a second cache over policy-gated bytes).
     const html = renderToStaticMarkup(
       createElement(SmartImage, {
-        src: storageUrl,
+        src: mediaUrl,
         alt: "Front view",
         fill: true,
         sizes: "100vw",
       }),
     );
-    expect(html).toContain(storageUrl);
+    expect(html).toContain(mediaUrl);
     expect(html).not.toContain("/_next/image");
   });
 
@@ -299,18 +303,18 @@ describe("ProductGallery render", () => {
     expect(html).not.toContain("Show image");
   });
 
-  it("renders Supabase Storage gallery URLs as-is", () => {
-    const storageImages: ProductImage[] = MEDIA_PATHS.map((path, i) => ({
-      src: publishedMediaPublicUrl(BASE_URL, path)!,
+  it("renders published-media gallery URLs as-is", () => {
+    const mediaImages: ProductImage[] = MEDIA_PATHS.map((path, i) => ({
+      src: publishedMediaUrl(path)!,
       alt: `View ${i + 1}`,
     }));
     const html = renderToStaticMarkup(
       createElement(ProductGallery, {
-        images: storageImages,
+        images: mediaImages,
         productName: "Sample Oxford Shirt",
       }),
     );
-    for (const image of storageImages) {
+    for (const image of mediaImages) {
       expect(html).toContain(image.src);
     }
     expect(html).not.toContain("/_next/image");

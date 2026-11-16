@@ -239,12 +239,15 @@ export async function readAdminFeed(
     JSON.stringify({ page_offset: 0, page_limit: MAX_PUBLISHED_FEED_ROWS }),
   );
   // read.ok is false whenever configuration is null; the second check
-  // only narrows the type for the projector below.
+  // keeps the not-configured reason explicit for the health signal.
+  // The config is still needed for the RPC fetch itself — only URL
+  // building no longer takes it (the projector emits same-origin
+  // delivery URLs now).
   if (!read.ok || !configuration) return { products: [], ok: false, error: read.ok ? "not-configured" : read.reason };
   const products: Product[] = [];
   let skipped = 0;
   for (const row of read.rows.slice(0, MAX_PUBLISHED_FEED_ROWS)) {
-    const product = projectPublishedAdminProduct(row, configuration.url);
+    const product = projectPublishedAdminProduct(row);
     if (!product) {
       skipped += 1;
       continue;

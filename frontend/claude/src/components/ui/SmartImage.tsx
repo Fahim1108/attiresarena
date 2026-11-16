@@ -1,37 +1,37 @@
 import Image, { type ImageProps } from "next/image";
 
 /**
- * Supabase Storage public-object URLs (built by the published-admin
- * projector in lib/catalog-publication.ts) must bypass the image
- * optimizer: next.config has no remotePatterns entry for Supabase
- * hosts, so the optimizer rejects them (HTTP 400 in production, a
- * thrown "not configured" error in development) and admin-published
- * product photos would never render on the storefront. Served as-is,
- * exactly like the admin side's deliberately unoptimized signed URLs.
+ * Same-origin published-media URLs (built by the published-admin
+ * projector in lib/catalog-publication.ts, served by the
+ * app/api/product-media route) must bypass the image optimizer: the
+ * route already serves original product photography with its own
+ * cache policy, and routing those bytes through the optimizer would
+ * add a second hop (optimizer -> delivery route -> Storage) plus a
+ * second cache layer over policy-gated bytes, for no benefit.
+ * Served as-is, exactly like the admin side's deliberately
+ * unoptimized signed URLs.
  *
- * Only the exact Storage public-object shape matches; every other
- * remote URL still goes through the optimizer and still fails closed
- * per next.config. Adding the Supabase host to remotePatterns remains
- * the preferred long-term fix (coordinator-owned config); this keeps
- * the gallery working without a config change.
+ * Only the exact delivery-route prefix matches; every other remote
+ * URL still goes through the optimizer and still fails closed per
+ * next.config. Local raster photos stay optimized; local SVGs stay
+ * unoptimized via the extension check below.
  */
-const SUPABASE_STORAGE_PUBLIC_URL =
-  /^https:\/\/[a-z0-9-]+\.supabase\.co\/storage\/v1\/object\/public\//;
+const PUBLISHED_MEDIA_URL = /^\/api\/product-media\//;
 
-export function isSupabaseStoragePublicUrl(src: string): boolean {
-  return SUPABASE_STORAGE_PUBLIC_URL.test(src);
+export function isPublishedMediaUrl(src: string): boolean {
+  return PUBLISHED_MEDIA_URL.test(src);
 }
 
 /**
  * Wrapper around next/image. Local SVG placeholders are served unoptimized;
  * raster images (real product photography) go through the image optimizer,
- * except Supabase Storage public URLs (see above).
+ * except published-media delivery URLs (see above).
  */
 export function SmartImage(props: ImageProps) {
   const src = typeof props.src === "string" ? props.src : "";
   const unoptimized =
     props.unoptimized ??
-    (src.endsWith(".svg") || isSupabaseStoragePublicUrl(src));
+    (src.endsWith(".svg") || isPublishedMediaUrl(src));
   // eslint-disable-next-line jsx-a11y/alt-text -- alt is passed through props
   return <Image {...props} unoptimized={unoptimized} />;
 }

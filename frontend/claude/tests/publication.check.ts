@@ -5,13 +5,12 @@ import {
   mergeStorefrontFeed,
   parsePublishedAdminRow,
   projectPublishedAdminProduct,
-  publishedMediaPublicUrl,
+  publishedMediaUrl,
   supabaseRefFromUrl,
   type PublishedAdminRow,
 } from "../src/lib/catalog-publication";
 import type { Product } from "../src/types";
 
-const BASE_URL = "https://jwccyndyaamodxjtjtfo.supabase.co";
 const PRODUCT_ID = "11111111-1111-4111-8111-111111111111";
 const VARIANT_ID = "22222222-2222-4222-8222-222222222222";
 const VARIANT_ID_2 = "33333333-3333-4333-8333-333333333333";
@@ -158,7 +157,7 @@ describe("published admin row validation", () => {
 
 describe("published admin projection", () => {
   it("projects prices, compare-at, badges, colors, sizes and images", () => {
-    const product = projectPublishedAdminProduct(validRow(), BASE_URL);
+    const product = projectPublishedAdminProduct(validRow());
     expect(product).not.toBe(null);
     expect(product?.status).toBe("published");
     expect(product?.price).toBe(2000);
@@ -179,9 +178,7 @@ describe("published admin projection", () => {
       stock: 3,
     });
     expect(product?.defaultImages).toHaveLength(1);
-    expect(product?.defaultImages[0]?.src).toContain(
-      "/storage/v1/object/public/attires-product-drafts/",
-    );
+    expect(product?.defaultImages[0]?.src).toBe(`/api/product-media/${MEDIA_PATH}`);
     expect(product?.defaultImages[0]?.src).toContain(MEDIA_PATH.split("/")[0]);
     expect(product?.imagesByColor["navy-blue"]).toBe(product?.defaultImages);
     expect(product?.createdAt).toBe("2026-11-15T01:00:00.000Z");
@@ -205,7 +202,6 @@ describe("published admin projection", () => {
           },
         ],
       }),
-      BASE_URL,
     );
     expect(product?.createdAt).toBe("2026-11-15T00:00:00.000Z");
     expect(product?.compareAtPrice).toBe(undefined);
@@ -235,7 +231,6 @@ describe("published admin projection", () => {
           },
         ],
       }),
-      BASE_URL,
     );
     expect(product?.colors.map((c) => c.id)).toEqual(["navy-blue", "navy-blue-2"]);
   });
@@ -243,30 +238,39 @@ describe("published admin projection", () => {
     const row = validRow();
     (row.variants as Record<string, unknown>[])[0]!["cost_price_minor"] = 12345;
     (row.variants as Record<string, unknown>[])[0]!["sku"] = "SECRET-SKU-1";
-    const product = projectPublishedAdminProduct(row, BASE_URL);
+    const product = projectPublishedAdminProduct(row);
     expect(product).not.toBe(null);
     const serialized = JSON.stringify(product);
     expect(serialized).not.toContain("12345");
     expect(serialized).not.toContain("SECRET-SKU-1");
     expect(serialized).not.toContain("cost");
   });
-  it("returns null when no image URL can be built", () => {
-    expect(projectPublishedAdminProduct(validRow(), "http://evil.invalid")).toBe(null);
-    expect(projectPublishedAdminProduct(validRow(), "")).toBe(null);
+  it("returns null when no usable image survives validation", () => {
+    expect(
+      projectPublishedAdminProduct(
+        validRow({ media: [{ path: "bogus", alt: "x" }] }),
+      ),
+    ).toBe(null);
+    expect(projectPublishedAdminProduct(validRow({ media: [] }))).toBe(null);
   });
 });
 
 describe("published media URLs", () => {
-  it("builds public object URLs and strips a trailing slash", () => {
-    expect(publishedMediaPublicUrl(`${BASE_URL}/`, MEDIA_PATH)).toBe(
-      `${BASE_URL}/storage/v1/object/public/attires-product-drafts/${MEDIA_PATH}`,
+  it("builds same-origin delivery URLs for the media route", () => {
+    expect(publishedMediaUrl(MEDIA_PATH)).toBe(
+      `/api/product-media/${MEDIA_PATH}`,
     );
   });
-  it("rejects non-HTTPS bases and malformed paths", () => {
-    expect(publishedMediaPublicUrl("http://x.supabase.co", MEDIA_PATH)).toBe(null);
-    expect(publishedMediaPublicUrl(BASE_URL, "/inventory/x.jpg")).toBe(null);
-    expect(publishedMediaPublicUrl(BASE_URL, "a/b.gif")).toBe(null);
-    expect(publishedMediaPublicUrl(BASE_URL, "")).toBe(null);
+  it("rejects malformed paths", () => {
+    expect(publishedMediaUrl("/inventory/x.jpg")).toBe(null);
+    expect(publishedMediaUrl("a/b.gif")).toBe(null);
+    expect(publishedMediaUrl("")).toBe(null);
+    expect(publishedMediaUrl("../x.jpg")).toBe(null);
+    expect(
+      publishedMediaUrl(
+        "banners/66666666-6666-4666-8666-666666666666.jpg",
+      ),
+    ).toBe(null);
   });
 });
 

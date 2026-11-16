@@ -32,11 +32,18 @@
  * public feed and NO byte copies. The bucket stays private; an ADDITIVE
  * Storage SELECT policy lets anyone read an object ONLY while it is
  * linked to a product that is currently published (checked per request
- * by the definer function is_published_product_media). Unpublishing
- * revokes image access immediately, with no stale copies to clean up.
- * The projector builds plain public object URLs; the policy — not URL
- * obscurity — is the enforcement. Paths are UUID-based, and a path that
- * does not match the bucket's `<uuid>/<uuid>.<ext>` shape is dropped.
+ * by the definer function is_published_admin_product_media).
+ * Unpublishing revokes image access, with no stale copies to clean up.
+ * The projector builds same-origin delivery URLs
+ * (/api/product-media/<owner>/<file>); the route handler behind them
+ * streams bytes through the Storage endpoint that evaluates access
+ * policies, using the public anon configuration — the bucket's public
+ * URL endpoint never evaluates policies and cannot serve a private
+ * bucket, so it must never be used here. The policy — not URL
+ * obscurity — is the enforcement, and the delivery route re-checks
+ * publication on every cache miss (successes cache for 60 seconds).
+ * Paths are UUID-based, and a path that does not match the bucket's
+ * `<uuid>/<uuid>.<ext>` shape is dropped.
  *
  * COST SAFETY: the RPC never returns cost fields, the projector never
  * reads them, and variant SKUs are never projected (the storefront
@@ -109,7 +116,6 @@
  * something this change assumes.
  */
 
-import { PRODUCT_MEDIA_BUCKET } from "@/lib/admin/constants";
 import { isCatalogStoragePath } from "@/lib/admin/catalog-variants";
 import { canonicalSize } from "@/lib/catalogue-dimensions";
 import { isYoutubeVideoId } from "@/lib/youtube-video";
@@ -328,22 +334,18 @@ export function parsePublishedAdminRow(value: unknown): PublishedAdminRow | null
 }
 
 /**
- * Build a public Storage object URL for a published product image.
- * Returns null for an invalid base URL or storage path. The Storage
- * SELECT policy (not this URL shape) decides whether the bytes are
- * actually readable: unpublished/unlinked objects stay private.
+ * Build a same-origin delivery URL for a published product image.
+ * Returns null for a malformed storage path. The delivery route
+ * (app/api/product-media) streams the bytes through the Storage
+ * endpoint that evaluates access policies: unpublished/unlinked
+ * objects stay private, and the policy — not this URL shape —
+ * decides whether the bytes are actually readable.
  */
-export function publishedMediaPublicUrl(
-  supabaseUrl: string,
-  storagePath: string,
-): string | null {
-  if (!supabaseUrl.startsWith("https://") || !isCatalogStoragePath(storagePath)) {
-    return null;
-  }
-  const base = supabaseUrl.replace(/\/$/, "");
+export function publishedMediaUrl(storagePath: string): string | null {
+  if (!isCatalogStoragePath(storagePath)) return null;
   const [owner, object] = storagePath.split("/");
   if (!owner || !object) return null;
-  return `${base}/storage/v1/object/public/${PRODUCT_MEDIA_BUCKET}/${encodeURIComponent(owner)}/${encodeURIComponent(object)}`;
+  return `/api/product-media/${encodeURIComponent(owner)}/${encodeURIComponent(object)}`;
 }
 
 const ADMIN_BADGE_MAP: Record<string, ProductBadge | null> = {
@@ -358,15 +360,12 @@ const ADMIN_BADGE_MAP: Record<string, ProductBadge | null> = {
  * Project one validated RPC row to a storefront Product. Returns null
  * when the row fails validation or no image URL can be built.
  */
-export function projectPublishedAdminProduct(
-  row: unknown,
-  supabaseUrl: string,
-): Product | null {
+export function projectPublishedAdminProduct(row: unknown): Product | null {
   const parsed = parsePublishedAdminRow(row);
   if (!parsed) return null;
   const images: ProductImage[] = [];
   for (const medium of parsed.media) {
-    const src = publishedMediaPublicUrl(supabaseUrl, medium.path);
+    const src = publishedMediaUrl(medium.path);
     if (src) images.push({ src, alt: medium.alt || parsed.name });
   }
   if (images.length === 0) return null;
