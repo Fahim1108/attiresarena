@@ -128,3 +128,41 @@
 .design-preview-notice{background:#fff;color:#6b0202;border-bottom:1px solid #eaeaea;padding:8px 16px;text-align:center;font:12px/1.5 Arial,sans-serif;position:relative;z-index:90}
 
 @media(prefers-reduced-motion:reduce){.aa-skeleton::before{animation:none!important}}
+
+/*
+ * Admin design-system scope (Phase 1 setup).
+ * `--admin-*` variables live ONLY under `.aa-admin-ds` so the admin
+ * palette can never leak into the storefront. The AdminShell root
+ * (workspace pages) and each auth `<main>` carry the class; admin
+ * components (src/components/design-system/) must render inside it.
+ * Channel triplets must stay in sync with adminTokens in
+ * src/design-system/tokens.ts.
+ */
+.aa-admin-ds {
+  color-scheme: light;
+  --admin-primary: 101 0 0;
+  --admin-secondary: 139 30 36;
+  --admin-soft-bg: 248 238 238;
+  --admin-bg: 247 248 250;
+  --admin-card: 255 255 255;
+  --admin-text: 23 32 51;
+  --admin-text-secondary: 102 112 133;
+  --admin-border: 230 233 239;
+  --admin-success: 31 122 58;
+  --admin-warning: 154 98 0;
+  --admin-danger: 180 35 24;
+  --admin-info: 29 78 216;
+  --admin-radius-card: 12px;
+  --admin-radius-control: 8px;
+  --admin-font-sans: var(--font-inter), Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* Inside the admin scope, keyboard focus uses the admin primary. */
+.aa-admin-ds :focus-visible {
+  outline-color: rgb(var(--admin-primary));
+}
+
+/* Tabular numbers for KPI values and number columns (admin only). */
+.admin-ds-numeric {
+  font-variant-numeric: tabular-nums;
+}

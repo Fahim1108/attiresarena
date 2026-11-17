@@ -1,5 +1,6 @@
 "use client";
 
+import { Download } from "lucide-react";
 import { useState } from "react";
 import type { CsvExportResult } from "@/lib/admin/analytics";
 
@@ -44,12 +45,18 @@ export function CsvDownloadButton({
   }
 
   return (
-    <span>
-      <button type="button" className="aa-button" onClick={download} disabled={busy}>
+    <span className="inline-flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        className="inline-flex min-h-11 items-center gap-2 rounded-admin-control bg-admin-primary px-4 text-sm font-medium text-white transition-colors hover:bg-admin-primary/90"
+        onClick={download}
+        disabled={busy}
+      >
+        <Download size={16} strokeWidth={1.6} aria-hidden="true" />
         {busy ? "Preparing…" : "Download daily sales CSV"}
       </button>
       {error ? (
-        <span role="alert" style={{ marginLeft: "0.6rem", color: "#7a1010" }}>
+        <span role="alert" className="text-sm text-admin-danger">
           {error}
         </span>
       ) : null}

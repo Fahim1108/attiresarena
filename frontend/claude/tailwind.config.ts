@@ -7,6 +7,13 @@ import type { Config } from "tailwindcss";
  */
 const withVar = (name: string) => `rgb(var(--aa-${name}) / <alpha-value>)`;
 
+/**
+ * Admin design-system colors resolve to `--admin-*` variables defined ONLY
+ * under the `.aa-admin-ds` scope in globals.css (see src/design-system/
+ * tokens.ts). They are additive: no existing Tailwind value changes.
+ */
+const withAdminVar = (name: string) => `rgb(var(--admin-${name}) / <alpha-value>)`;
+
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   // `hover:` / `group-hover:` only apply on devices that can truly hover,
@@ -29,20 +36,43 @@ const config: Config = {
         success: "#1F7A3A",
         warning: "#9A6200",
         danger: "#B42318",
+        // Admin namespace (Phase 1 setup; scoped vars, see tokens.ts).
+        admin: {
+          primary: withAdminVar("primary"),
+          secondary: withAdminVar("secondary"),
+          "soft-bg": withAdminVar("soft-bg"),
+          bg: withAdminVar("bg"),
+          card: withAdminVar("card"),
+          text: withAdminVar("text"),
+          "text-secondary": withAdminVar("text-secondary"),
+          border: withAdminVar("border"),
+          success: withAdminVar("success"),
+          warning: withAdminVar("warning"),
+          danger: withAdminVar("danger"),
+          info: withAdminVar("info"),
+        },
       },
       fontFamily: {
         serif: ["var(--aa-font-serif)", "Georgia", "serif"],
         sans: ["var(--aa-font-sans)", "system-ui", "sans-serif"],
         display: ["var(--font-display)", "Georgia", "serif"],
         script: ["var(--font-script)", "cursive"],
+        // Admin font: Inter, via the scoped --admin-font-sans variable.
+        "admin-sans": ["var(--admin-font-sans)", "var(--font-inter)", "Inter", "system-ui", "sans-serif"],
       },
       borderRadius: {
         card: "var(--aa-radius-card)",
         control: "var(--aa-radius-control)",
+        // Admin-only radii; storefront radii stay 6px.
+        "admin-card": "var(--admin-radius-card)",
+        "admin-control": "var(--admin-radius-control)",
       },
       boxShadow: {
         soft: "0 1px 2px rgba(23,23,23,0.04), 0 8px 24px -12px rgba(23,23,23,0.12)",
         lift: "0 12px 32px -12px rgba(70,1,1,0.25)",
+        // Admin-only shadows (mirror adminTokens.shadow).
+        "admin-card": "0 1px 2px rgba(23, 32, 51, 0.05), 0 4px 16px -8px rgba(23, 32, 51, 0.10)",
+        "admin-lift": "0 12px 32px -12px rgba(101, 0, 0, 0.25)",
       },
       keyframes: {
         "fade-in": { from: { opacity: "0" }, to: { opacity: "1" } },

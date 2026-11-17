@@ -218,8 +218,8 @@ export function VariantEditor({
               key={row.key}
               aria-label={`Variant ${index + 1}`}
               style={{
-                border: "1px solid rgb(var(--aa-border))",
-                borderRadius: "var(--aa-radius-card)",
+                border: "1px solid rgb(var(--admin-border))",
+                borderRadius: "var(--admin-radius-card)",
                 padding: "1rem",
               }}
             >

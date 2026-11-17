@@ -9,7 +9,7 @@ export const metadata = {
 export default function AcceptInvitePage() {
   if (isProductionStorefront()) notFound();
   return (
-    <main id="main" tabIndex={-1} className="aa-login-layout">
+    <main id="main" tabIndex={-1} className="aa-login-layout aa-admin-ds aa-login--ds font-admin-sans">
       <section className="aa-login-panel" aria-labelledby="accept-invite-heading">
         <Image
           src="/brand/logo-maroon.png"

@@ -6,8 +6,10 @@ import {
   sendSmtpTest,
   type SmtpStatus,
 } from "@/lib/admin/smtp";
-import { PageHeading, Panel, Notice, StatusBadge } from "@/components/admin/ui";
+import { Notice, StatusBadge } from "@/components/admin/ui";
 import { SmtpSettingsForm } from "@/components/admin/smtp/SmtpSettingsForm";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/design-system/Card";
+import { PageHeader } from "@/components/design-system/PageHeader";
 import styles from "@/components/admin/sales/sales-refresh.module.css";
 
 export const metadata = { title: "Email (SMTP)" };
@@ -55,49 +57,59 @@ export default async function SmtpPage() {
   const status = await readSmtpStatus();
 
   return (
-    <main id="main" tabIndex={-1} className="aa-main">
-      <PageHeading
-        eyebrow="System"
-        title="Email (SMTP)"
-        description="Connect a mail server so a test email can confirm delivery. Only the store owner can change these settings."
-      />
+    <main id="main" tabIndex={-1} className="aa-main aa-main--ds">
+      <div className="space-y-6">
+        <PageHeader
+          title="Email (SMTP)"
+          description="Connect a mail server so a test email can confirm delivery. Only the store owner can change these settings."
+        >
+          <p className="text-[13px] font-medium text-admin-text-secondary">
+            System
+          </p>
+        </PageHeader>
 
-      <Notice kind="warning">
-        This email module is under review — whether to keep it has not been
-        decided yet. No order or customer email is sent automatically: the
-        only email this panel can send is the test email below.
-      </Notice>
+        <Notice kind="warning">
+          This email module is under review — whether to keep it has not been
+          decided yet. No order or customer email is sent automatically: the
+          only email this panel can send is the test email below.
+        </Notice>
 
-      <Panel
-        title="SMTP settings"
-        description="The password is stored as a secret and is never shown again. Saving replaces the whole configuration."
-      >
-        {status === null ? (
-          <>
-            <Notice kind="warning">
-              SMTP settings could not be loaded. The database setup for
-              SMTP may not be applied yet. Saving or testing will fail
-              until it is.
-            </Notice>
-            <SmtpSettingsForm
-              status={null}
-              saveAction={saveSmtpConfig}
-              testAction={sendSmtpTest}
-              deleteAction={deleteSmtpConfig}
-            />
-          </>
-        ) : (
-          <>
-            <SmtpStatusRow status={status} />
-            <SmtpSettingsForm
-              status={status}
-              saveAction={saveSmtpConfig}
-              testAction={sendSmtpTest}
-              deleteAction={deleteSmtpConfig}
-            />
-          </>
-        )}
-      </Panel>
+        <Card>
+          <CardHeader>
+            <CardTitle headingLevel="h2">SMTP settings</CardTitle>
+            <CardDescription>
+              The password is stored as a secret and is never shown again. Saving replaces the whole configuration.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {status === null ? (
+              <>
+                <Notice kind="warning">
+                  SMTP settings could not be loaded. The database setup for
+                  SMTP may not be applied yet. Saving or testing will fail
+                  until it is.
+                </Notice>
+                <SmtpSettingsForm
+                  status={null}
+                  saveAction={saveSmtpConfig}
+                  testAction={sendSmtpTest}
+                  deleteAction={deleteSmtpConfig}
+                />
+              </>
+            ) : (
+              <>
+                <SmtpStatusRow status={status} />
+                <SmtpSettingsForm
+                  status={status}
+                  saveAction={saveSmtpConfig}
+                  testAction={sendSmtpTest}
+                  deleteAction={deleteSmtpConfig}
+                />
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 }

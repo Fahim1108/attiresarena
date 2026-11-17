@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { Download } from "lucide-react";
 import { useActionState, useRef, useState } from "react";
 import {
   ORDER_STATUS_LABELS,
-  ORDER_STATUS_TONES,
   ORDER_TRANSITIONS,
   PAYMENT_STATUS_LABELS,
   type OrderStatus,
@@ -12,7 +12,7 @@ import {
 } from "@/lib/admin/constants";
 import { formatDateTime, formatMoney } from "@/lib/admin/format";
 import type { ShipmentSummary } from "@/lib/admin/courier";
-import { StatusBadge } from "@/components/admin/ui";
+import { StatusBadge } from "@/components/design-system/StatusBadge";
 import { FormMessage, SubmitButton } from "@/components/admin/ui-client";
 import { CourierBookingPanel } from "./CourierBookingPanel";
 import { OrderStatusForm } from "./OrderStatusForm";
@@ -147,7 +147,8 @@ export function OrdersTable({
   return (
     <div>
       <div className="aa-toolbar" role="group" aria-label="Order actions">
-        <button type="button" className="aa-secondary" onClick={runExport} disabled={exportState.busy}>
+        <button type="button" className="aa-secondary gap-2" onClick={runExport} disabled={exportState.busy}>
+          <Download size={16} strokeWidth={1.6} aria-hidden="true" />
           {exportState.busy ? "Exporting…" : "Export CSV"}
         </button>
         <label className={styles.selectAll}>
@@ -232,9 +233,7 @@ export function OrdersTable({
                     {label}
                   </Link>
                   <span className={styles.cardCustomer}>{row.customer_name}</span>
-                  <StatusBadge tone={ORDER_STATUS_TONES[row.status]}>
-                    {ORDER_STATUS_LABELS[row.status]}
-                  </StatusBadge>
+                  <StatusBadge status={row.status} />
                   <span className={styles.cardTotal}>{formatMoney(row.total_minor)}</span>
                   <button
                     type="button"

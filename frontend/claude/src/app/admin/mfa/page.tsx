@@ -10,7 +10,7 @@ export default async function MfaPage() {
   if (factors.error)
     throw new Error("Authenticator settings unavailable. Please retry.");
   return (
-    <main id="main" tabIndex={-1} className="aa-login-layout">
+    <main id="main" tabIndex={-1} className="aa-login-layout aa-admin-ds aa-login--ds font-admin-sans">
       <section className="aa-login-panel" aria-labelledby="mfa-heading">
         <Image
           src="/brand/logo-maroon.png"

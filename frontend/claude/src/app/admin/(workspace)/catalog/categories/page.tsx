@@ -13,11 +13,19 @@ import {
 import { FEATURED_CATEGORIES_COUNT_SCHEMA } from "@/lib/admin/reference-adapt";
 import { resolveDisplayData } from "@/lib/admin/sample-data";
 import { sampleCatalogCategories } from "@/lib/admin/sample-catalogue";
-import { Notice, PageHeading, Panel } from "@/components/admin/ui";
+import { Notice } from "@/components/admin/ui";
 import { SampleBadge } from "@/components/admin/SampleBadge";
 import { CategoryForm } from "@/components/admin/catalog/category-form";
 import { FeaturedCountForm } from "@/components/admin/catalog/featured-count-form";
 import { CategoryList } from "@/components/admin/catalog/category-list";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/design-system/Card";
+import { PageHeader } from "@/components/design-system/PageHeader";
 
 export const metadata = { title: "Categories" };
 
@@ -47,72 +55,95 @@ export default async function CatalogCategoriesPage() {
   const tree = buildCategoryTree(display.items);
 
   return (
-    <main id="main" tabIndex={-1} className="aa-main">
-      <PageHeading
-        eyebrow="Catalog"
-        title="Categories"
-        description="Organise products into primary and secondary categories, up to 3 levels deep. A secondary category always belongs to a primary category. Reorder siblings with the up/down buttons."
-        actions={isSample ? <SampleBadge /> : undefined}
-      />
-      <Notice kind="info">
-        Storefront category display follows existing publication behaviour;
-        saving a category here does not change the public storefront feed.
-      </Notice>
-      {isSample ? (
-        <Notice kind="warning">
-          Categories could not be loaded, so sample categories are shown
-          for layout testing only. Sample rows cannot be edited, reordered
-          or deleted, and no changes are saved.
-        </Notice>
-      ) : malformedRows > 0 ? (
-        <Notice kind="warning">
-          {malformedRows} categor{malformedRows === 1 ? "y" : "ies"} could
-          not be read and {malformedRows === 1 ? "is" : "are"} hidden below.
-          The categories shown are complete and editable.
-        </Notice>
-      ) : !canManage ? (
-        <Notice kind="warning">
-          Your role can view categories but cannot change them.
-        </Notice>
-      ) : null}
-
-      {canManage && !isSample ? (
-        <Panel title="Create category">
-          <CategoryForm
-            category={null}
-            parentOptions={flattenCategoryOptions(tree, new Set())}
-          />
-        </Panel>
-      ) : null}
-
-      {canManageSettings && !isSample ? (
-        <Panel
-          title="Featured categories"
-          description="How many categories the Featured Categories section shows."
+    <main id="main" tabIndex={-1} className="aa-main aa-main--ds">
+      <div className="space-y-6">
+        <PageHeader
+          title="Categories"
+          description="Organise products into primary and secondary categories, up to 3 levels deep. A secondary category always belongs to a primary category. Reorder siblings with the up/down buttons."
         >
-          {layoutSettings === null ? (
-            <Notice kind="warning">
-              Layout settings could not be loaded. If the
-              reference-additions migration has not applied yet, this value
-              cannot be saved yet.
-            </Notice>
-          ) : (
-            <>
-              <Notice kind="info">
-                Stored only: no Featured Categories section reads this
-                value yet. It is saved for the follow-up that wires the
-                storefront section to it.
-              </Notice>
-              <FeaturedCountForm
-                initialCount={featuredCount}
-                action={saveFeaturedCategoriesCount}
-              />
-            </>
-          )}
-        </Panel>
-      ) : null}
+          <p className="text-[13px] font-medium text-admin-text-secondary">
+            Catalog
+          </p>
+        </PageHeader>
 
-      <CategoryList tree={tree} flat={display.items} canManage={canManage} />
+        {isSample ? (
+          <div
+            className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-admin-card border border-admin-border border-l-4 border-l-admin-primary bg-admin-soft-bg px-4 py-3 text-sm leading-6 text-admin-text"
+            role="status"
+          >
+            <SampleBadge />
+            <span>
+              Categories could not be loaded, so sample categories are shown
+              for layout testing only. Sample rows cannot be edited, reordered
+              or deleted, and no changes are saved.
+            </span>
+          </div>
+        ) : null}
+
+        <Notice kind="info">
+          Storefront category display follows existing publication behaviour;
+          saving a category here does not change the public storefront feed.
+        </Notice>
+        {!isSample && malformedRows > 0 ? (
+          <Notice kind="warning">
+            {malformedRows} categor{malformedRows === 1 ? "y" : "ies"} could
+            not be read and {malformedRows === 1 ? "is" : "are"} hidden below.
+            The categories shown are complete and editable.
+          </Notice>
+        ) : !isSample && !canManage ? (
+          <Notice kind="warning">
+            Your role can view categories but cannot change them.
+          </Notice>
+        ) : null}
+
+        {canManage && !isSample ? (
+          <Card>
+            <CardHeader>
+              <CardTitle headingLevel="h2">Create category</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CategoryForm
+                category={null}
+                parentOptions={flattenCategoryOptions(tree, new Set())}
+              />
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {canManageSettings && !isSample ? (
+          <Card>
+            <CardHeader>
+              <CardTitle headingLevel="h2">Featured categories</CardTitle>
+              <CardDescription>
+                How many categories the Featured Categories section shows.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {layoutSettings === null ? (
+                <Notice kind="warning">
+                  Layout settings could not be loaded. If the
+                  reference-additions migration has not applied yet, this value
+                  cannot be saved yet.
+                </Notice>
+              ) : (
+                <>
+                  <Notice kind="info">
+                    Stored only: no Featured Categories section reads this
+                    value yet. It is saved for the follow-up that wires the
+                    storefront section to it.
+                  </Notice>
+                  <FeaturedCountForm
+                    initialCount={featuredCount}
+                    action={saveFeaturedCategoriesCount}
+                  />
+                </>
+              )}
+            </CardContent>
+          </Card>
+        ) : null}
+
+        <CategoryList tree={tree} flat={display.items} canManage={canManage} />
+      </div>
     </main>
   );
 }

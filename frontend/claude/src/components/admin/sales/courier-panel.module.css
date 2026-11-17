@@ -1,6 +1,6 @@
-/* Courier booking panel. Theme tokens only: primary #6B0202,
-   primaryDark #460101, surface #FFFFFF, text #171717, muted #5F5A57,
-   border #EAEAEA, selected #F6EAEA; 6px radius. */
+/* Courier booking panel (retokenised Wave B). Admin design-system
+   tokens only, via the scoped --admin-* variables (resolving under the
+   .aa-admin-ds shell scope). Geometry and copy are unchanged. */
 
 .facts {
   display: grid;
@@ -12,12 +12,12 @@
 }
 
 .facts dt {
-  color: #5f5a57;
+  color: rgb(var(--admin-text-secondary));
 }
 
 .facts dd {
   margin: 0;
-  color: #171717;
+  color: rgb(var(--admin-text));
   overflow-wrap: anywhere;
 }
 
@@ -29,23 +29,23 @@
 
 .note {
   margin: 0 0 0.75rem;
-  color: #5f5a57;
+  color: rgb(var(--admin-text-secondary));
   font-size: 0.9rem;
   line-height: 1.5;
 }
 
 .note strong {
-  color: #171717;
+  color: rgb(var(--admin-text));
 }
 
 .warning {
   margin: 0 0 0.75rem;
   padding: 0.75rem 1rem;
-  border: 1px solid #eaeaea;
-  border-left: 3px solid #6b0202;
-  border-radius: 6px;
-  background: #f6eaea;
-  color: #171717;
+  border: 1px solid rgb(var(--admin-border));
+  border-left: 3px solid rgb(var(--admin-primary));
+  border-radius: var(--admin-radius-control);
+  background: rgb(var(--admin-soft-bg));
+  color: rgb(var(--admin-text));
   font-size: 0.9rem;
   line-height: 1.5;
 }

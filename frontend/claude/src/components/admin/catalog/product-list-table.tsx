@@ -53,7 +53,7 @@ function Thumbnail({ item }: { item: CatalogListItem }) {
         alignItems: "center",
         justifyContent: "center",
         fontWeight: 700,
-        color: "rgb(var(--aa-text-muted))",
+        color: "rgb(var(--admin-text-secondary))",
       }}
     >
       {initial}
@@ -172,15 +172,7 @@ export function ProductListTable({
       ) : null}
 
       {allowSelection && selected.size > 0 ? (
-        <div
-          className="aa-panel"
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "0.6rem",
-            alignItems: "center",
-          }}
-        >
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-admin-card border border-admin-border bg-admin-soft-bg px-4 py-3 text-sm text-admin-text">
           <strong>{selected.size} selected</strong>
           <button
             type="button"

@@ -2,6 +2,7 @@
 
 /* Private signed thumbnails are deliberately unoptimized. */
 /* eslint-disable @next/next/no-img-element */
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
@@ -106,8 +107,8 @@ export function CategoryList({
                   height={44}
                   style={{
                     objectFit: "cover",
-                    borderRadius: "var(--aa-radius-card)",
-                    border: "1px solid rgb(var(--aa-border))",
+                    borderRadius: "var(--admin-radius-card)",
+                    border: "1px solid rgb(var(--admin-border))",
                   }}
                 />
               ) : null}
@@ -141,7 +142,8 @@ export function CategoryList({
                     title={index === 0 ? "Already first among siblings" : "Move up among siblings"}
                     onClick={() => void runMove(nodes, node.id, -1)}
                   >
-                    ↑ Up
+                    <ArrowUp className="h-4 w-4" aria-hidden="true" />
+                    Up
                   </button>
                   <button
                     type="button"
@@ -155,7 +157,8 @@ export function CategoryList({
                     }
                     onClick={() => void runMove(nodes, node.id, 1)}
                   >
-                    ↓ Down
+                    <ArrowDown className="h-4 w-4" aria-hidden="true" />
+                    Down
                   </button>
                   {confirmDeleteId === node.id ? (
                     <>

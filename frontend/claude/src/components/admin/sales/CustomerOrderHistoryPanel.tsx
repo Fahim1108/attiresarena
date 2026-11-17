@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { ORDER_STATUS_LABELS, ORDER_STATUS_TONES } from "@/lib/admin/constants";
 import { formatDateTime, formatMoney } from "@/lib/admin/format";
 import type { OrderRow } from "@/lib/admin/orders";
-import { Notice, StatusBadge } from "@/components/admin/ui";
+import { Notice } from "@/components/admin/ui";
+import { StatusBadge } from "@/components/design-system/StatusBadge";
 
 /**
  * Previous-order history panel shared by the order detail page and the
@@ -57,9 +57,7 @@ export function CustomerOrderHistoryPanel({
                 </th>
                 <td data-label="Placed">{formatDateTime(order.placed_at)}</td>
                 <td data-label="Status">
-                  <StatusBadge tone={ORDER_STATUS_TONES[order.status]}>
-                    {ORDER_STATUS_LABELS[order.status]}
-                  </StatusBadge>
+                  <StatusBadge status={order.status} />
                 </td>
                 <td data-label="Total">{formatMoney(order.total_minor)}</td>
                 <td data-label="Details" className="aa-cell-actions">

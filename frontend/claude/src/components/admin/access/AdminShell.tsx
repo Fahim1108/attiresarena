@@ -2,7 +2,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useRef } from "react";
+import { useRef, useSyncExternalStore } from "react";
 import {
   LayoutDashboard,
   BarChart3,
@@ -32,6 +32,10 @@ import {
   Blocks,
   PanelsTopLeft,
   ArrowLeftRight,
+  LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+  X,
 } from "lucide-react";
 import { signOutStaff } from "@/lib/admin/actions";
 import { areaRoles } from "@/lib/admin/constants";
@@ -78,10 +82,50 @@ import { areaRoles } from "@/lib/admin/constants";
  * Customize" because the page now also hosts the customize panels. Media
  * stays under Staging tools with its existing conditions — it is not a
  * Content entry.
+ *
+ * Admin redesign (Phase 2, Wave A): the shell carries the design-system
+ * scope class so the scoped admin variables resolve for every workspace
+ * page, and the sidebar can collapse to an icon rail. Collapsing is a
+ * UI preference only — every link stays reachable as an icon with its
+ * label available to assistive technology and on hover, and the mobile
+ * drawer always shows full labels. Role gating, staging-tools
+ * conditions, the environment badge, the global search form, sign-out
+ * and the mobile bottom navigation are unchanged.
  */
 
 type NavIcon = typeof LayoutDashboard;
 type NavLink = { href: string; label: string; Icon: NavIcon };
+
+/**
+ * Versioned localStorage key for the sidebar preference
+ * (react_best_practices client-localstorage-schema: versioned keys,
+ * minimal data, try/catch around every access). The stored value is
+ * "collapsed" or "expanded"; anything else means expanded.
+ */
+const SIDEBAR_STORAGE_KEY = "attiresarena-admin-sidebar:v1";
+
+/**
+ * The stored preference is read through useSyncExternalStore so the
+ * server render (expanded) and the hydrated client render agree, and
+ * so a change in another tab updates this tab. Same-tab writes do
+ * not fire the "storage" event, so the toggle dispatches one itself.
+ */
+function subscribeSidebarPreference(onStoreChange: () => void): () => void {
+  window.addEventListener("storage", onStoreChange);
+  return () => window.removeEventListener("storage", onStoreChange);
+}
+
+function readSidebarPreference(): boolean {
+  try {
+    return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "collapsed";
+  } catch {
+    return false;
+  }
+}
+
+function sidebarServerSnapshot(): boolean {
+  return false;
+}
 
 export function AdminShell({
   children,
@@ -96,6 +140,23 @@ export function AdminShell({
 }) {
   const path = usePathname();
   const drawer = useRef<HTMLDialogElement>(null);
+  const collapsed = useSyncExternalStore(
+    subscribeSidebarPreference,
+    readSidebarPreference,
+    sidebarServerSnapshot,
+  );
+  function toggleSidebar() {
+    const next = !collapsed;
+    try {
+      window.localStorage.setItem(
+        SIDEBAR_STORAGE_KEY,
+        next ? "collapsed" : "expanded",
+      );
+    } catch {
+      // Storage unavailable: the preference simply does not persist.
+    }
+    window.dispatchEvent(new Event("storage"));
+  }
   const staffKnown = roles.length > 0;
   const hasArea = (area: string) =>
     roles.some((role) =>
@@ -238,21 +299,29 @@ export function AdminShell({
     );
   };
 
+  // Labels sit in spans so the collapsed rail can hide them visually
+  // while assistive technology still reads them (see admin-ds.css).
+  // The same fragment renders in the sidebar and in the mobile drawer;
+  // collapse hiding is scoped to the sidebar, so the drawer always
+  // shows full labels.
   const navigation = (
     <>
       <nav aria-label="Admin navigation">
         {groups.map((group) => (
           <details className="aa-nav-group" key={group.title} open>
-            <summary>{group.title}</summary>
+            <summary>
+              <span className="aa-nav-group-title">{group.title}</span>
+            </summary>
             {group.links.map(({ href, label, Icon }) => (
               <Link
                 key={href}
                 href={href}
+                title={label}
                 aria-current={current(href) ? "page" : undefined}
                 onClick={() => drawer.current?.close()}
               >
                 <Icon size={16} strokeWidth={1.6} aria-hidden="true" />
-                {label}
+                <span className="aa-nav-label">{label}</span>
               </Link>
             ))}
           </details>
@@ -267,8 +336,9 @@ export function AdminShell({
           SQL, not automatically.
         </p>
       </details>
-      <Link className="aa-visit-store" href="/">
-        Visit store <ArrowUpRight size={15} aria-hidden="true" />
+      <Link className="aa-visit-store" href="/" title="Visit store">
+        <span className="aa-nav-label">Visit store</span>{" "}
+        <ArrowUpRight size={15} aria-hidden="true" />
       </Link>
       {staffKnown ? (
         <>
@@ -276,15 +346,21 @@ export function AdminShell({
             {roles.map((r) => r.replaceAll("_", " ")).join(", ")} · MFA verified
           </p>
           <form action={signOutStaff}>
-            <button className="aa-secondary">Sign out</button>
+            <button className="aa-secondary" title="Sign out">
+              <LogOut size={16} strokeWidth={1.6} aria-hidden="true" />
+              <span className="aa-nav-label">Sign out</span>
+            </button>
           </form>
         </>
       ) : null}
     </>
   );
   return (
-    <div className="aa-shell">
-      <aside className="aa-sidebar">
+    <div
+      className="aa-shell aa-admin-ds bg-admin-bg font-admin-sans text-admin-text"
+      data-sidebar={collapsed ? "collapsed" : "expanded"}
+    >
+      <aside id="admin-sidebar" className="aa-sidebar">
         <Link href="/admin" aria-label="Attires Arena administration">
           <Image
             src={stagingTools ? "/brand/logo-white.png" : "/brand/logo-maroon.png"}
@@ -301,10 +377,25 @@ export function AdminShell({
         <header className="aa-top">
           <button
             type="button"
+            className="aa-collapse-toggle"
+            onClick={toggleSidebar}
+            aria-expanded={!collapsed}
+            aria-controls="admin-sidebar"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? (
+              <PanelLeftOpen size={18} strokeWidth={1.6} aria-hidden="true" />
+            ) : (
+              <PanelLeftClose size={18} strokeWidth={1.6} aria-hidden="true" />
+            )}
+          </button>
+          <button
+            type="button"
             className="aa-mobile-toggle aa-secondary"
             onClick={() => drawer.current?.showModal()}
             aria-haspopup="dialog"
           >
+            <Menu size={18} strokeWidth={1.6} aria-hidden="true" />
             Menu
           </button>
           <Image
@@ -335,6 +426,7 @@ export function AdminShell({
         </header>
         <dialog ref={drawer} className="aa-drawer" aria-label="Administration menu">
           <button type="button" className="aa-secondary" onClick={() => drawer.current?.close()}>
+            <X size={16} strokeWidth={1.6} aria-hidden="true" />
             Close menu
           </button>
           {navigation}

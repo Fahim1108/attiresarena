@@ -1,5 +1,6 @@
 "use client";
 
+import { Download } from "lucide-react";
 import { useState } from "react";
 import { downloadCsv, type CustomersExportAction, type CsvExportResult } from "./types";
 
@@ -40,15 +41,15 @@ export function CustomersExportButton({
   };
 
   return (
-    <span>
-      <button type="button" className="aa-secondary" onClick={runExport} disabled={busy}>
+    <span className="inline-flex flex-wrap items-center gap-2">
+      <button type="button" className="aa-secondary gap-2" onClick={runExport} disabled={busy}>
+        <Download size={16} strokeWidth={1.6} aria-hidden="true" />
         {busy ? "Exporting…" : "Export CSV"}
-      </button>{" "}
+      </button>
       {message ? (
         <span
           role={message.kind === "error" ? "alert" : "status"}
-          className="aa-hint"
-          style={message.kind === "error" ? { color: "#7a1010" } : undefined}
+          className={message.kind === "error" ? "text-sm text-admin-danger" : "aa-hint"}
         >
           {message.text}
         </span>

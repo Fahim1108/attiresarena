@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PageHeading, Panel, Notice } from "@/components/admin/ui";
+import { Notice } from "@/components/admin/ui";
 import { BannerList } from "@/components/admin/content/banner-list";
 import { BannerForm } from "@/components/admin/content/forms";
 import {
@@ -7,6 +7,8 @@ import {
   MarketingSettingsForm,
   SmsSecretForm,
 } from "@/components/admin/marketing/forms";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/design-system/Card";
+import { PageHeader } from "@/components/design-system/PageHeader";
 import { getBanners, saveBanner } from "@/lib/admin/content";
 import { isOwner, requireStaff } from "@/lib/admin/authorization";
 import {
@@ -32,79 +34,114 @@ export default async function PromotionsPage() {
   const promos = (banners ?? []).filter((banner) => banner.placement === "promo");
 
   return (
-    <main id="main" tabIndex={-1} className="aa-main">
-      <PageHeading
-        eyebrow="Marketing"
-        title="Promotions"
-        description="Promotional banners, tracking integrations and SMS marketing. Coupon campaigns live under Coupons."
-      />
-      <Panel title="Coupon campaigns">
-        <p>
-          Coupons are managed under{" "}
-          <Link href="/admin/sales/coupons">Sales → Coupons</Link>, including
-          the first-order rule. This page does not duplicate coupon
-          management.
-        </p>
-      </Panel>
-      {settings === undefined ? (
-        <Notice kind="info">
-          Tracking, SMS and custom-code settings can only be changed by the
-          owner. Banner campaigns below are available to you.
-        </Notice>
-      ) : settings === null ? (
-        <Notice kind="warning">
-          Marketing settings could not be loaded. Banner campaigns below
-          still work; tracking and SMS settings need the settings tables.
-          Try again later.
-        </Notice>
-      ) : (
-        <>
-          <Panel
-            title="Tracking and SMS marketing"
-            description="Meta Pixel, Google Analytics and SMS provider settings. Tracking code loads only when an ID is saved."
-          >
-            <MarketingSettingsForm action={saveMarketingSettings} settings={settings} />
-          </Panel>
-          <Panel
-            title="SMS secret"
-            description="The provider API key or secret. Stored write-only and never shown again."
-          >
-            <SmsSecretForm
-              action={saveSmsSecret}
-              removeAction={removeSmsSecret}
-              secretConfigured={smsSecretConfigured}
-            />
-          </Panel>
-          <Panel
-            title="Custom header and footer code"
-            description="Owner-only. Code saved here runs on every storefront page."
-          >
-            {owner ? (
-              <CustomCodeForm action={saveCustomCode} settings={settings} />
-            ) : (
-              <Notice kind="info">
-                Custom code can only be changed by the owner. Ask the owner
-                to save or remove header and footer code.
-              </Notice>
-            )}
-          </Panel>
-        </>
-      )}
-      <Panel title="Add promotional banner">
-        <BannerForm action={saveBanner} defaultPlacement="promo" />
-      </Panel>
-      <Panel title="Promotional banners">
-        {banners === null ? (
-          <Notice kind="warning">Banners could not be loaded. Try again later.</Notice>
+    <main id="main" tabIndex={-1} className="aa-main aa-main--ds">
+      <div className="space-y-6">
+        <PageHeader
+          title="Promotions"
+          description="Promotional banners, tracking integrations and SMS marketing. Coupon campaigns live under Coupons."
+        >
+          <p className="text-[13px] font-medium text-admin-text-secondary">
+            Marketing
+          </p>
+        </PageHeader>
+        <Card>
+          <CardHeader>
+            <CardTitle headingLevel="h2">Coupon campaigns</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm leading-6 text-admin-text">
+              Coupons are managed under{" "}
+              <Link href="/admin/sales/coupons">Sales → Coupons</Link>, including
+              the first-order rule. This page does not duplicate coupon
+              management.
+            </p>
+          </CardContent>
+        </Card>
+        {settings === undefined ? (
+          <Notice kind="info">
+            Tracking, SMS and custom-code settings can only be changed by the
+            owner. Banner campaigns below are available to you.
+          </Notice>
+        ) : settings === null ? (
+          <Notice kind="warning">
+            Marketing settings could not be loaded. Banner campaigns below
+            still work; tracking and SMS settings need the settings tables.
+            Try again later.
+          </Notice>
         ) : (
-          <BannerList
-            banners={promos}
-            emptyTitle="No promotional banners yet"
-            emptyDescription="Add a promotional banner above. Promotional banners are stored here and apply once the storefront wiring reads them."
-            editHref={(id) => `/admin/content/banners?edit=${id}`}
-          />
+          <>
+            <Card>
+              <CardHeader>
+                <CardTitle headingLevel="h2">Tracking and SMS marketing</CardTitle>
+                <CardDescription>
+                  Meta Pixel, Google Analytics and SMS provider settings. Tracking code loads only when an ID is saved.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <MarketingSettingsForm action={saveMarketingSettings} settings={settings} />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle headingLevel="h2">SMS secret</CardTitle>
+                <CardDescription>
+                  The provider API key or secret. Stored write-only and never shown again.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <SmsSecretForm
+                  action={saveSmsSecret}
+                  removeAction={removeSmsSecret}
+                  secretConfigured={smsSecretConfigured}
+                />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle headingLevel="h2">Custom header and footer code</CardTitle>
+                <CardDescription>
+                  Owner-only. Code saved here runs on every storefront page.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {owner ? (
+                  <CustomCodeForm action={saveCustomCode} settings={settings} />
+                ) : (
+                  <Notice kind="info">
+                    Custom code can only be changed by the owner. Ask the owner
+                    to save or remove header and footer code.
+                  </Notice>
+                )}
+              </CardContent>
+            </Card>
+          </>
         )}
-      </Panel>
+        <Card>
+          <CardHeader>
+            <CardTitle headingLevel="h2">Add promotional banner</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <BannerForm action={saveBanner} defaultPlacement="promo" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle headingLevel="h2">Promotional banners</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {banners === null ? (
+              <Notice kind="warning">Banners could not be loaded. Try again later.</Notice>
+            ) : (
+              <BannerList
+                banners={promos}
+                emptyTitle="No promotional banners yet"
+                emptyDescription="Add a promotional banner above. Promotional banners are stored here and apply once the storefront wiring reads them."
+                editHref={(id) => `/admin/content/banners?edit=${id}`}
+              />
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 }

@@ -1,13 +1,17 @@
 /* Admin Panel v2 catalogue styles (CSS Modules only — admin-panel.css and
-   workspace.css are untouched). Theme tokens come from globals.css:
-   primary #6B0202, 6px radius, Cormorant Garamond + Inter. */
+   workspace.css are untouched). Admin tokens come from globals.css:
+   the scoped `--admin-*` variables under `.aa-admin-ds` (12px card
+   radius, Inter), which resolve because the admin shell root carries
+   `.aa-admin-ds`. The two grey neutral values are kept deliberately:
+   contrast-pinned neutrals for the switch track and the dropzone
+   boundary (3.45:1), not brand colours. */
 
 /* ---- Storefront feed health (admin products page, diagnostics) ---- */
 
 .feedHealth {
-  border: 1px solid rgb(var(--aa-border));
-  border-radius: var(--aa-radius-card);
-  background: rgb(var(--aa-surface));
+  border: 1px solid rgb(var(--admin-border));
+  border-radius: var(--admin-radius-card);
+  background: rgb(var(--admin-card));
   padding: 0.9rem 1rem;
   display: grid;
   gap: 0.5rem;
@@ -22,7 +26,7 @@
 
 .feedHealthTitle {
   font-weight: 700;
-  color: rgb(var(--aa-text));
+  color: rgb(var(--admin-text));
 }
 
 .feedHealthRows {
@@ -30,7 +34,7 @@
   gap: 0.3rem;
   margin: 0;
   font-size: 0.875rem;
-  color: rgb(var(--aa-text));
+  color: rgb(var(--admin-text));
 }
 
 .feedHealthRow {
@@ -41,7 +45,7 @@
 }
 
 .feedHealthLabel {
-  color: rgb(var(--aa-text-muted));
+  color: rgb(var(--admin-text-secondary));
 }
 
 .feedHealthValue {
@@ -49,24 +53,24 @@
 }
 
 .feedHealthWarning {
-  color: rgb(var(--aa-primary));
+  color: rgb(var(--admin-primary));
   font-weight: 600;
 }
 
 .feedHealthFootnote {
   margin: 0;
   font-size: 0.8125rem;
-  color: rgb(var(--aa-text-muted));
+  color: rgb(var(--admin-text-secondary));
 }
 
 /* ---- Category hierarchy ---- */
 
 .levelBadge {
   display: inline-block;
-  border: 1px solid rgb(var(--aa-border));
-  border-radius: var(--aa-radius-control);
-  background: rgb(var(--aa-selected));
-  color: rgb(var(--aa-text));
+  border: 1px solid rgb(var(--admin-border));
+  border-radius: var(--admin-radius-control);
+  background: rgb(var(--admin-soft-bg));
+  color: rgb(var(--admin-text));
   font-size: 0.75rem;
   font-weight: 600;
   line-height: 1.4;
@@ -90,7 +94,7 @@
 }
 
 .publicationMessageError {
-  color: rgb(var(--aa-primary));
+  color: rgb(var(--admin-primary));
   font-weight: 600;
 }
 
@@ -101,9 +105,9 @@
   gap: 1rem;
   align-items: center;
   justify-content: space-between;
-  border: 1px solid rgb(var(--aa-border));
-  border-radius: var(--aa-radius-card);
-  background: rgb(var(--aa-surface));
+  border: 1px solid rgb(var(--admin-border));
+  border-radius: var(--admin-radius-card);
+  background: rgb(var(--admin-card));
   padding: 0.8rem 1rem;
   margin-top: 1rem;
 }
@@ -151,13 +155,13 @@
   width: 1.2rem;
   height: 1.2rem;
   border-radius: 50%;
-  background: rgb(var(--aa-surface));
+  background: rgb(var(--admin-card));
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
   transition: transform 0.2s ease;
 }
 
 .switchInput:checked + .switchTrack {
-  background: rgb(var(--aa-primary));
+  background: rgb(var(--admin-primary));
 }
 
 .switchInput:checked + .switchTrack .switchKnob {
@@ -165,7 +169,7 @@
 }
 
 .switchInput:focus-visible + .switchTrack {
-  outline: 2px solid rgb(var(--aa-primary));
+  outline: 2px solid rgb(var(--admin-primary));
   outline-offset: 2px;
 }
 
@@ -182,17 +186,17 @@
   /* Dashed boundary was --aa-border (#EAEAEA, 1.20:1): the drop area
      read as blank space. #8F8985 measures 3.45:1. */
   border: 2px dashed #8f8985;
-  border-radius: var(--aa-radius-card);
+  border-radius: var(--admin-radius-card);
   padding: 2rem 1.25rem;
   margin-top: 1rem;
   text-align: center;
-  background: rgb(var(--aa-surface));
+  background: rgb(var(--admin-card));
   cursor: pointer;
 }
 
 .dropzoneActive {
-  border-color: rgb(var(--aa-primary));
-  background: rgb(var(--aa-selected));
+  border-color: rgb(var(--admin-primary));
+  background: rgb(var(--admin-soft-bg));
 }
 
 .dropzoneTitle {
@@ -212,17 +216,17 @@
   flex-wrap: wrap;
   gap: 0.75rem;
   align-items: center;
-  border: 1px solid rgb(var(--aa-border));
-  border-radius: var(--aa-radius-card);
+  border: 1px solid rgb(var(--admin-border));
+  border-radius: var(--admin-radius-card);
   padding: 0.6rem;
-  background: rgb(var(--aa-surface));
+  background: rgb(var(--admin-card));
 }
 
 .queueThumb {
   object-fit: cover;
   border-radius: 4px;
-  border: 1px solid rgb(var(--aa-border));
-  background: #f7f4f4;
+  border: 1px solid rgb(var(--admin-border));
+  background: rgb(var(--admin-bg));
   flex-shrink: 0;
 }
 
@@ -254,19 +258,19 @@
 }
 
 .galleryCard {
-  border: 1px solid rgb(var(--aa-border));
-  border-radius: var(--aa-radius-card);
+  border: 1px solid rgb(var(--admin-border));
+  border-radius: var(--admin-radius-card);
   padding: 0.75rem;
   min-width: 0;
-  background: rgb(var(--aa-surface));
+  background: rgb(var(--admin-card));
 }
 
 .galleryImage {
   object-fit: contain;
   max-width: 100%;
   height: auto;
-  background: #f7f4f4;
-  border-radius: var(--aa-radius-card);
+  background: rgb(var(--admin-bg));
+  border-radius: var(--admin-radius-card);
 }
 
 .cardTitle {
@@ -291,9 +295,9 @@
 .badgePill {
   display: inline-block;
   padding: 0.1rem 0.45rem;
-  border-radius: var(--aa-radius-control);
-  background: rgb(var(--aa-selected));
-  color: rgb(var(--aa-primary));
+  border-radius: var(--admin-radius-control);
+  background: rgb(var(--admin-soft-bg));
+  color: rgb(var(--admin-primary));
   font-size: 0.75rem;
   font-weight: 600;
   line-height: 1.5;

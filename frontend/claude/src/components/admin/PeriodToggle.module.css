@@ -1,7 +1,8 @@
 /* Segmented period toggle (dashboard granularity, analytics presets).
    A pill of links: the active option is solid maroon, the rest sit on
-   the pale selected tint. Theme tokens come from globals.css (--aa-*
-   RGB triplets): primary #6B0202, text #171717, selected #F6EAEA. */
+   the pale soft tint. Colours resolve to the scoped admin variables
+   in globals.css (under .aa-admin-ds); see src/design-system/tokens.ts
+   for the palette. Geometry and behaviour are unchanged. */
 
 .control {
   display: inline-flex;
@@ -10,7 +11,7 @@
   max-width: 100%;
   padding: 0.25rem;
   border-radius: 999px;
-  background: rgb(var(--aa-selected));
+  background: rgb(var(--admin-soft-bg));
 }
 
 .option,
@@ -25,7 +26,7 @@
   font-weight: 500;
   line-height: 1.2;
   text-decoration: none;
-  color: rgb(var(--aa-text));
+  color: rgb(var(--admin-text));
   touch-action: manipulation;
   transition:
     background-color 150ms ease-out,
@@ -33,23 +34,23 @@
 }
 
 .option:hover {
-  background: rgb(var(--aa-surface));
+  background: rgb(var(--admin-card));
   text-decoration: none;
 }
 
 .optionActive {
-  background: rgb(var(--aa-primary));
-  color: #ffffff;
+  background: rgb(var(--admin-primary));
+  color: rgb(var(--admin-card));
 }
 
 .optionActive:hover {
-  background: rgb(var(--aa-primary-dark));
+  background: rgb(var(--admin-primary) / 0.9);
   text-decoration: none;
 }
 
 .option:focus-visible,
 .optionActive:focus-visible {
-  outline: 2px solid rgb(var(--aa-primary));
+  outline: 2px solid rgb(var(--admin-primary));
   outline-offset: 2px;
 }
 

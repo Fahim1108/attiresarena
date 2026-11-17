@@ -1,7 +1,9 @@
-/* Expandable order cards (reference-adaptation pass). Theme tokens only:
-   primary #6B0202, primaryDark #460101, surface #FFFFFF, text #171717,
-   muted #74706C, border #EAEAEA, selected #F6EAEA; 6px radius.
-   No hover-reveal: every action is visible and labeled at rest. */
+/* Expandable order cards (reference-adaptation pass, retokenised Wave B).
+   Admin design-system tokens only, via the scoped --admin-* variables
+   (resolving under the .aa-admin-ds shell scope): primary, secondary,
+   card, text, secondary text, border, soft background; card/control
+   radii. Geometry, 44px targets and the expand/collapse behaviour are
+   unchanged. No hover-reveal: every action is visible and labeled at rest. */
 
 .cards {
   display: grid;
@@ -12,9 +14,15 @@
 }
 
 .card {
-  border: 1px solid #eaeaea;
-  border-radius: 6px;
-  background: #ffffff;
+  border: 1px solid rgb(var(--admin-border));
+  border-radius: var(--admin-radius-card);
+  background: rgb(var(--admin-card));
+  box-shadow: 0 1px 2px rgb(var(--admin-text) / 0.05), 0 4px 16px -8px rgb(var(--admin-text) / 0.1);
+  transition: border-color 150ms ease;
+}
+
+.card:hover {
+  border-color: rgb(var(--admin-primary) / 0.35);
 }
 
 .cardHeader {
@@ -36,39 +44,44 @@
 .cardSelect input {
   width: 1.1rem;
   height: 1.1rem;
-  accent-color: #6b0202;
+  accent-color: rgb(var(--admin-primary));
 }
 
 .cardOrder {
   font-weight: 600;
-  color: #6b0202;
+  color: rgb(var(--admin-primary));
   text-decoration: underline;
   text-underline-offset: 2px;
+  transition: color 150ms ease;
 }
 
 .cardOrder:hover {
-  color: #460101;
+  color: rgb(var(--admin-secondary));
 }
 
 .cardOrder:focus-visible {
-  outline: 2px solid #6b0202;
+  outline: 2px solid rgb(var(--admin-primary));
   outline-offset: 2px;
-  border-radius: 6px;
+  border-radius: var(--admin-radius-control);
 }
 
 .cardCustomer {
   min-width: 0;
   overflow-wrap: anywhere;
-  color: #171717;
+  color: rgb(var(--admin-text));
 }
 
 .cardTotal {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-  color: #171717;
+  color: rgb(var(--admin-text));
 }
 
+/* The expand-button boundary keeps the contrast-pinned neutral
+   #8f8985 (3.45:1): the admin border token (1.22:1 on white) is too
+   light for a control edge — the same reason input borders were left
+   alone in admin-ds.css. */
 .expandButton {
   display: inline-flex;
   align-items: center;
@@ -76,24 +89,25 @@
   min-height: 44px;
   padding: 0.5rem 0.75rem;
   border: 1px solid #8f8985;
-  border-radius: 6px;
-  background: #ffffff;
-  color: #171717;
+  border-radius: var(--admin-radius-control);
+  background: rgb(var(--admin-card));
+  color: rgb(var(--admin-text));
   font: inherit;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
   touch-action: manipulation;
-  box-shadow: 0 1px 2px rgb(64 0 0 / 0.06);
+  box-shadow: 0 1px 2px rgb(var(--admin-text) / 0.06);
+  transition: border-color 150ms ease, background-color 150ms ease;
 }
 
 .expandButton:hover {
-  border-color: #6b0202;
-  background: #f6eaea;
+  border-color: rgb(var(--admin-primary));
+  background: rgb(var(--admin-soft-bg));
 }
 
 .expandButton:focus-visible {
-  outline: 2px solid #6b0202;
+  outline: 2px solid rgb(var(--admin-primary));
   outline-offset: 2px;
 }
 
@@ -101,7 +115,7 @@
   display: grid;
   gap: 0.75rem;
   padding: 0 1rem 1rem 1rem;
-  border-top: 1px solid #eaeaea;
+  border-top: 1px solid rgb(var(--admin-border));
 }
 
 .cardFacts {
@@ -114,18 +128,18 @@
 }
 
 .cardFacts dt {
-  color: #5f5a57;
+  color: rgb(var(--admin-text-secondary));
 }
 
 .cardFacts dd {
   margin: 0;
-  color: #171717;
+  color: rgb(var(--admin-text));
   overflow-wrap: anywhere;
 }
 
 .cardNote {
   margin: 0;
-  color: #5f5a57;
+  color: rgb(var(--admin-text-secondary));
   font-size: 0.9rem;
   line-height: 1.5;
 }
@@ -137,12 +151,12 @@
   gap: 1rem 1.5rem;
   grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
   padding-top: 0.5rem;
-  border-top: 1px solid #eaeaea;
+  border-top: 1px solid rgb(var(--admin-border));
 }
 
 .inlineFormTitle {
   margin: 0 0 0.5rem;
-  color: #171717;
+  color: rgb(var(--admin-text));
   font-size: 0.95rem;
   font-weight: 700;
   line-height: 1.4;
@@ -151,7 +165,7 @@
 .courierSection {
   grid-column: 1 / -1;
   padding-top: 0.75rem;
-  border-top: 1px solid #eaeaea;
+  border-top: 1px solid rgb(var(--admin-border));
 }
 
 .cardActions {
@@ -167,11 +181,19 @@
   gap: 0.5rem;
   min-height: 44px;
   font-size: 0.9rem;
-  color: #171717;
+  color: rgb(var(--admin-text));
 }
 
 .selectAll input {
   width: 1.1rem;
   height: 1.1rem;
-  accent-color: #6b0202;
+  accent-color: rgb(var(--admin-primary));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .cardOrder,
+  .expandButton {
+    transition: none;
+  }
 }

@@ -1,7 +1,9 @@
-import { PageHeading, Panel, Notice } from "@/components/admin/ui";
+import { Notice } from "@/components/admin/ui";
 import { LayoutTabs } from "@/components/admin/LayoutTabs";
 import { BannerList } from "@/components/admin/content/banner-list";
 import { BannerForm } from "@/components/admin/content/forms";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/design-system/Card";
+import { PageHeader } from "@/components/design-system/PageHeader";
 import { getBanners, saveBanner } from "@/lib/admin/content";
 
 export default async function BannersPage({
@@ -15,40 +17,60 @@ export default async function BannersPage({
   const editing = (banners ?? []).find((banner) => banner.id === editId);
 
   return (
-    <main id="main" tabIndex={-1} className="aa-main">
-      <PageHeading
-        eyebrow="Content"
-        title="Banners"
-        description="Hero and promotional banners. Images are stored privately and shown here via signed URLs."
-      />
-      <LayoutTabs current="hero-slider" />
-      <Notice kind="info">
-        Banner order and visibility are stored here. Hero slides on the
-        storefront render through the shared storefront settings, which this
-        module does not modify, so saved banners apply once that wiring is
-        connected.
-      </Notice>
-      {editing ? (
-        <Panel title={`Edit banner — ${editing.title}`}>
-          <BannerForm action={saveBanner} banner={editing} defaultPlacement={editing.placement} />
-        </Panel>
-      ) : (
-        <Panel title="Add banner">
-          <BannerForm action={saveBanner} defaultPlacement="hero" />
-        </Panel>
-      )}
-      <Panel title="All banners">
-        {banners === null ? (
-          <Notice kind="warning">Banners could not be loaded. Try again later.</Notice>
+    <main id="main" tabIndex={-1} className="aa-main aa-main--ds">
+      <div className="space-y-6">
+        <PageHeader
+          title="Banners"
+          description="Hero and promotional banners. Images are stored privately and shown here via signed URLs."
+        >
+          <p className="text-[13px] font-medium text-admin-text-secondary">
+            Content
+          </p>
+        </PageHeader>
+        <LayoutTabs current="hero-slider" />
+        <Notice kind="info">
+          Banner order and visibility are stored here. Hero slides on the
+          storefront render through the shared storefront settings, which this
+          module does not modify, so saved banners apply once that wiring is
+          connected.
+        </Notice>
+        {editing ? (
+          <Card>
+            <CardHeader>
+              <CardTitle headingLevel="h2">{`Edit banner — ${editing.title}`}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <BannerForm action={saveBanner} banner={editing} defaultPlacement={editing.placement} />
+            </CardContent>
+          </Card>
         ) : (
-          <BannerList
-            banners={banners}
-            emptyTitle="No banners yet"
-            emptyDescription="Add a banner above. Until then the storefront shows its built-in slides."
-            editHref={(id) => `/admin/content/banners?edit=${id}`}
-          />
+          <Card>
+            <CardHeader>
+              <CardTitle headingLevel="h2">Add banner</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <BannerForm action={saveBanner} defaultPlacement="hero" />
+            </CardContent>
+          </Card>
         )}
-      </Panel>
+        <Card>
+          <CardHeader>
+            <CardTitle headingLevel="h2">All banners</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {banners === null ? (
+              <Notice kind="warning">Banners could not be loaded. Try again later.</Notice>
+            ) : (
+              <BannerList
+                banners={banners}
+                emptyTitle="No banners yet"
+                emptyDescription="Add a banner above. Until then the storefront shows its built-in slides."
+                editHref={(id) => `/admin/content/banners?edit=${id}`}
+              />
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 }

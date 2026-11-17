@@ -9,12 +9,19 @@ import {
 } from "@/lib/admin/coupons";
 import { resolveDisplayData } from "@/lib/admin/sample-data";
 import { SAMPLE_COUPONS } from "@/lib/admin/sample-sales";
-import { PageHeading, Panel, Notice, StatusBadge } from "@/components/admin/ui";
+import { Notice, StatusBadge } from "@/components/admin/ui";
 import { SampleBadge } from "@/components/admin/SampleBadge";
 import { CouponRowActions } from "@/components/admin/sales/CouponRowActions";
 import { CouponTestPanel } from "@/components/admin/sales/CouponTestPanel";
 import { SalesNav } from "@/components/admin/sales/SalesNav";
-import styles from "@/components/admin/sales/sales-refresh.module.css";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/design-system/Card";
+import { PageHeader } from "@/components/design-system/PageHeader";
 
 export const metadata = { title: "Coupons" };
 
@@ -36,123 +43,142 @@ export default async function CouponsPage() {
   const usageTruncated = result?.usageTruncated ?? false;
 
   return (
-    <main id="main" tabIndex={-1} className="aa-main">
-      <PageHeading
-        eyebrow="Sales"
-        title="Coupons"
-        description="Coupons are validated server-side. Usage counts come from recorded redemptions."
-        actions={
-          isSample ? undefined : (
-            <Link className="aa-button" href="/admin/sales/coupons/new">
-              New coupon
-            </Link>
-          )
-        }
-      />
-      <SalesNav current="coupons" />
+    <main id="main" tabIndex={-1} className="aa-main aa-main--ds">
+      <div className="space-y-6">
+        <PageHeader
+          title="Coupons"
+          description="Coupons are validated server-side. Usage counts come from recorded redemptions."
+          actions={
+            isSample ? undefined : (
+              <Link className="aa-button" href="/admin/sales/coupons/new">
+                New coupon
+              </Link>
+            )
+          }
+        >
+          <p className="text-[13px] font-medium text-admin-text-secondary">
+            Sales
+          </p>
+        </PageHeader>
+        <SalesNav current="coupons" />
 
-      {isSample ? (
-        <div className={styles.sampleBanner} role="status">
-          <SampleBadge />
-          <span>
-            Live coupon data is unavailable — the coupon data could not be
-            read. These sample rows are for testing the layout only. No
-            changes can be made, and no sample data is saved.
-          </span>
-        </div>
-      ) : null}
+        {isSample ? (
+          <div
+            className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-admin-card border border-admin-border border-l-4 border-l-admin-primary bg-admin-soft-bg px-4 py-3 text-sm leading-6 text-admin-text"
+            role="status"
+          >
+            <SampleBadge />
+            <span>
+              Live coupon data is unavailable — the coupon data could not be
+              read. These sample rows are for testing the layout only. No
+              changes can be made, and no sample data is saved.
+            </span>
+          </div>
+        ) : null}
 
-      <Notice kind="warning">
-        Applying a coupon at checkout is pending checkout integration — place_checkout_order
-        has no coupon parameter yet. Coupons created here cannot be used by customers until
-        that integration lands. The test panel below checks eligibility only.
-      </Notice>
-      {usageTruncated ? (
         <Notice kind="warning">
-          Usage counts cover the 10,000 most recent redemptions and may be understated.
+          Applying a coupon at checkout is pending checkout integration — place_checkout_order
+          has no coupon parameter yet. Coupons created here cannot be used by customers until
+          that integration lands. The test panel below checks eligibility only.
         </Notice>
-      ) : null}
+        {usageTruncated ? (
+          <Notice kind="warning">
+            Usage counts cover the 10,000 most recent redemptions and may be understated.
+          </Notice>
+        ) : null}
 
-      {coupons.length === 0 ? (
-        <p className="aa-panel">
-          No coupons yet.{" "}
-          <Link href="/admin/sales/coupons/new">Create the first coupon</Link>.
-        </p>
-      ) : (
-        <div className="aa-table-scroll">
-          <table className="aa-table">
-            <thead>
-              <tr>
-                <th scope="col">Code</th>
-                <th scope="col">Discount</th>
-                <th scope="col">Window</th>
-                <th scope="col">Usage</th>
-                <th scope="col">First order only</th>
-                <th scope="col">Status</th>
-                <th scope="col">
-                  <span>Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {coupons.map((coupon) => (
-                <tr key={coupon.id}>
-                  <th scope="row">
-                    {isSample ? (
-                      <span className="aa-cell-main">{coupon.code}</span>
-                    ) : (
-                      <Link href={`/admin/sales/coupons/${coupon.id}`} className="aa-cell-main">
-                        {coupon.code}
-                      </Link>
-                    )}
-                  </th>
-                  <td data-label="Discount">{couponValueLabel(coupon)}</td>
-                  <td data-label="Window">{windowLabel(coupon)}</td>
-                  <td data-label="Usage">
-                    {coupon.usageCount}
-                    {coupon.total_usage_limit !== null ? ` / ${coupon.total_usage_limit}` : ""}
-                    <span className="aa-cell-sub">uses</span>
-                  </td>
-                  <td data-label="First order only">{coupon.first_order_only ? "Yes" : "No"}</td>
-                  <td data-label="Status">
-                    {coupon.active ? (
-                      <StatusBadge tone="success">Active</StatusBadge>
-                    ) : (
-                      <StatusBadge tone="neutral">Inactive</StatusBadge>
-                    )}
-                  </td>
-                  <td data-label="Actions" className="aa-cell-actions">
-                    {isSample ? (
-                      "—"
-                    ) : (
-                      <>
-                        <Link className="aa-row-action" href={`/admin/sales/coupons/${coupon.id}`} aria-label={`Edit coupon ${coupon.code}`}>
-                          Edit
-                        </Link>{" "}
-                        <CouponRowActions
-                          couponId={coupon.id}
-                          code={coupon.code}
-                          active={coupon.active}
-                          hasRedemptions={coupon.usageCount > 0}
-                          toggleAction={setCouponActive}
-                          deleteAction={deleteCoupon}
-                        />
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+        {coupons.length === 0 ? (
+          <Card>
+            <CardContent>
+              <p className="text-sm leading-6 text-admin-text-secondary">
+                No coupons yet.{" "}
+                <Link href="/admin/sales/coupons/new">Create the first coupon</Link>.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent>
+              <div className="aa-table-scroll">
+                <table className="aa-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Code</th>
+                      <th scope="col">Discount</th>
+                      <th scope="col">Window</th>
+                      <th scope="col">Usage</th>
+                      <th scope="col">First order only</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">
+                        <span>Actions</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coupons.map((coupon) => (
+                      <tr key={coupon.id}>
+                        <th scope="row">
+                          {isSample ? (
+                            <span className="aa-cell-main">{coupon.code}</span>
+                          ) : (
+                            <Link href={`/admin/sales/coupons/${coupon.id}`} className="aa-cell-main">
+                              {coupon.code}
+                            </Link>
+                          )}
+                        </th>
+                        <td data-label="Discount">{couponValueLabel(coupon)}</td>
+                        <td data-label="Window">{windowLabel(coupon)}</td>
+                        <td data-label="Usage">
+                          {coupon.usageCount}
+                          {coupon.total_usage_limit !== null ? ` / ${coupon.total_usage_limit}` : ""}
+                          <span className="aa-cell-sub">uses</span>
+                        </td>
+                        <td data-label="First order only">{coupon.first_order_only ? "Yes" : "No"}</td>
+                        <td data-label="Status">
+                          {coupon.active ? (
+                            <StatusBadge tone="success">Active</StatusBadge>
+                          ) : (
+                            <StatusBadge tone="neutral">Inactive</StatusBadge>
+                          )}
+                        </td>
+                        <td data-label="Actions" className="aa-cell-actions">
+                          {isSample ? (
+                            "—"
+                          ) : (
+                            <>
+                              <Link className="aa-row-action" href={`/admin/sales/coupons/${coupon.id}`} aria-label={`Edit coupon ${coupon.code}`}>
+                                Edit
+                              </Link>{" "}
+                              <CouponRowActions
+                                couponId={coupon.id}
+                                code={coupon.code}
+                                active={coupon.active}
+                                hasRedemptions={coupon.usageCount > 0}
+                                toggleAction={setCouponActive}
+                                deleteAction={deleteCoupon}
+                              />
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-      <Panel
-        title="Test coupon eligibility"
-        description="Checks a code against the same server-side rules checkout will use. Nothing is applied or recorded."
-      >
-        <CouponTestPanel testAction={testCouponEligibility} />
-      </Panel>
+        <Card>
+          <CardHeader>
+            <CardTitle headingLevel="h2">Test coupon eligibility</CardTitle>
+            <CardDescription>Checks a code against the same server-side rules checkout will use. Nothing is applied or recorded.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CouponTestPanel testAction={testCouponEligibility} />
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 }

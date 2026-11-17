@@ -106,8 +106,8 @@ function CategoryImageField({
             objectFit: "cover",
             maxWidth: "100%",
             height: "auto",
-            borderRadius: "var(--aa-radius-card)",
-            border: "1px solid rgb(var(--aa-border))",
+            borderRadius: "var(--admin-radius-card)",
+            border: "1px solid rgb(var(--admin-border))",
           }}
         />
       ) : path ? (
@@ -223,7 +223,7 @@ export function CategoryForm({
     const message = fieldError(key);
     if (!message) return null;
     return (
-      <p id={`${inputId(field)}-error`} className="aa-hint" style={{ color: "#7a1010" }}>
+      <p id={`${inputId(field)}-error`} className="aa-hint aa-field-error">
         {message}
       </p>
     );

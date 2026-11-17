@@ -1,0 +1,925 @@
+/*
+ * Admin design-system layer (Phase 2, Wave A: layout + dashboard +
+ * analytics). Imported last in src/app/admin/layout.tsx, after the
+ * legacy admin stylesheets. It holds exactly two things:
+ *
+ * 1. Cascade repairs for design-system components. The legacy
+ *    `.aa-admin` element rules (admin.css) are unlayered, and unlayered
+ *    author styles beat Tailwind utilities (which live in cascade
+ *    layers) for the same property — so a legacy `p` margin/colour
+ *    would override a StatCard value's Tailwind classes. The rules
+ *    below carry the literal values the components declare, scoped
+ *    narrowly to design-system text: card text inside design-system
+ *    cards, plus PageHeader titles. (`revert-layer` does NOT hand
+ *    these properties back to the utilities in this build — a
+ *    rendering probe on 2026-11-17 showed it resolving to user-agent
+ *    styles instead: 21px bold card titles, 1em paragraph margins,
+ *    secondary text in the primary colour. Literal values only.)
+ *    Buttons, inputs and table geometry are deliberately NOT repaired:
+ *    the legacy treatments are near-identical to the admin tokens and
+ *    several of them are pinned by the mobile/visibility regression
+ *    checks, so they are left alone.
+ *
+ * 2. Shell chrome overrides. The sidebar, header, drawer and mobile
+ *    bottom navigation keep their legacy class names and structure
+ *    (admin.css / workspace.css still provide the layout), and this
+ *    file overrides theme, spacing and the collapsed rail. Selectors
+ *    are prefixed so they win on specificity, not on import order.
+ *    Production renders the light sidebar; the staging workspace
+ *    (`.aa-admin--workspace`) keeps the dark maroon sidebar that its
+ *    white logo needs. Both use the scoped `--admin-*` variables,
+ *    which resolve because the shell root carries `.aa-admin-ds`.
+ *
+ * Later waves: add the `.aa-main--ds` marker class to a redesigned
+ * page's <main> to opt its `.aa-table` tables into the palette rules
+ * below. Table geometry and the labelled card reflow on phones are
+ * untouched — only colours change.
+ *
+ * Wave B adds section 3 (sales pages: section tabs, detail fact
+ * grids, pagination, filter toolbars inside design-system cards), all
+ * scoped to `.aa-main--ds` so unredesigned pages are untouched.
+ *
+ * Wave C adds section 4 (catalogue pages: legacy panels on redesigned
+ * pages, in-card search forms, field-error and movement-delta
+ * colours), all scoped to `.aa-main--ds` so unredesigned pages are
+ * untouched.
+ *
+ * Wave D adds section 5 (content, appearance, marketing, settings and
+ * system pages: notices, form fields, hints, muted text, neutral
+ * badges and empty states), all scoped to `.aa-main--ds`. The rules
+ * are palette-only — geometry, touch targets and the phone table
+ * reflow are unchanged — and they also tidy the same constructs on
+ * the earlier waves' redesigned pages, consistently. Buttons, row
+ * actions and danger/disabled treatments are deliberately NOT
+ * repainted (Wave A precedent): the legacy maroon fills are
+ * near-identical to the admin primary, and repainting them would
+ * risk the danger, switch, tab and disclosure treatments that share
+ * the same selectors.
+ *
+ * Wave D adds section 6 (auth pages: sign-in, MFA, accept-invite).
+ * Auth pages sit OUTSIDE the workspace shell, so the `.aa-admin-ds`
+ * scope does not reach them; each auth <main> carries `.aa-admin-ds`
+ * (which activates the `--admin-*` variables) plus the `.aa-login--ds`
+ * marker, and section 6 repaints only the login chrome under that
+ * marker. Auth behaviour, flows and error states are untouched.
+ */
+
+/* ------------------------------------------------------------------ */
+/* 1. Cascade repairs                                                  */
+/* ------------------------------------------------------------------ */
+
+/* Design-system text inside design-system cards: the legacy element
+   rules would otherwise win over the Tailwind utilities, so these
+   rules restate the literal values the components declare. The
+   attribute selectors match only elements carrying an admin text
+   class, so legacy notices, empty states and chart legends inside
+   the same cards keep their own styling. Sizes, weights and leading
+   are untouched here — the legacy `p` rule sets none of them, so the
+   utilities already win for those; only margin and colour are
+   repaired. A new text colour token on an in-card paragraph needs a
+   matching colour line below. */
+/* Margin fallback for every in-card admin-text paragraph: all of
+   them intend zero margins (spacing comes from flex gaps and the
+   spacing utilities restored below). */
+.aa-admin-ds .rounded-admin-card p[class*="text-admin-"] {
+  margin: 0;
+}
+
+.aa-admin-ds .rounded-admin-card p[class~="text-admin-text"] {
+  color: rgb(var(--admin-text));
+}
+
+.aa-admin-ds .rounded-admin-card p[class~="text-admin-text-secondary"] {
+  color: rgb(var(--admin-text-secondary));
+}
+
+.aa-admin-ds .rounded-admin-card p[class~="text-admin-success"] {
+  color: rgb(var(--admin-success));
+}
+
+.aa-admin-ds .rounded-admin-card p[class~="text-admin-danger"] {
+  color: rgb(var(--admin-danger));
+}
+
+/* Spacing utilities used on in-card paragraphs keep working: the
+   margin reset above would otherwise beat them. Only mt-1, mt-4 and
+   mb-4 occur (ChartEmpty guidance, CardDescription overrides, the
+   notifications/users notes); a new spacing utility on an in-card
+   paragraph needs a matching line here. */
+.aa-admin-ds .rounded-admin-card p[class~="mt-1"] {
+  margin-top: 0.25rem;
+}
+
+.aa-admin-ds .rounded-admin-card p[class~="mt-4"] {
+  margin-top: 1rem;
+}
+
+.aa-admin-ds .rounded-admin-card p[class~="mb-4"] {
+  margin-bottom: 1rem;
+}
+
+/* Card titles (CardTitle as h2 — the only h2 with an admin text
+   class; h3/h4 titles have no legacy element rule and need nothing).
+   Values restate the component's text-sm / semibold classes. */
+.aa-admin-ds .rounded-admin-card h2[class*="text-admin-"] {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+/* Page titles (PageHeader h1): the same repair outside cards. The
+   legacy `.aa-admin h1` size (clamp up to 34px) otherwise beats the
+   `text-2xl` utility, and its bottom margin breaks the header
+   rhythm. Values restate the component's text-2xl / semibold
+   classes. Auth headings and the error page carry no admin text
+   class, so they keep their own sizes. */
+.aa-admin-ds h1[class*="text-admin-"] {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+/* Whole-card links (dashboard KPIs), button-style links and pill links:
+   no hover underline across the control. Plain text links elsewhere
+   keep the legacy hover underline. */
+.aa-admin-ds a.aa-ds-plain-link:hover {
+  text-decoration: none;
+}
+
+/* Redesigned pages: admin palette on the shared table, geometry and
+   phone reflow unchanged. */
+.aa-main--ds .aa-table th,
+.aa-main--ds .aa-table td {
+  border-bottom-color: rgb(var(--admin-border));
+}
+
+.aa-main--ds .aa-table thead th {
+  color: rgb(var(--admin-text-secondary));
+}
+
+.aa-main--ds .aa-table tbody tr:hover {
+  background: rgb(var(--admin-soft-bg) / 0.5);
+}
+
+.aa-main--ds .aa-table .aa-cell-sub {
+  color: rgb(var(--admin-text-secondary));
+}
+
+/* ------------------------------------------------------------------ */
+/* 2. Shell chrome                                                     */
+/* ------------------------------------------------------------------ */
+
+.aa-admin .aa-admin-ds.aa-shell {
+  grid-template-columns: 240px minmax(0, 1fr);
+  align-items: start;
+  background: rgb(var(--admin-bg));
+}
+
+.aa-admin--workspace .aa-admin-ds.aa-shell {
+  background: rgb(var(--admin-primary));
+}
+
+.aa-admin .aa-admin-ds .aa-content {
+  min-width: 0;
+  min-height: 100svh;
+  background: rgb(var(--admin-bg));
+}
+
+/* Sidebar: light on production, dark maroon on staging. */
+.aa-admin .aa-admin-ds .aa-sidebar {
+  width: 240px;
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow-y: auto;
+  padding: 20px 16px;
+  gap: 14px;
+  background: rgb(var(--admin-card));
+  border-right: 1px solid rgb(var(--admin-border));
+  color: rgb(var(--admin-text));
+}
+
+.aa-admin--workspace .aa-admin-ds .aa-sidebar {
+  background: rgb(var(--admin-primary));
+  border-right-color: rgb(var(--admin-primary));
+  color: rgb(var(--admin-card));
+}
+
+/* Navigation links: shared shape, per-environment colours. Drawer
+   links keep 44px targets; sidebar links use 42px on desktop. */
+.aa-admin .aa-admin-ds .aa-sidebar nav a,
+.aa-admin .aa-admin-ds .aa-drawer nav a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin: 2px 0;
+  border-radius: var(--admin-radius-control);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.aa-admin .aa-admin-ds .aa-sidebar nav a {
+  min-height: 42px;
+  color: rgb(var(--admin-text));
+}
+
+.aa-admin .aa-admin-ds .aa-drawer nav a {
+  min-height: 44px;
+  color: rgb(var(--admin-text));
+}
+
+.aa-admin .aa-admin-ds .aa-sidebar nav a:hover,
+.aa-admin .aa-admin-ds .aa-drawer nav a:hover {
+  background: rgb(var(--admin-soft-bg));
+  text-decoration: none;
+}
+
+.aa-admin .aa-admin-ds .aa-sidebar nav a[aria-current="page"],
+.aa-admin .aa-admin-ds .aa-drawer nav a[aria-current="page"] {
+  background: rgb(var(--admin-soft-bg));
+  color: rgb(var(--admin-primary));
+  font-weight: 600;
+}
+
+.aa-admin--workspace .aa-admin-ds .aa-sidebar nav a,
+.aa-admin--workspace .aa-admin-ds .aa-drawer nav a {
+  color: inherit;
+}
+
+.aa-admin--workspace .aa-admin-ds .aa-sidebar nav a:hover,
+.aa-admin--workspace .aa-admin-ds .aa-drawer nav a:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.aa-admin--workspace .aa-admin-ds .aa-sidebar nav a[aria-current="page"],
+.aa-admin--workspace .aa-admin-ds .aa-drawer nav a[aria-current="page"] {
+  background: rgba(255, 255, 255, 0.16);
+  color: rgb(var(--admin-card));
+  font-weight: 600;
+}
+
+/* Group headings. No min-height here: the drawer keeps its 44px
+   coarse-pointer target from the shared stylesheet. */
+.aa-admin .aa-admin-ds .aa-nav-group summary {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(var(--admin-text-secondary));
+  cursor: pointer;
+  padding: 10px 12px 6px;
+}
+
+.aa-admin--workspace .aa-admin-ds .aa-nav-group summary {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.aa-admin .aa-admin-ds .aa-visit-store {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: var(--admin-radius-control);
+  font-size: 12px;
+  color: rgb(var(--admin-text));
+  text-decoration: none;
+}
+
+.aa-admin .aa-admin-ds .aa-visit-store:hover {
+  background: rgb(var(--admin-soft-bg));
+  text-decoration: none;
+}
+
+.aa-admin--workspace .aa-admin-ds .aa-visit-store {
+  color: inherit;
+}
+
+.aa-admin--workspace .aa-admin-ds .aa-visit-store:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.aa-admin .aa-admin-ds .aa-sidebar .aa-role {
+  margin-top: auto;
+  color: rgb(var(--admin-text-secondary));
+  font-size: 12px;
+}
+
+.aa-admin--workspace .aa-admin-ds .aa-sidebar .aa-role {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+}
+
+/* Icon + label spacing for shell buttons (menu, close, sign out). */
+.aa-admin .aa-admin-ds .aa-top button,
+.aa-admin .aa-admin-ds .aa-sidebar button,
+.aa-admin .aa-admin-ds .aa-drawer button {
+  gap: 8px;
+}
+
+/* Header: tighter bar, card background, admin border. */
+.aa-admin .aa-admin-ds .aa-top {
+  min-height: 64px;
+  padding: 12px 28px;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid rgb(var(--admin-border));
+  background: rgb(var(--admin-card));
+}
+
+/* Sidebar collapse toggle (desktop only; hidden on phones below). */
+.aa-admin .aa-admin-ds .aa-top .aa-collapse-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 1px solid rgb(var(--admin-border));
+  border-radius: var(--admin-radius-control);
+  background: rgb(var(--admin-card));
+  color: rgb(var(--admin-text-secondary));
+  box-shadow: none;
+}
+
+.aa-admin .aa-admin-ds .aa-top .aa-collapse-toggle:hover {
+  background: rgb(var(--admin-soft-bg));
+  color: rgb(var(--admin-text));
+}
+
+.aa-admin .aa-admin-ds .aa-top .aa-collapse-toggle:focus-visible {
+  outline: 2px solid rgb(var(--admin-primary));
+  outline-offset: 2px;
+}
+
+.aa-admin .aa-admin-ds .aa-environment {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: rgb(var(--admin-text-secondary));
+  border: 1px solid rgb(var(--admin-border));
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgb(var(--admin-card));
+  white-space: nowrap;
+}
+
+.aa-admin .aa-admin-ds .aa-admin-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgb(var(--admin-text));
+}
+
+/* Global search (staging only; it never renders on production). */
+.aa-admin--workspace .aa-admin-ds .aa-global-search {
+  border: 1px solid rgb(var(--admin-border));
+  border-radius: var(--admin-radius-control);
+  background: rgb(var(--admin-card));
+  color: rgb(var(--admin-text-secondary));
+  width: min(400px, 60%);
+}
+
+.aa-admin--workspace .aa-admin-ds .aa-global-search input {
+  font-size: 13px;
+  color: rgb(var(--admin-text));
+  background: transparent;
+}
+
+/* Drawer: light on production, dark maroon on staging. The native
+   <dialog> keeps focus handling; the drawer always shows full
+   labels, even when the sidebar is collapsed. */
+.aa-admin .aa-admin-ds .aa-drawer {
+  background: rgb(var(--admin-card));
+  color: rgb(var(--admin-text));
+  border-right: 1px solid rgb(var(--admin-border));
+  overscroll-behavior: contain;
+}
+
+.aa-admin--workspace .aa-admin-ds .aa-drawer {
+  background: rgb(var(--admin-primary));
+  border-right-color: rgb(var(--admin-primary));
+  color: rgb(var(--admin-card));
+}
+
+/* Mobile bottom navigation (staging only). */
+.aa-admin--workspace .aa-admin-ds .aa-admin-bottom {
+  border-top: 1px solid rgb(var(--admin-border));
+  background: rgb(var(--admin-card));
+}
+
+.aa-admin--workspace .aa-admin-ds .aa-admin-bottom > a,
+.aa-admin--workspace .aa-admin-ds .aa-admin-bottom > button {
+  background: rgb(var(--admin-card));
+  color: rgb(var(--admin-text-secondary));
+}
+
+.aa-admin--workspace .aa-admin-ds .aa-admin-bottom [aria-current="page"] {
+  color: rgb(var(--admin-primary));
+  background: rgb(var(--admin-soft-bg));
+}
+
+/* ------------------------------------------------------------------ */
+/* Collapsed sidebar (icon rail, desktop only)                         */
+/*                                                                     */
+/* Labels are hidden with the visually-hidden technique, never         */
+/* display:none, so assistive technology still announces every link.   */
+/* Group headings collapse to divider lines but stay focusable and     */
+/* keep their names for screen readers. The drawer is unaffected:      */
+/* every rule below is scoped to `.aa-sidebar`.                        */
+/* ------------------------------------------------------------------ */
+
+.aa-admin .aa-admin-ds.aa-shell[data-sidebar="collapsed"] {
+  grid-template-columns: 76px minmax(0, 1fr);
+}
+
+.aa-admin .aa-admin-ds.aa-shell[data-sidebar="collapsed"] .aa-sidebar {
+  width: 76px;
+  padding: 20px 12px;
+  align-items: center;
+}
+
+.aa-admin .aa-admin-ds.aa-shell[data-sidebar="collapsed"] .aa-sidebar .aa-nav-label,
+.aa-admin .aa-admin-ds.aa-shell[data-sidebar="collapsed"] .aa-sidebar .aa-nav-group-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.aa-admin .aa-admin-ds.aa-shell[data-sidebar="collapsed"] .aa-sidebar .aa-nav-group > a {
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.aa-admin .aa-admin-ds.aa-shell[data-sidebar="collapsed"] .aa-sidebar .aa-nav-group summary {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+  margin: 8px 10px 2px;
+  min-height: 0;
+  border-top: 1px solid rgb(var(--admin-border));
+  list-style: none;
+}
+
+.aa-admin--workspace .aa-admin-ds.aa-shell[data-sidebar="collapsed"] .aa-sidebar .aa-nav-group summary {
+  border-top-color: rgba(255, 255, 255, 0.18);
+}
+
+.aa-admin .aa-admin-ds.aa-shell[data-sidebar="collapsed"] .aa-sidebar .aa-nav-group summary::-webkit-details-marker {
+  display: none;
+}
+
+.aa-admin .aa-admin-ds.aa-shell[data-sidebar="collapsed"] .aa-sidebar .aa-unavailable,
+.aa-admin .aa-admin-ds.aa-shell[data-sidebar="collapsed"] .aa-sidebar .aa-role,
+.aa-admin .aa-admin-ds.aa-shell[data-sidebar="collapsed"] .aa-sidebar > .aa-eyebrow {
+  display: none;
+}
+
+.aa-admin .aa-admin-ds.aa-shell[data-sidebar="collapsed"] .aa-sidebar .aa-visit-store {
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.aa-admin .aa-admin-ds.aa-shell[data-sidebar="collapsed"] .aa-sidebar > a:first-child img {
+  width: 44px;
+  height: 40px;
+}
+
+.aa-admin .aa-admin-ds.aa-shell[data-sidebar="collapsed"] .aa-sidebar .aa-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+}
+
+/* Phones: the sidebar is hidden and the drawer is the navigation, so
+   the collapse toggle has nothing to collapse. The selector must
+   match the base rule's specificity (including `.aa-top`), or the
+   base `display: inline-flex` wins and the toggle stays visible,
+   crowding the three-column phone header. */
+@media (max-width: 767px) {
+  .aa-admin .aa-admin-ds .aa-top {
+    padding: 12px 16px;
+    min-height: 68px;
+  }
+
+  .aa-admin .aa-admin-ds .aa-top .aa-collapse-toggle {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* 3. Sales pages (Phase 2, Wave B)                                    */
+/*                                                                     */
+/* Redesigned sales pages carry `.aa-main--ds` on <main> (the same    */
+/* marker Wave A introduced). These rules repaint only the legacy      */
+/* constructs sales pages still use — section tabs, detail fact        */
+/* grids, pagination, and filter toolbars inside design-system         */
+/* cards — with the scoped `--admin-*` variables. Pages without the    */
+/* marker (including the reviews tabs, a later wave) are untouched.    */
+/* Geometry, touch targets and the phone table reflow are unchanged.   */
+/* ------------------------------------------------------------------ */
+
+/* Section tabs: admin border, secondary labels, primary current tab.
+   The tab row sits in the page's vertical rhythm, so its own bottom
+   margin is dropped. The gap separates the tab icons from labels. */
+.aa-admin .aa-main--ds .aa-tabs {
+  margin-bottom: 0;
+  border-bottom-color: rgb(var(--admin-border));
+}
+
+.aa-admin .aa-main--ds .aa-tabs a {
+  gap: 8px;
+  color: rgb(var(--admin-text-secondary));
+}
+
+.aa-admin .aa-main--ds .aa-tabs a:hover {
+  background: rgb(var(--admin-soft-bg));
+  color: rgb(var(--admin-text));
+}
+
+.aa-admin .aa-main--ds .aa-tabs a[aria-current="page"] {
+  color: rgb(var(--admin-primary));
+  border-bottom-color: rgb(var(--admin-primary));
+}
+
+/* Detail fact grids: terms in admin secondary text. Values inherit
+   the card's admin text colour. */
+.aa-admin .aa-main--ds .aa-fact-grid dt {
+  color: rgb(var(--admin-text-secondary));
+}
+
+/* Pagination: flat admin buttons, solid primary current page. */
+.aa-admin .aa-main--ds .aa-pagination a,
+.aa-admin .aa-main--ds .aa-pagination span {
+  border-color: rgb(var(--admin-border));
+  border-radius: var(--admin-radius-control);
+  background: rgb(var(--admin-card));
+  color: rgb(var(--admin-primary));
+  box-shadow: none;
+}
+
+.aa-admin .aa-main--ds .aa-pagination a:hover {
+  background: rgb(var(--admin-soft-bg));
+  border-color: rgb(var(--admin-primary));
+}
+
+.aa-admin .aa-main--ds .aa-pagination span[aria-current="page"] {
+  background: rgb(var(--admin-primary));
+  border-color: rgb(var(--admin-primary));
+  color: rgb(var(--admin-card));
+}
+
+.aa-admin .aa-main--ds .aa-pagination span[aria-hidden="true"] {
+  background: rgb(var(--admin-bg));
+  border-color: rgb(var(--admin-border));
+  color: rgb(var(--admin-text-secondary));
+}
+
+/* Filter toolbars sit inside design-system cards on redesigned pages:
+   the card padding provides the spacing, so the toolbar's own bottom
+   margin is dropped. Bare toolbars (order bulk actions) keep it. */
+.aa-main--ds .rounded-admin-card .aa-toolbar {
+  margin-bottom: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* 4. Catalogue pages (Phase 2, Wave C)                                */
+/*                                                                     */
+/* Redesigned catalogue pages carry `.aa-main--ds` on <main> (the     */
+/* same marker Waves A/B introduced). These rules repaint only the     */
+/* legacy constructs catalogue pages still use — Panel surfaces the    */
+/* product form must keep (the visibility-control checks pin Panel     */
+/* titles in the product form), in-card search forms, and the two      */
+/* hard-coded colours the forms and the movement table carried —       */
+/* with the scoped `--admin-*` variables. Pages without the marker     */
+/* are untouched. Geometry, touch targets and the phone table reflow   */
+/* are unchanged, except the one direct-child margin fix below.        */
+/* ------------------------------------------------------------------ */
+
+/* Legacy panels on redesigned pages: admin card surface, border and
+   radius. Padding is untouched. */
+.aa-admin .aa-main--ds .aa-panel {
+  background: rgb(var(--admin-card));
+  border-color: rgb(var(--admin-border));
+  border-radius: var(--admin-radius-card);
+}
+
+/* Panel headings in admin text. Body text keeps the legacy colour,
+   which is visually identical to the admin text token. */
+.aa-admin .aa-main--ds .aa-panel h2 {
+  color: rgb(var(--admin-text));
+}
+
+/* Panels that are direct children of the page rhythm wrapper: the
+   wrapper's gap provides the spacing, so the legacy bottom margin is
+   dropped. Nested panels (product form sections, category tree
+   items) keep it — their parents stack them with that margin. */
+.aa-admin .aa-main--ds > .space-y-6 > .aa-panel {
+  margin-bottom: 0;
+}
+
+/* Inline field errors in the product and category forms: admin
+   danger, replacing the hard-coded storefront red in the components. */
+.aa-admin .aa-main--ds .aa-field-error {
+  color: rgb(var(--admin-danger));
+}
+
+/* Movement-history deltas (inventory): gains in admin success, drops
+   in admin danger, semibold. The sign and value stay text, so meaning
+   never relies on colour alone. */
+.aa-admin .aa-main--ds .aa-delta-positive {
+  color: rgb(var(--admin-success));
+  font-weight: 600;
+}
+
+.aa-admin .aa-main--ds .aa-delta-negative {
+  color: rgb(var(--admin-danger));
+  font-weight: 600;
+}
+
+/* In-card search forms (catalogue taxonomy search): the card padding
+   provides the spacing, so the form's own vertical margin is dropped,
+   and the row wraps on phones. Mirrors the section 3 toolbar rule. */
+.aa-main--ds .rounded-admin-card .aa-search {
+  margin: 0;
+  flex-wrap: wrap;
+  align-items: end;
+}
+
+/* ------------------------------------------------------------------ */
+/* 5. Content / appearance / marketing / settings / system pages       */
+/*    (Phase 2, Wave D)                                                */
+/*                                                                     */
+/* Palette-only repaints of the legacy constructs these pages still   */
+/* use — notices, form fields, hints, muted text, neutral badges and   */
+/* empty states — scoped to `.aa-main--ds` so unredesigned pages are   */
+/* untouched. Geometry, touch targets, input border weight and the     */
+/* phone table reflow are unchanged. Buttons, row actions, danger and  */
+/* disabled treatments are deliberately left alone (see the header).   */
+/* ------------------------------------------------------------------ */
+
+/* Notices that are direct children of the page rhythm wrapper: the
+   wrapper's gap provides the spacing, so the legacy margins are
+   dropped. Notices inside cards keep their own margins. */
+.aa-main--ds > .space-y-6 > .aa-notice {
+  margin: 0;
+}
+
+/* Notices: admin card radius; info notices use the soft background.
+   Success/error/warning keep their semantic backgrounds and borders;
+   their text colours are set here because the legacy `.aa-admin p`
+   colour otherwise wins over the lower-specificity notice tones. */
+.aa-admin .aa-main--ds .aa-notice {
+  border-radius: var(--admin-radius-card);
+}
+
+.aa-admin .aa-main--ds .aa-notice--info {
+  background: rgb(var(--admin-soft-bg));
+  border-color: rgb(var(--admin-border));
+  color: rgb(var(--admin-text));
+}
+
+.aa-admin .aa-main--ds .aa-notice--success {
+  color: rgb(var(--admin-success));
+}
+
+.aa-admin .aa-main--ds .aa-notice--error {
+  color: rgb(var(--admin-danger));
+}
+
+.aa-admin .aa-main--ds .aa-notice--warning {
+  color: rgb(var(--admin-warning));
+}
+
+/* Form fields: admin text labels, admin control radius, admin primary
+   focus. The input border weight and colour are untouched: the legacy
+   border meets non-text contrast and the admin border token is too
+   light for input edges. */
+.aa-admin .aa-main--ds .aa-field label {
+  color: rgb(var(--admin-text));
+}
+
+.aa-admin .aa-main--ds .aa-field input,
+.aa-admin .aa-main--ds .aa-field select,
+.aa-admin .aa-main--ds .aa-field textarea {
+  border-radius: var(--admin-radius-control);
+}
+
+.aa-admin .aa-main--ds .aa-field input:focus,
+.aa-admin .aa-main--ds .aa-field select:focus,
+.aa-admin .aa-main--ds .aa-field textarea:focus {
+  border-color: rgb(var(--admin-primary));
+  outline-color: rgb(var(--admin-primary));
+}
+
+.aa-admin .aa-main--ds input[type="checkbox"] {
+  accent-color: rgb(var(--admin-primary));
+}
+
+/* Hints (including standalone hints outside .aa-field) and muted text
+   in the admin secondary text colour. */
+.aa-admin .aa-main--ds .aa-hint {
+  color: rgb(var(--admin-text-secondary));
+}
+
+.aa-admin .aa-main--ds .aa-muted {
+  color: rgb(var(--admin-text-secondary));
+}
+
+/* Neutral badges: admin page background, border and secondary text.
+   Semantic badge tones are untouched. */
+.aa-admin .aa-main--ds .aa-badge--neutral {
+  background: rgb(var(--admin-bg));
+  border-color: rgb(var(--admin-border));
+  color: rgb(var(--admin-text-secondary));
+}
+
+/* Empty states inside redesigned pages: centred, with card-comfortable
+   padding and admin text colours. Matches the staging treatment, and
+   gives production the same centred layout it previously lacked. */
+.aa-admin .aa-main--ds .aa-empty-state {
+  text-align: center;
+  padding: 2.25rem 1.25rem;
+}
+
+.aa-admin .aa-main--ds .aa-empty-state h3 {
+  color: rgb(var(--admin-text));
+}
+
+.aa-admin .aa-main--ds .aa-empty-state p {
+  color: rgb(var(--admin-text-secondary));
+}
+
+/* ------------------------------------------------------------------ */
+/* 6. Auth pages (Phase 2, Wave D): sign-in, MFA, accept-invite        */
+/*                                                                     */
+/* These pages sit outside the workspace shell. Each auth <main>       */
+/* carries `.aa-admin-ds` (activating the `--admin-*` variables) plus  */
+/* the `.aa-login--ds` marker; every rule below is scoped to that      */
+/* marker, so no other page is affected. Palette-only: layout,         */
+/* geometry, touch targets and the logo/heading structure are          */
+/* unchanged, and no auth behaviour, flow or error state is touched.   */
+/* The panel shadow copies the admin card shadow from tokens.ts.       */
+/* ------------------------------------------------------------------ */
+
+.aa-admin .aa-login--ds.aa-login-layout {
+  background: rgb(var(--admin-bg));
+}
+
+.aa-admin .aa-login--ds .aa-login-panel {
+  border-color: rgb(var(--admin-border));
+  border-radius: var(--admin-radius-card);
+  color: rgb(var(--admin-text));
+  box-shadow: 0 1px 2px rgba(23, 32, 51, 0.05), 0 4px 16px -8px rgba(23, 32, 51, 0.1);
+}
+
+.aa-admin .aa-login--ds .aa-login-panel::before {
+  border-color: rgb(var(--admin-primary) / 0.07);
+}
+
+.aa-admin .aa-login--ds .aa-login-access {
+  color: rgb(var(--admin-text-secondary));
+}
+
+.aa-admin .aa-login--ds .aa-login-access svg {
+  color: rgb(var(--admin-primary));
+}
+
+.aa-admin .aa-login--ds .aa-login-heading h1 {
+  color: rgb(var(--admin-text));
+}
+
+.aa-admin .aa-login--ds .aa-login-heading p {
+  color: rgb(var(--admin-text-secondary));
+}
+
+/* Sign-in inputs: the legacy input border is kept (it meets non-text
+   contrast); icons, text and the focus ring take admin colours. */
+.aa-admin .aa-login--ds .aa-login-input {
+  color: rgb(var(--admin-text-secondary));
+}
+
+.aa-admin .aa-login--ds .aa-login-input input {
+  color: rgb(var(--admin-text));
+}
+
+.aa-admin .aa-login--ds .aa-login-input:focus-within {
+  outline-color: rgb(var(--admin-primary));
+}
+
+.aa-admin .aa-login--ds .aa-login-form label {
+  color: rgb(var(--admin-text));
+}
+
+/* Password visibility toggle: admin primary icon; its legacy border
+   is kept for contrast. Hover uses the soft background. */
+.aa-admin .aa-login--ds .aa-login-form .aa-login-eye {
+  color: rgb(var(--admin-primary));
+}
+
+.aa-admin .aa-login--ds .aa-login-form .aa-login-eye:not(:disabled):hover {
+  background: rgb(var(--admin-soft-bg));
+  border-color: rgb(var(--admin-primary));
+  color: rgb(var(--admin-primary));
+}
+
+.aa-admin .aa-login--ds .aa-login-options input[type="checkbox"] {
+  accent-color: rgb(var(--admin-primary));
+}
+
+.aa-admin .aa-login--ds .aa-login-form .aa-login-help-trigger {
+  color: rgb(var(--admin-primary));
+}
+
+.aa-admin .aa-login--ds .aa-login-form .aa-login-help {
+  color: rgb(var(--admin-text-secondary));
+  border-color: rgb(var(--admin-border));
+  border-radius: var(--admin-radius-control);
+}
+
+.aa-admin .aa-login--ds .aa-login-form .aa-login-submit {
+  background: rgb(var(--admin-primary));
+  border-color: rgb(var(--admin-primary));
+}
+
+.aa-admin .aa-login--ds .aa-login-form [role="alert"] {
+  color: rgb(var(--admin-danger));
+}
+
+/* Top-level alert paragraphs (missing configuration, invite errors)
+   keep their assertive danger colour in the admin tone. */
+.aa-admin .aa-login--ds .aa-login-panel > p[role="alert"] {
+  color: rgb(var(--admin-danger));
+}
+
+.aa-admin .aa-login--ds .aa-login-security {
+  border-top-color: rgb(var(--admin-border));
+  color: rgb(var(--admin-primary));
+}
+
+.aa-admin .aa-login--ds .aa-login-security p {
+  color: rgb(var(--admin-text-secondary));
+}
+
+.aa-admin .aa-login--ds .aa-login-return {
+  color: rgb(var(--admin-text-secondary));
+}
+
+.aa-admin .aa-login--ds .aa-login-return:hover {
+  color: rgb(var(--admin-primary));
+}
+
+/* Generic form controls on the MFA and accept-invite pages (plain
+   buttons and inputs with no login-specific classes): admin primary
+   submit buttons and admin focus rings. Disabled, danger, secondary,
+   password-toggle and help-trigger controls are excluded so their own
+   treatments — including the legible disabled palette and the
+   transparent help trigger — are untouched. */
+.aa-admin .aa-login--ds .aa-form button:not(:disabled):not([data-danger]):not(.aa-secondary):not(.aa-login-eye):not(.aa-login-help-trigger) {
+  background: rgb(var(--admin-primary));
+  border-color: rgb(var(--admin-primary));
+  border-radius: var(--admin-radius-control);
+}
+
+.aa-admin .aa-login--ds .aa-secondary:not(:disabled) {
+  color: rgb(var(--admin-primary));
+  border-color: rgb(var(--admin-primary));
+  border-radius: var(--admin-radius-control);
+}
+
+.aa-admin .aa-login--ds .aa-secondary:not(:disabled):hover {
+  background: rgb(var(--admin-soft-bg));
+  color: rgb(var(--admin-primary));
+}
+
+.aa-admin .aa-login--ds .aa-form input,
+.aa-admin .aa-login--ds .aa-form select,
+.aa-admin .aa-login--ds .aa-form textarea {
+  border-radius: var(--admin-radius-control);
+}
+
+.aa-admin .aa-login--ds .aa-form input:focus,
+.aa-admin .aa-login--ds .aa-form select:focus,
+.aa-admin .aa-login--ds .aa-form textarea:focus {
+  border-color: rgb(var(--admin-primary));
+  outline-color: rgb(var(--admin-primary));
+}
+
+.aa-admin .aa-login--ds .aa-form [role="alert"] {
+  color: rgb(var(--admin-danger));
+}
+
+.aa-admin .aa-login--ds .aa-form [role="status"] {
+  color: rgb(var(--admin-success));
+}

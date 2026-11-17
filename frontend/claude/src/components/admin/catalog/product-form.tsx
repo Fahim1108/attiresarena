@@ -131,7 +131,7 @@ export function ProductForm({
     const message = fieldError(key);
     if (!message) return null;
     return (
-      <p id={`${inputId}-error`} className="aa-hint" style={{ color: "#7a1010" }}>
+      <p id={`${inputId}-error`} className="aa-hint aa-field-error">
         {message}
       </p>
     );
