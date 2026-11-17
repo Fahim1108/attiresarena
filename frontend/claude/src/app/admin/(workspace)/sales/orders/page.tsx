@@ -73,7 +73,7 @@ export default async function OrdersPage({
   const courierConfigured = isSteadfastConfigured();
 
   return (
-    <main id="main" tabIndex={-1} className="aa-main aa-main--ds">
+    <main id="main" tabIndex={-1} className="aa-main aa-main--ds aa-orders-v2">
       <div className="space-y-6">
         <PageHeader
           title="Orders"
@@ -169,7 +169,7 @@ export default async function OrdersPage({
             to see the rest.
           </Notice>
         ) : null}
-        <p role="status">
+        <p role="status" className="aa-orders-count">
           {isSample ? (
             <>
               {orders.length} sample order{orders.length === 1 ? "" : "s"} shown

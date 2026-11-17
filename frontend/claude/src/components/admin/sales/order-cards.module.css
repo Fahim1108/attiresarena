@@ -1,9 +1,15 @@
-/* Expandable order cards (reference-adaptation pass, retokenised Wave B).
-   Admin design-system tokens only, via the scoped --admin-* variables
-   (resolving under the .aa-admin-ds shell scope): primary, secondary,
-   card, text, secondary text, border, soft background; card/control
-   radii. Geometry, 44px targets and the expand/collapse behaviour are
-   unchanged. No hover-reveal: every action is visible and labeled at rest. */
+/* Expandable order cards (reference-adaptation pass, retokenised Wave B,
+   restyled redesign v2 step 2). Admin design-system tokens only, via the
+   scoped --admin-* variables (resolving under the .aa-admin-ds shell
+   scope): primary, secondary, card, text, secondary text, border, soft
+   background; card/control radii. This module is imported only by
+   OrdersTable (the All Orders list), so these rules reach no other page.
+
+   Mobile-first: the header is a stacked grid on phones (order + badge,
+   customer + total, full-width expand button), and becomes a single row
+   at 64rem and above. 44px targets and the expand/collapse behaviour
+   are unchanged. No hover-reveal: every action is visible and labeled
+   at rest. */
 
 .cards {
   display: grid;
@@ -18,22 +24,48 @@
   border-radius: var(--admin-radius-card);
   background: rgb(var(--admin-card));
   box-shadow: 0 1px 2px rgb(var(--admin-text) / 0.05), 0 4px 16px -8px rgb(var(--admin-text) / 0.1);
-  transition: border-color 150ms ease;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
 .card:hover {
   border-color: rgb(var(--admin-primary) / 0.35);
+  box-shadow: 0 1px 2px rgb(var(--admin-text) / 0.05), 0 8px 20px -10px rgb(var(--admin-text) / 0.16);
+}
+
+/* Selected state is never colour alone: maroon edge + inset ring on top
+   of the checked checkbox. */
+.cardSelected {
+  border-color: rgb(var(--admin-primary) / 0.55);
+  box-shadow: inset 0 0 0 1px rgb(var(--admin-primary) / 0.45), 0 1px 2px rgb(var(--admin-text) / 0.05), 0 4px 16px -8px rgb(var(--admin-text) / 0.1);
+}
+
+.cardSelected:hover {
+  border-color: rgb(var(--admin-primary) / 0.7);
 }
 
 .cardHeader {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "select order badge"
+    "select customer total"
+    "expand expand expand";
   align-items: center;
-  gap: 0.5rem 0.75rem;
+  gap: 0.15rem 0.75rem;
   padding: 0.75rem 1rem;
 }
 
+@media (min-width: 64rem) {
+  .cardHeader {
+    grid-template-columns: 44px minmax(8rem, 1.1fr) minmax(8rem, 1.5fr) auto auto auto;
+    grid-template-areas: "select order customer badge total expand";
+    gap: 0.5rem 1rem;
+    padding: 0.875rem 1.25rem;
+  }
+}
+
 .cardSelect {
+  grid-area: select;
   display: inline-flex;
   align-items: center;
   min-width: 44px;
@@ -47,11 +79,29 @@
   accent-color: rgb(var(--admin-primary));
 }
 
+.cardOrderBlock {
+  grid-area: order;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.1rem;
+}
+
+.cardCustomerBlock {
+  grid-area: customer;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.1rem;
+}
+
 .cardOrder {
-  font-weight: 600;
+  font-size: 0.95rem;
+  font-weight: 700;
   color: rgb(var(--admin-primary));
   text-decoration: underline;
   text-underline-offset: 2px;
+  overflow-wrap: anywhere;
   transition: color 150ms ease;
 }
 
@@ -69,13 +119,32 @@
   min-width: 0;
   overflow-wrap: anywhere;
   color: rgb(var(--admin-text));
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.cardSub {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: rgb(var(--admin-text-secondary));
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.cardBadge {
+  grid-area: badge;
+  justify-self: end;
 }
 
 .cardTotal {
-  margin-left: auto;
+  grid-area: total;
+  justify-self: end;
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 700;
   color: rgb(var(--admin-text));
+  white-space: nowrap;
 }
 
 /* The expand-button boundary keeps the contrast-pinned neutral
@@ -83,11 +152,14 @@
    light for a control edge — the same reason input borders were left
    alone in admin-ds.css. */
 .expandButton {
+  grid-area: expand;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.35rem;
   min-height: 44px;
   padding: 0.5rem 0.75rem;
+  margin-top: 0.5rem;
   border: 1px solid #8f8985;
   border-radius: var(--admin-radius-control);
   background: rgb(var(--admin-card));
@@ -101,6 +173,12 @@
   transition: border-color 150ms ease, background-color 150ms ease;
 }
 
+@media (min-width: 64rem) {
+  .expandButton {
+    margin-top: 0;
+  }
+}
+
 .expandButton:hover {
   border-color: rgb(var(--admin-primary));
   background: rgb(var(--admin-soft-bg));
@@ -111,6 +189,16 @@
   outline-offset: 2px;
 }
 
+.chevron {
+  flex: none;
+  color: rgb(var(--admin-primary));
+  transition: transform 150ms ease;
+}
+
+.expandButton[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+
 .cardBody {
   display: grid;
   gap: 0.75rem;
@@ -118,22 +206,33 @@
   border-top: 1px solid rgb(var(--admin-border));
 }
 
+@media (min-width: 48rem) {
+  .cardBody {
+    padding: 0 1.25rem 1.25rem 1.25rem;
+  }
+}
+
 .cardFacts {
   display: grid;
-  gap: 0.25rem 1.5rem;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.5rem 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
   margin: 0.75rem 0 0;
   font-size: 0.9rem;
   line-height: 1.5;
 }
 
 .cardFacts dt {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: rgb(var(--admin-text-secondary));
 }
 
 .cardFacts dd {
-  margin: 0;
+  margin: 0.1rem 0 0;
   color: rgb(var(--admin-text));
+  font-weight: 500;
   overflow-wrap: anywhere;
 }
 
@@ -145,27 +244,37 @@
 }
 
 /* Inline update forms inside an expanded card: status + payment side by
-   side on wide cards, stacked on narrow ones; courier spans full width. */
+   side on wide cards, stacked on narrow ones; courier spans full width.
+   Each form sits in a soft panel so the three actions read as distinct
+   steps; the courier panel keeps its own module styles inside. */
 .inlineForms {
   display: grid;
-  gap: 1rem 1.5rem;
+  gap: 1rem;
   grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-  padding-top: 0.5rem;
+  padding-top: 1rem;
   border-top: 1px solid rgb(var(--admin-border));
 }
 
+.inlineForms > section {
+  min-width: 0;
+  padding: 0.875rem 1rem 1rem;
+  border: 1px solid rgb(var(--admin-border));
+  border-radius: var(--admin-radius-control);
+  background: rgb(var(--admin-bg));
+}
+
 .inlineFormTitle {
-  margin: 0 0 0.5rem;
-  color: rgb(var(--admin-text));
-  font-size: 0.95rem;
+  margin: 0 0 0.6rem;
+  color: rgb(var(--admin-text-secondary));
+  font-size: 0.85rem;
   font-weight: 700;
   line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .courierSection {
   grid-column: 1 / -1;
-  padding-top: 0.75rem;
-  border-top: 1px solid rgb(var(--admin-border));
 }
 
 .cardActions {
@@ -193,7 +302,8 @@
 @media (prefers-reduced-motion: reduce) {
   .card,
   .cardOrder,
-  .expandButton {
+  .expandButton,
+  .chevron {
     transition: none;
   }
 }

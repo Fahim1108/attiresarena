@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Download } from "lucide-react";
+import { ChevronDown, Download } from "lucide-react";
 import { useActionState, useRef, useState } from "react";
 import {
   ORDER_STATUS_LABELS,
@@ -216,7 +216,14 @@ export function OrdersTable({
             const expanded = expandedId === row.id;
             const label = row.order_number ? `#${row.order_number}` : "Order";
             return (
-              <li key={row.id} className={styles.card}>
+              <li
+                key={row.id}
+                className={
+                  selected.includes(row.id)
+                    ? `${styles.card} ${styles.cardSelected}`
+                    : styles.card
+                }
+              >
                 <div className={styles.cardHeader}>
                   <span className={styles.cardSelect}>
                     <input
@@ -226,14 +233,20 @@ export function OrdersTable({
                       onChange={(event) => toggle(row.id, event.target.checked)}
                     />
                   </span>
-                  <Link
-                    href={`/admin/sales/orders/${row.id}`}
-                    className={styles.cardOrder}
-                  >
-                    {label}
-                  </Link>
-                  <span className={styles.cardCustomer}>{row.customer_name}</span>
-                  <StatusBadge status={row.status} />
+                  <span className={styles.cardOrderBlock}>
+                    <Link
+                      href={`/admin/sales/orders/${row.id}`}
+                      className={styles.cardOrder}
+                    >
+                      {label}
+                    </Link>
+                    <span className={styles.cardSub}>{formatDateTime(row.placed_at)}</span>
+                  </span>
+                  <span className={styles.cardCustomerBlock}>
+                    <span className={styles.cardCustomer}>{row.customer_name}</span>
+                    <span className={styles.cardSub}>{row.phone}</span>
+                  </span>
+                  <StatusBadge status={row.status} className={styles.cardBadge} />
                   <span className={styles.cardTotal}>{formatMoney(row.total_minor)}</span>
                   <button
                     type="button"
@@ -243,6 +256,12 @@ export function OrdersTable({
                     onClick={() => setExpandedId(expanded ? null : row.id)}
                   >
                     {expanded ? "Hide details" : "Show details"}
+                    <ChevronDown
+                      size={16}
+                      strokeWidth={2}
+                      aria-hidden="true"
+                      className={styles.chevron}
+                    />
                   </button>
                 </div>
                 {expanded ? (

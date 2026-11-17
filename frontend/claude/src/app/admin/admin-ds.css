@@ -1058,3 +1058,245 @@
 .aa-admin-ds .aa-dashboard-v2 a:hover .aa-kpi {
   border-color: rgb(var(--admin-primary) / 0.4);
 }
+
+/* ------------------------------------------------------------------ */
+/* 8. All Orders list (redesign v2, step 2)                            */
+/*                                                                     */
+/* Scoped to `.aa-orders-v2` on the orders list <main> only: the       */
+/* larger title, the filter toolbar grid, the bulk-action bar, the     */
+/* legacy buttons/fields/dialogs used by this page's inline forms,     */
+/* and the sample-table repaint reach no other page — in particular     */
+/* the order detail page, which reuses OrderStatusForm,                */
+/* PaymentStatusForm and CourierBookingPanel, is untouched. The        */
+/* expandable cards themselves live in order-cards.module.css          */
+/* (imported only by OrdersTable). Data, links, filters, pagination,   */
+/* actions and the phone table reflow are unchanged; the reflow        */
+/* rules below repaint colours and radii only, never display or        */
+/* positioning. Input borders keep the contrast-pinned #8f8985.        */
+/* ------------------------------------------------------------------ */
+
+/* Page title: 30px bold, matching the step-1 dashboard title. */
+.aa-admin-ds .aa-orders-v2 h1[class*="text-admin-"] {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  font-weight: 700;
+}
+
+/* Card titles on this page (the 3-hour sweep card): 16px semibold. */
+.aa-admin-ds .aa-orders-v2 .rounded-admin-card h2[class*="text-admin-"] {
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+}
+
+/* Results count line: small secondary text, tabular numbers. Beats
+   the legacy `.aa-admin p` margin/colour by specificity. */
+.aa-admin-ds .aa-orders-v2 .aa-orders-count {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5rem;
+  color: rgb(var(--admin-text-secondary));
+  font-variant-numeric: tabular-nums;
+}
+
+/* Filter toolbar inside the filter card: mobile-first grid. One
+   column on phones (controls stretch full width), two columns at
+   48rem with the search spanning both, four columns at 64rem with
+   the search spanning two. The Apply/Clear row left-aligns above
+   phone widths. Field min-widths are reset so narrow grid columns
+   never overflow. */
+.aa-admin-ds .aa-orders-v2 .rounded-admin-card .aa-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: end;
+  margin-bottom: 0;
+}
+
+.aa-admin-ds .aa-orders-v2 .rounded-admin-card .aa-toolbar .aa-field {
+  min-width: 0;
+  flex: none;
+}
+
+@media (min-width: 48rem) {
+  .aa-admin-ds .aa-orders-v2 .rounded-admin-card .aa-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .aa-admin-ds .aa-orders-v2 .rounded-admin-card .aa-toolbar .aa-field--grow {
+    grid-column: 1 / -1;
+  }
+
+  .aa-admin-ds .aa-orders-v2 .rounded-admin-card .aa-toolbar > .aa-button,
+  .aa-admin-ds .aa-orders-v2 .rounded-admin-card .aa-toolbar > .aa-secondary {
+    justify-self: start;
+  }
+}
+
+@media (min-width: 64rem) {
+  .aa-admin-ds .aa-orders-v2 .rounded-admin-card .aa-toolbar {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .aa-admin-ds .aa-orders-v2 .rounded-admin-card .aa-toolbar .aa-field--grow {
+    grid-column: span 2;
+  }
+}
+
+/* Bulk-action bar (the bare toolbar in OrdersTable): a white card
+   strip separating the export/select/bulk controls from the list. */
+.aa-admin-ds .aa-orders-v2 .aa-toolbar[role="group"] {
+  align-items: center;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid rgb(var(--admin-border));
+  border-radius: var(--admin-radius-card);
+  background: rgb(var(--admin-card));
+  box-shadow: 0 1px 2px rgb(var(--admin-text) / 0.05), 0 4px 16px -8px rgb(var(--admin-text) / 0.1);
+}
+
+.aa-admin-ds .aa-orders-v2 .aa-toolbar[role="group"] .aa-field {
+  flex: 0 1 14rem;
+  min-width: 10rem;
+}
+
+.aa-admin-ds .aa-orders-v2 .aa-toolbar[role="group"] .aa-field > span {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgb(var(--admin-text));
+}
+
+/* Form controls on this page: admin text/focus ring, control radius.
+   Borders stay #8f8985 (3.45:1, contrast-pinned). Hints take the
+   admin secondary text. */
+.aa-admin-ds .aa-orders-v2 .aa-field label {
+  color: rgb(var(--admin-text));
+  font-size: 0.85rem;
+}
+
+.aa-admin-ds .aa-orders-v2 .aa-field input,
+.aa-admin-ds .aa-orders-v2 .aa-field select,
+.aa-admin-ds .aa-orders-v2 .aa-field textarea {
+  border-radius: var(--admin-radius-control);
+  background: rgb(var(--admin-card));
+  color: rgb(var(--admin-text));
+}
+
+.aa-admin-ds .aa-orders-v2 .aa-field input:focus,
+.aa-admin-ds .aa-orders-v2 .aa-field select:focus,
+.aa-admin-ds .aa-orders-v2 .aa-field textarea:focus {
+  border-color: rgb(var(--admin-primary));
+  outline-color: rgb(var(--admin-primary));
+}
+
+.aa-admin-ds .aa-orders-v2 .aa-field .aa-hint {
+  color: rgb(var(--admin-text-secondary));
+}
+
+/* Buttons on this page (filter Apply, bulk update, inline forms,
+   sweep panel, and their confirmation dialogs): admin primary fill,
+   secondary outline in primary. Disabled and danger treatments are
+   excluded so the legible disabled palette is untouched. */
+.aa-admin-ds .aa-orders-v2 .aa-button:not(:disabled):not([data-danger]) {
+  background: rgb(var(--admin-primary));
+  border-color: rgb(var(--admin-primary));
+  border-radius: var(--admin-radius-control);
+}
+
+.aa-admin-ds .aa-orders-v2 .aa-button:not(:disabled):not([data-danger]):hover {
+  background: rgb(var(--admin-secondary));
+  border-color: rgb(var(--admin-secondary));
+}
+
+.aa-admin-ds .aa-orders-v2 .aa-secondary:not(:disabled) {
+  background: rgb(var(--admin-card));
+  color: rgb(var(--admin-primary));
+  border-color: rgb(var(--admin-primary));
+  border-radius: var(--admin-radius-control);
+}
+
+.aa-admin-ds .aa-orders-v2 .aa-secondary:not(:disabled):hover {
+  background: rgb(var(--admin-soft-bg));
+  color: rgb(var(--admin-primary));
+}
+
+/* The Clear link is the only anchor carrying .aa-secondary on this
+   page: no legacy rule gives anchors the button box, so without this
+   it renders as bare text. Same bordered treatment as the secondary
+   buttons; the grid stretch makes it full-width on phones. */
+.aa-admin-ds .aa-orders-v2 a.aa-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 1px solid rgb(var(--admin-primary));
+  text-decoration: none;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgb(var(--admin-text) / 0.08);
+}
+
+/* Focus rings on this page take the admin primary. */
+.aa-admin-ds .aa-orders-v2 a:focus-visible,
+.aa-admin-ds .aa-orders-v2 button:focus-visible {
+  outline: 2px solid rgb(var(--admin-primary));
+  outline-offset: 2px;
+}
+
+/* Sample table (renders only when live data is unavailable): admin
+   header labels, borders and hover tint; the Total column aligns
+   right with a semibold tabular figure. */
+.aa-admin-ds .aa-orders-v2 .aa-table {
+  font-size: 0.92rem;
+}
+
+.aa-admin-ds .aa-orders-v2 .aa-table th,
+.aa-admin-ds .aa-orders-v2 .aa-table td {
+  padding: 0.7rem 0.9rem;
+  border-bottom-color: rgb(var(--admin-border));
+}
+
+.aa-admin-ds .aa-orders-v2 .aa-table thead th {
+  font-size: 0.75rem;
+  color: rgb(var(--admin-text-secondary));
+}
+
+.aa-admin-ds .aa-orders-v2 .aa-table tbody tr:hover {
+  background: rgb(var(--admin-soft-bg) / 0.55);
+}
+
+.aa-admin-ds .aa-orders-v2 .aa-table .aa-cell-sub {
+  color: rgb(var(--admin-text-secondary));
+}
+
+.aa-admin-ds .aa-orders-v2 .aa-table th:last-child,
+.aa-admin-ds .aa-orders-v2 .aa-table td.admin-ds-numeric {
+  text-align: right;
+}
+
+.aa-admin-ds .aa-orders-v2 .aa-table td.admin-ds-numeric {
+  font-weight: 600;
+}
+
+/* Phone table reflow: repaint only. The display/position/clip
+   mechanics in admin-panel.css are untouched, so labelled cells
+   still stack into cards with their column labels. */
+@media (max-width: 40rem) {
+  .aa-admin-ds .aa-orders-v2 .aa-table:has(td[data-label]) tbody tr {
+    border-color: rgb(var(--admin-border));
+    border-radius: var(--admin-radius-card);
+    background: rgb(var(--admin-card));
+    box-shadow: 0 1px 2px rgb(var(--admin-text) / 0.05), 0 4px 16px -8px rgb(var(--admin-text) / 0.1);
+  }
+
+  .aa-admin-ds .aa-orders-v2 .aa-table:has(td[data-label]) tbody th[scope="row"] {
+    border-bottom-color: rgb(var(--admin-border));
+  }
+
+  .aa-admin-ds .aa-orders-v2 .aa-table:has(td[data-label]) tbody td:not(:last-child) {
+    border-bottom-color: rgb(var(--admin-border) / 0.6);
+  }
+
+  .aa-admin-ds .aa-orders-v2 .aa-table:has(td[data-label]) tbody td[data-label]:not([data-label=""])::before {
+    color: rgb(var(--admin-text-secondary));
+  }
+}
