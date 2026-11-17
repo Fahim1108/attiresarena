@@ -104,10 +104,25 @@ vi.mock("@/lib/admin/supabase", () => {
         },
       },
       from: (table: string) => makeBuilder(table),
-      rpc: async () => ({
-        data: null,
-        error: { message: "RPC unavailable in edit-page-fix tests" },
-      }),
+      rpc: async (name: string, args: { p_variant_ids?: string[] }) => {
+        // readCatalogProduct now reads costs through the gated
+        // admin_variant_costs RPC; model it returning the same 90000
+        // cost the variant rows carry, keyed by variant id. Every
+        // other RPC stays unavailable, as before.
+        if (name === "admin_variant_costs") {
+          return {
+            data: (args?.p_variant_ids ?? []).map((id) => ({
+              variant_id: id,
+              cost_price_minor: 90000,
+            })),
+            error: null,
+          };
+        }
+        return {
+          data: null,
+          error: { message: "RPC unavailable in edit-page-fix tests" },
+        };
+      },
       storage: {
         from: () => ({
           createSignedUrl: async () => {

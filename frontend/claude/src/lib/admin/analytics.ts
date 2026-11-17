@@ -382,15 +382,19 @@ export async function getAnalyticsReport(
     const deliveredItems = await fetchOrderItems(session.client, [...deliveredIds]);
     if (deliveredItems.length > 0) {
       const variantIds = [...new Set(deliveredItems.map((item) => item.variant_id))];
-      const costResult = await session.client
-        .from("product_variants")
-        .select("id, cost_price_minor")
-        .in("id", variantIds.slice(0, 200));
+      // Costs come ONLY from the gated admin_variant_costs RPC
+      // (costs.read + MFA, enforced server-side): the cost column is
+      // excluded from the anon/authenticated SELECT grant, so a
+      // direct select cannot serve it. On RPC error, profit stays
+      // unavailable exactly as when the direct read errored.
+      const costResult = await session.client.rpc("admin_variant_costs", {
+        p_variant_ids: variantIds.slice(0, 200),
+      });
       if (!costResult.error) {
         const costs = new Map<string, number>();
         for (const variant of costResult.data ?? []) {
           if (typeof variant.cost_price_minor === "number") {
-            costs.set(String(variant.id), variant.cost_price_minor);
+            costs.set(String(variant.variant_id), variant.cost_price_minor);
           }
         }
         let profitMinor = 0;

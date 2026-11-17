@@ -741,8 +741,12 @@ export async function readCatalogProduct(
   const productBaseColumns =
     "id,name,slug,description,status,category_id,brand,highlights,tags,badges," +
     "seo_title,seo_description,meta_keywords,created_at,updated_at";
+  // No cost_price_minor here: the cost column is excluded from the
+  // anon/authenticated SELECT grant (migration 20261117000200), so a
+  // direct select cannot serve it. Costs for cost-viewing roles come
+  // from the gated admin_variant_costs RPC below, never from this read.
   const variantColumns =
-    "id,size,color,price_minor,sale_price_minor,cost_price_minor,active,created_at";
+    "id,size,color,price_minor,sale_price_minor,active,created_at";
   // The product and variants reads are independent (both keyed by the id
   // parameter), so they run in parallel. allSettled plus ordered checks
   // keeps the original precedence: product failures surface first, and
@@ -819,12 +823,16 @@ export async function readCatalogProduct(
     variantRows = variantParsed.rows;
     variantsSkipped = variantParsed.skipped;
   }
-  // Inventory (keyed by the variant rows just read) and the category
-  // names (keyed by the product row) are independent of each other, so
-  // they run in parallel. All three reads are non-fatal: a missing name
-  // is cosmetic (the form shows the stored assignment), and a failed
-  // inventory read only affects the displayed stock figures.
-  const [inventorySettled, primarySettled, secondarySettled] =
+  // Inventory (keyed by the variant rows just read), the category
+  // names (keyed by the product row), and the cost read (keyed by the
+  // variant rows, cost-viewing roles only) are independent of each
+  // other, so they run in parallel. All of these reads are non-fatal:
+  // a missing name is cosmetic (the form shows the stored assignment),
+  // and a failed inventory read only affects the displayed stock
+  // figures. A failed cost read degrades the variants section to
+  // read-only (see below): blank costs must never be saved over
+  // stored costs.
+  const [inventorySettled, primarySettled, secondarySettled, costsSettled] =
     await Promise.allSettled([
       variantRows.length
         ? session.client
@@ -849,6 +857,17 @@ export async function readCatalogProduct(
             .eq("id", base.secondary_category_id)
             .maybeSingle()
         : Promise.resolve(null),
+      // Costs come ONLY from the gated admin_variant_costs RPC
+      // (costs.read + MFA, enforced server-side), behind the existing
+      // role gate. The RPC rejects an empty list, so it is never
+      // called without variants; the detail read caps at 101
+      // variants, under the RPC's 500 cap, and the slice guards the
+      // bound regardless.
+      canViewCosts && variantRows.length > 0
+        ? session.client.rpc("admin_variant_costs", {
+            p_variant_ids: variantRows.map((v) => v.id).slice(0, 500),
+          })
+        : Promise.resolve(null),
     ]);
   const inventoryValue =
     inventorySettled.status === "fulfilled" ? inventorySettled.value : null;
@@ -866,6 +885,31 @@ export async function readCatalogProduct(
     inventoryByVariant = new Map(
       inventoryParsed.rows.map((row) => [row.variant_id, row]),
     );
+  }
+  // Merge RPC costs by variant id. A missing or failing RPC (the
+  // function does not exist on a database where the cost migrations
+  // have not applied yet, or the call is refused) never throws:
+  // costs stay null and the variants section degrades to read-only,
+  // so a cost-viewer can never save blank costs over stored ones.
+  // Cost-blind roles never reach the RPC; their costs stay null.
+  const costsByVariant = new Map<string, number | null>();
+  if (canViewCosts && variantRows.length > 0) {
+    const costsValue =
+      costsSettled.status === "fulfilled" ? costsSettled.value : null;
+    if (costsSettled.status === "rejected" || !costsValue || costsValue.error) {
+      variantsUnavailable = true;
+    } else {
+      for (const row of costsValue.data ?? []) {
+        if (
+          row &&
+          typeof row.variant_id === "string" &&
+          (typeof row.cost_price_minor === "number" ||
+            row.cost_price_minor === null)
+        ) {
+          costsByVariant.set(row.variant_id, row.cost_price_minor);
+        }
+      }
+    }
   }
   const nameSchema = z.object({ name: z.string() });
   const primaryValue =
@@ -889,8 +933,13 @@ export async function readCatalogProduct(
       variants: variantRows.map((v) => ({
         ...v,
         // Server-side cost hiding: cost-blind roles receive null, never
-        // the real figure, in any configuration.
-        cost_price_minor: canViewCosts ? (v.cost_price_minor ?? null) : null,
+        // the real figure, in any configuration. Cost-viewing roles
+        // receive only the RPC-merged figure: the direct variant read
+        // no longer selects the cost column, so any cost value on the
+        // row itself is never trusted.
+        cost_price_minor: canViewCosts
+          ? (costsByVariant.get(v.id) ?? null)
+          : null,
         inventory: inventoryByVariant.get(v.id) ?? null,
       })),
       canManage: session.roles.some(

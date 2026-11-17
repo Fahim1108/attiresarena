@@ -44,12 +44,14 @@ export function isOwner(session: Pick<StaffSession, "roles">): boolean {
  * the database `costs.read` permission (private.has_permission, extended by
  * migration 010 to include per-user grants). A session whose roles are
  * outside COST_VIEWING_ROLES but who holds a per-user costs.read grant is
- * rare by design (grants are owner-managed); loaders that need exactness
- * must call the `admin_can_view_product_costs` RPC instead of this helper.
- * Never use this helper to decide what to SELECT from product_variants
- * directly: direct PostgREST reads still return the cost column to anyone
- * with catalogue.read until loaders switch to the cost RPC (see the build
- * report for the residual).
+ * rare by design (grants are owner-managed) and stays hidden from costs by
+ * this role-only helper; loaders that need exactness must call the
+ * `admin_can_view_product_costs` RPC instead of this helper.
+ * Costs are served only via the `admin_variant_costs` RPC behind this
+ * role gate: direct reads of product_variants can no longer return
+ * cost_price_minor (the column-list grant in migration 20261117000200
+ * excludes it; a direct cost select fails with 42501). Never SELECT
+ * the cost column from product_variants directly.
  */
 export function canViewProductCosts(
   session: Pick<StaffSession, "roles">,
