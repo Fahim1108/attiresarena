@@ -8,6 +8,8 @@ import { ProductJsonLd } from "@/components/seo/JsonLd";
 import { Accordion, Breadcrumbs } from "@/components/ui";
 import { commerce, logo, site } from "@/config";
 import { formatPrice } from "@/lib/format";
+import { readOwnReview } from "@/lib/customer/reviews";
+import { customerSession } from "@/lib/customer/session";
 import { buildPageMetadata, mergeSeoKeywords, resolveDefaultOgImage, resolveEntitySeo, resolveGlobalKeywords, resolveTwitterCard } from "@/lib/seo";
 import { getStorefrontContent } from "@/lib/store-settings";
 import { getBrands, getCategories, getProductBySlug, getProducts, getReviews, getSizeGuide } from "@/services";
@@ -47,13 +49,21 @@ export default async function ProductPage({ params, searchParams }: { params: Pa
   const product = await getProductBySlug(slug);
   if (!product) notFound();
   const sp = await searchParams;
-  const [brands, categories, reviews, related, sizeGuide] = await Promise.all([
+  const [brands, categories, reviews, related, sizeGuide, session] = await Promise.all([
     getBrands(),
     getCategories(),
     getReviews(product.id),
     getProducts({pageSize:500, inStock:true}).then(r=>r.items),
     product.sizeGuideId ? getSizeGuide(product.sizeGuideId) : Promise.resolve(null),
+    // React.cache dedupes with the header menu's session read. The
+    // session prop is advisory (the proxy does not refresh customer
+    // sessions on product pages); the review action authenticates
+    // inside itself and is authoritative.
+    customerSession(),
   ]);
+  // The author's own review (any status) is a separate prop: it must
+  // never feed the approved list, the average/count, or JSON-LD.
+  const ownReview = session ? await readOwnReview(session.client, product.id) : null;
   const reviewRating={average:reviews.length?reviews.reduce((sum,r)=>sum+r.rating,0)/reviews.length:0,count:reviews.length};
   const brand = brands.find((b) => b.id === product.brandId);
   const category = categories.find((c) => c.id === product.categoryId);
@@ -158,7 +168,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pa
 
         }
         <div className="mt-16">
-          <ReviewList reviews={reviews} average={product.rating.average} count={product.rating.count} />
+          <ReviewList reviews={reviews} signedIn={session !== null} ownReview={ownReview} productId={product.id} />
         </div>
 
         <SameSizeRecommendations product={product} candidates={related} brands={brands}/>

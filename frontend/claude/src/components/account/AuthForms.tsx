@@ -54,7 +54,7 @@ function emailFieldError(value: string, action: "sign in" | "reset your password
   return "Enter a valid email address";
 }
 
-export function LoginForm({ next }: { next?: string }) {
+export function LoginForm({ next, onSignedIn }: { next?: string; onSignedIn?: () => void }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -82,8 +82,14 @@ export function LoginForm({ next }: { next?: string }) {
             try {
               const r = await signInAction({ email, password });
               if (r.ok) {
-                router.push(next ?? "/account");
-                router.refresh();
+                // Inside the review modal, stay on the product page:
+                // the caller switches to the review form. Everywhere
+                // else the default navigation is unchanged.
+                if (onSignedIn) onSignedIn();
+                else {
+                  router.push(next ?? "/account");
+                  router.refresh();
+                }
               } else {
                 setMessage(r.message);
               }

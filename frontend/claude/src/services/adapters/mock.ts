@@ -152,6 +152,9 @@ export const mockDataSource: StorefrontDataSource = {
   async deleteAddress() {
     return notConnected("Address deletion");
   },
+  async submitReview() {
+    return notConnected("Review submission");
+  },
   async subscribeNewsletter() {
     return notConnected("Newsletter signup");
   },

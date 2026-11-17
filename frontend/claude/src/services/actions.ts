@@ -56,6 +56,15 @@ export async function deleteAddressAction(addressId: string) {
   return dataSource.deleteAddress(addressId);
 }
 
+export async function submitReviewAction(input: {
+  productId: string;
+  rating: number;
+  title: string;
+  body: string;
+}) {
+  return dataSource.submitReview(input);
+}
+
 export async function subscribeNewsletterAction(email: string) {
   return dataSource.subscribeNewsletter(email);
 }

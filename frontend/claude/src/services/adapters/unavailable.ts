@@ -8,7 +8,7 @@ export const unavailableServices = {
  async getOrderByNumber(){return null;},
  async submitManualPayment(){return {ok:false as const,reason:'not_connected' as const,message:'Payment submission is unavailable. Do not send money.'};},
  placeOrder:unavailable, signIn:unavailable, register:unavailable, requestPasswordReset:unavailable,
- updateProfile:unavailable, saveAddress:unavailable, deleteAddress:unavailable,
+ updateProfile:unavailable, saveAddress:unavailable, deleteAddress:unavailable, submitReview:unavailable,
  subscribeNewsletter:unavailable, submitContactForm:unavailable, saveStorefrontDraft:unavailable,
  publishStorefrontSettings:unavailable, uploadMedia:unavailable,
-} satisfies Pick<StorefrontDataSource,'getCurrentCustomer'|'getOrders'|'getOrderByNumber'|'submitManualPayment'|'placeOrder'|'signIn'|'register'|'requestPasswordReset'|'updateProfile'|'saveAddress'|'deleteAddress'|'subscribeNewsletter'|'submitContactForm'|'saveStorefrontDraft'|'publishStorefrontSettings'|'uploadMedia'>;
+} satisfies Pick<StorefrontDataSource,'getCurrentCustomer'|'getOrders'|'getOrderByNumber'|'submitManualPayment'|'placeOrder'|'signIn'|'register'|'requestPasswordReset'|'updateProfile'|'saveAddress'|'deleteAddress'|'submitReview'|'subscribeNewsletter'|'submitContactForm'|'saveStorefrontDraft'|'publishStorefrontSettings'|'uploadMedia'>;

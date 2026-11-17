@@ -96,6 +96,22 @@ export const customerAddressSchema = z
 export type CustomerAddressInput = z.infer<typeof customerAddressSchema>;
 
 /**
+ * Review submission input. Bounds mirror the database CHECKs on
+ * public.product_reviews exactly (rating 1–5, title ≤160, body
+ * trimmed 10–3000) and the submit_product_review RPC validation, so
+ * the client form, this schema, and the database agree. Title is
+ * optional: an absent title submits as "".
+ */
+export const customerReviewSchema = z.object({
+  productId: z.uuid(),
+  rating: z.number().int().min(1).max(5),
+  title: z.string().trim().max(160).default(""),
+  body: z.string().trim().min(10).max(3000),
+});
+
+export type CustomerReviewInput = z.infer<typeof customerReviewSchema>;
+
+/**
  * Google identity-conflict copy (decision D12). Shown when Supabase
  * reports that an account with the email already exists; never calls
  * linkIdentity, never merges accounts. Shared by the Google server

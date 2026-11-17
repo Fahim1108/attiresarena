@@ -302,42 +302,72 @@ export async function readPublishedFeed(): Promise<PublishedFeedRead> {
   };
 }
 
+/**
+ * Approved reviews for one product. Two-layer filtering stays: the
+ * PostgREST query restricts to status=approved AND the
+ * approved_reviews RLS policy (approved + product published) applies
+ * on top. Never simplify to one layer.
+ *
+ * FALLBACK READ (Q8): the first select includes verified_purchase
+ * (migration 20261117000100). Before that migration is applied the
+ * column does not exist and the select errors — the read then retries
+ * once with the pre-migration columns and the badge defaults to
+ * false, instead of failing the whole list to []. One deploy works
+ * before and after the gated apply; the retry is a single extra
+ * request only while the column is missing.
+ */
+const REVIEWS_SELECT =
+  "id,rating,title,body,author_display_name,created_at";
+const REVIEWS_SELECT_WITH_VERIFIED = `${REVIEWS_SELECT},verified_purchase`;
+
+function projectApprovedReview(
+  row: unknown,
+  productId: string,
+): Review | null {
+  if (!row || typeof row !== "object") return null;
+  // Every field access below is typeof-guarded; see projectThriftRow.
+  const r = row as Record<string, unknown>;
+  if (
+    typeof r.id !== "string" ||
+    typeof r.rating !== "number" ||
+    r.rating < 1 ||
+    r.rating > 5 ||
+    typeof r.body !== "string" ||
+    typeof r.author_display_name !== "string" ||
+    typeof r.created_at !== "string"
+  )
+    return null;
+  return {
+    id: r.id,
+    productId,
+    author: r.author_display_name,
+    rating: r.rating,
+    title: typeof r.title === "string" ? r.title : "",
+    body: r.body,
+    createdAt: r.created_at,
+    // Absent (pre-migration) means unproven, never inferred.
+    verifiedPurchase: r.verified_purchase === true,
+  };
+}
+
 export async function approvedReviews(productId: string): Promise<Review[]> {
-  const read = await readRows(
-    publicSupabaseConfiguration(),
-    REVIEWS_PATH +
-      "?select=id,rating,title,body,author_display_name,created_at&status=eq.approved&product_id=eq." +
-      encodeURIComponent(productId),
-    "GET",
-    undefined,
-    REVIEWS_PATH,
-  );
-  if (!read.ok) return [];
-  return read.rows.flatMap((row) => {
-    if (!row || typeof row !== "object") return [];
-    // Every field access below is typeof-guarded; see projectThriftRow.
-    const r = row as Record<string, unknown>;
-    if (
-      typeof r.id !== "string" ||
-      typeof r.rating !== "number" ||
-      r.rating < 1 ||
-      r.rating > 5 ||
-      typeof r.body !== "string" ||
-      typeof r.author_display_name !== "string" ||
-      typeof r.created_at !== "string"
-    )
-      return [];
-    return [
-      {
-        id: r.id,
-        productId,
-        author: r.author_display_name,
-        rating: r.rating,
-        title: typeof r.title === "string" ? r.title : "",
-        body: r.body,
-        createdAt: r.created_at,
-        verifiedPurchase: false,
-      },
-    ];
-  });
+  const configuration = publicSupabaseConfiguration();
+  const selects = [REVIEWS_SELECT_WITH_VERIFIED, REVIEWS_SELECT];
+  for (const select of selects) {
+    const read = await readRows(
+      configuration,
+      REVIEWS_PATH +
+        `?select=${select}&status=eq.approved&product_id=eq.` +
+        encodeURIComponent(productId),
+      "GET",
+      undefined,
+      REVIEWS_PATH,
+    );
+    if (!read.ok) continue;
+    return read.rows.flatMap((row) => {
+      const projected = projectApprovedReview(row, productId);
+      return projected ? [projected] : [];
+    });
+  }
+  return [];
 }

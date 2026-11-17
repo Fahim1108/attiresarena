@@ -63,7 +63,14 @@ export const ownerCatalogue:StorefrontDataSource={...unavailableServices,...cust
  async getCollection(kind,limit=8){return curatedInventoryCollection(await browsableShirts(),kind,limit);},
  async searchSuggestions(term,limit=6){return (await browsableShirts()).filter(p=>p.name.toLowerCase().includes(term.toLowerCase())).slice(0,limit).map(p=>({slug:p.slug,name:p.name,price:p.price,image:p.defaultImages[0]!,categoryName:'Shirts'}));},
  async getBrands(){return [];},async getBrandBySlug(){return null;},
- async getReviews(id){return (await publishedShirts()).some(p=>p.id===id)?approvedReviews(id):[];},async getInitialCart(){return [];},
+ async getReviews(id){
+  // Merged published feed (allowlist UNION admin-published): reviews
+  // for admin-published products must display too. Design-review
+  // fixtures (reviewOnly, non-UUID ids) are not in the merged feed,
+  // so they still yield []. Non-published ids yield [].
+  const feed=await readPublishedFeed();
+  return mergeStorefrontFeed(feed.allowlist,feed.published).some(p=>p.id===id)?approvedReviews(id):[];
+ },async getInitialCart(){return [];},
  async getCategories(){
   if(reviewInventoryEnabled())return categories;
   const thrift=await readThriftFeed();

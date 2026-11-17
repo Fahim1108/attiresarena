@@ -1,0 +1,214 @@
+"use client";
+
+import { Star } from "lucide-react";
+import { useState, useTransition } from "react";
+import { Button } from "@/components/ui/Button";
+import { DemoNotice } from "@/components/ui/DemoNotice";
+import { FieldShell, Input, Textarea } from "@/components/ui/Field";
+import { cn } from "@/lib/cn";
+import {
+  REVIEW_SIGN_IN_EXPIRED_MESSAGE,
+  type OwnReview,
+} from "@/lib/customer/reviews";
+import type { FieldErrors } from "@/lib/validation";
+import { submitReviewAction } from "@/services/actions";
+
+/** Draft state, owned by ReviewList and persisted in sessionStorage, so it survives the sign-in step — including navigating sign-in paths. */
+export interface ReviewDraft {
+  rating: number;
+  title: string;
+  body: string;
+}
+
+export const emptyReviewDraft: ReviewDraft = { rating: 0, title: "", body: "" };
+
+/** Draft seeded from the author's existing review when editing. */
+export function draftFromOwnReview(ownReview: OwnReview): ReviewDraft {
+  return {
+    rating: ownReview.rating,
+    title: ownReview.title,
+    body: ownReview.body,
+  };
+}
+
+function Notice({ message }: { message: string | null }) {
+  if (!message) return null;
+  return <DemoNotice force>{message}</DemoNotice>;
+}
+
+/** Move keyboard and screen-reader focus to the first invalid field after a failed submit. */
+function focusFirstError(id: string) {
+  requestAnimationFrame(() => document.getElementById(id)?.focus());
+}
+
+/**
+ * Star-rating input: five real buttons reusing the display Rating's
+ * star icon and #C9932E fill. The group itself carries the stable id
+ * so a missing rating can receive focus like any other field error.
+ */
+function RatingInput({
+  value,
+  onChange,
+  error,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  error?: string;
+}) {
+  const [hovered, setHovered] = useState<number | null>(null);
+  const shown = hovered ?? value;
+  return (
+    <FieldShell
+      label="Rating"
+      required
+      id="review-rating"
+      error={error}
+      hint="Choose 1 to 5 stars."
+    >
+      <div
+        id="review-rating"
+        role="radiogroup"
+        aria-label="Rating"
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? "review-rating-error" : "review-rating-hint"}
+        tabIndex={-1}
+        className="flex gap-1 rounded-control focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+        onMouseLeave={() => setHovered(null)}
+      >
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            role="radio"
+            aria-checked={value === star}
+            aria-label={`${star} star${star === 1 ? "" : "s"}`}
+            onClick={() => onChange(star)}
+            onMouseEnter={() => setHovered(star)}
+            onFocus={() => setHovered(star)}
+            onBlur={() => setHovered(null)}
+            className="flex h-11 w-11 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+          >
+            <Star
+              className={cn(
+                "h-6 w-6",
+                star <= shown
+                  ? "fill-[#C9932E] text-[#C9932E]"
+                  : "fill-ink/10 text-ink/10",
+              )}
+              aria-hidden
+            />
+          </button>
+        ))}
+      </div>
+      <span className="sr-only" aria-live="polite">
+        {value > 0 ? `Selected ${value} star${value === 1 ? "" : "s"}` : "No rating selected"}
+      </span>
+    </FieldShell>
+  );
+}
+
+/**
+ * Review form. Client validation mirrors the server schema and the
+ * database CHECKs exactly (rating 1–5, title ≤160, body trimmed
+ * 10–3000) for instant feedback; the server action is authoritative.
+ * On a sign-in-expired failure the draft is kept by the parent and
+ * the modal switches back to the sign-in view.
+ */
+export function ReviewForm({
+  productId,
+  initial,
+  draft,
+  onDraftChange,
+  onSubmitted,
+  onSignInExpired,
+}: {
+  productId: string;
+  initial: OwnReview | null;
+  draft: ReviewDraft;
+  onDraftChange: (draft: ReviewDraft) => void;
+  onSubmitted: (message: string) => void;
+  onSignInExpired: () => void;
+}) {
+  const [errors, setErrors] = useState<
+    FieldErrors<"rating" | "title" | "body">
+  >({});
+  const [message, setMessage] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  const editing = initial !== null;
+  const bodyLength = draft.body.trim().length;
+
+  return (
+    <form
+      noValidate
+      className="space-y-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (pending) return;
+        const errs: typeof errors = {};
+        if (draft.rating < 1 || draft.rating > 5)
+          errs.rating = "Choose a star rating";
+        if (draft.title.trim().length > 160)
+          errs.title = "Keep the title to 160 characters or fewer";
+        if (bodyLength < 10) errs.body = "Write at least 10 characters";
+        else if (bodyLength > 3000)
+          errs.body = "Keep your review to 3000 characters or fewer";
+        setErrors(errs);
+        if (errs.rating) return focusFirstError("review-rating");
+        if (errs.title) return focusFirstError("review-title");
+        if (errs.body) return focusFirstError("review-body");
+        start(async () => {
+          try {
+            const r = await submitReviewAction({
+              productId,
+              rating: draft.rating,
+              title: draft.title,
+              body: draft.body,
+            });
+            if (r.ok) {
+              onSubmitted(
+                r.message ??
+                  "Thanks — your review is awaiting approval and will appear here once our team approves it.",
+              );
+            } else if (r.message === REVIEW_SIGN_IN_EXPIRED_MESSAGE) {
+              onSignInExpired();
+            } else {
+              setMessage(r.message);
+            }
+          } catch {
+            setMessage("The request could not be completed. Please try again.");
+          }
+        });
+      }}
+    >
+      <RatingInput
+        value={draft.rating}
+        onChange={(rating) => onDraftChange({ ...draft, rating })}
+        error={errors.rating}
+      />
+      <Input
+        id="review-title"
+        label="Title (optional)"
+        maxLength={160}
+        placeholder="Sum up your review…"
+        value={draft.title}
+        onChange={(e) => onDraftChange({ ...draft, title: e.target.value })}
+        error={errors.title}
+      />
+      <Textarea
+        id="review-body"
+        label="Your review"
+        required
+        maxLength={3000}
+        placeholder="How was the fit, fabric, and condition?"
+        value={draft.body}
+        onChange={(e) => onDraftChange({ ...draft, body: e.target.value })}
+        error={errors.body}
+        hint={`${bodyLength}/3000 characters · at least 10 characters`}
+      />
+      <Notice message={message} />
+      <Button type="submit" size="lg" fullWidth loading={pending}>
+        {editing ? "Update Review" : "Submit Review"}
+      </Button>
+    </form>
+  );
+}

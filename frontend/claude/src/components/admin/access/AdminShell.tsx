@@ -9,6 +9,7 @@ import {
   Package,
   Plus,
   Tags,
+  Star,
   Boxes,
   ShoppingBag,
   Hourglass,
@@ -126,6 +127,7 @@ export function AdminShell({
               { href: "/admin/catalog/products", label: "All Products", Icon: Package },
               { href: "/admin/catalog/products/new", label: "Add Product", Icon: Plus },
               { href: "/admin/catalog/categories", label: "Categories", Icon: Tags },
+              { href: "/admin/catalog/reviews", label: "Reviews", Icon: Star },
             ]
           : []),
         ...(hasArea("inventory")

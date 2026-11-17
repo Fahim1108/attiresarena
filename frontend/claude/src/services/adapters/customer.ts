@@ -5,6 +5,7 @@ import {
   requestCustomerPasswordReset,
   saveCustomerAddressAction,
   signInCustomer,
+  submitCustomerReviewAction,
   updateCustomerProfile,
 } from "@/lib/customer/actions";
 import { readCustomerAddresses } from "@/lib/customer/addresses";
@@ -114,6 +115,9 @@ export const customerServices = {
   async deleteAddress(addressId: string) {
     return deleteCustomerAddressAction(addressId);
   },
+  async submitReview(input) {
+    return submitCustomerReviewAction(input);
+  },
 } satisfies Pick<
   StorefrontDataSource,
   | "getCurrentCustomer"
@@ -125,4 +129,5 @@ export const customerServices = {
   | "updateProfile"
   | "saveAddress"
   | "deleteAddress"
+  | "submitReview"
 >;

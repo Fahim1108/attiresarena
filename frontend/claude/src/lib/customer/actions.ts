@@ -9,6 +9,10 @@ import {
 import { getCustomerAuthOrigin } from "./origin";
 import { customerCallbackDestination } from "./redirects";
 import {
+  REVIEW_SIGN_IN_EXPIRED_MESSAGE,
+  submitCustomerReview,
+} from "./reviews";
+import {
   resolveCustomerSession,
   type CustomerSession,
 } from "./session";
@@ -20,6 +24,7 @@ import {
   customerPasswordResetRequestSchema,
   customerProfileSchema,
   customerRegisterSchema,
+  customerReviewSchema,
   customerSignInSchema,
   isAlreadyRegisteredError,
   isIdentityConflictText,
@@ -306,6 +311,30 @@ export async function deleteCustomerAddressAction(
     };
   }
   return deleteCustomerAddress(session.client, session.user.id, addressId);
+}
+
+export async function submitCustomerReviewAction(
+  input: unknown,
+): Promise<ActionResult<{ reviewId: string }>> {
+  const parsed = customerReviewSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      reason: "validation",
+      message: "Check your review details and try again.",
+    };
+  }
+  const session = await authenticatedCustomer();
+  // Same text as signInAgain, via the shared constant: the review form
+  // matches on it to switch back to the sign-in view.
+  if (!session) {
+    return {
+      ok: false,
+      reason: "error",
+      message: REVIEW_SIGN_IN_EXPIRED_MESSAGE,
+    };
+  }
+  return submitCustomerReview(session.client, parsed.data);
 }
 
 export type GoogleSignInState = { message: string } | null;

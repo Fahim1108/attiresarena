@@ -1,4 +1,5 @@
 import type { MerchandisingCandidate } from "@/lib/merchandising";
+import type { CustomerReviewInput } from "@/lib/customer/validation";
 import type { ManualPaymentConfiguration, PaymentSubmissionInput, PaymentSubmissionResult } from "@/types/manual-payment";
 import type {
   ActionResult,
@@ -93,6 +94,8 @@ export interface StorefrontDataSource {
   updateProfile(input: Pick<Customer, "fullName" | "phone">): Promise<ActionResult>;
   saveAddress(address: Address): Promise<ActionResult<Address>>;
   deleteAddress(addressId: string): Promise<ActionResult>;
+  /** Submit (or edit) the signed-in customer's review for one product. Reviews start pending; the RPC enforces one row per product+customer. */
+  submitReview(input: CustomerReviewInput): Promise<ActionResult<{ reviewId: string }>>;
   subscribeNewsletter(email: string): Promise<ActionResult>;
   submitContactForm(input: { name: string; email: string; phone?: string; subject: string; message: string }): Promise<ActionResult>;
   saveStorefrontDraft(settings: StorefrontSettings): Promise<ActionResult>;
