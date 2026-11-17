@@ -91,6 +91,14 @@ import { areaRoles } from "@/lib/admin/constants";
  * drawer always shows full labels. Role gating, staging-tools
  * conditions, the environment badge, the global search form, sign-out
  * and the mobile bottom navigation are unchanged.
+ *
+ * Redesign v2 (step 1, shell + dashboard): the sidebar is light in
+ * both environments, so it uses the maroon logo; the mobile brand
+ * keeps the staging-conditional logo because it sits on a maroon
+ * badge in the staging phone header (workspace.css), where the
+ * maroon logo would be invisible. The header carries a breadcrumb
+ * derived from the pathname and nav labels. Nothing else about
+ * gating, search, sign-out or navigation changes.
  */
 
 type NavIcon = typeof LayoutDashboard;
@@ -299,6 +307,46 @@ export function AdminShell({
     );
   };
 
+  // Header breadcrumb (redesign v2, step 1): display only, derived from
+  // the pathname and the same nav labels as the sidebar — no new routes
+  // or behaviour. The section crumb is the longest-prefix nav match;
+  // a deeper tail (detail pages) adds its last segment, humanised and
+  // shortened so ids never stretch the header.
+  const sectionLink = groups
+    .flatMap((group) => group.links)
+    .find((link) => current(link.href));
+  const sectionHref = sectionLink ? sectionLink.href : "/admin";
+  const tailSegments = path
+    .slice(sectionHref.length)
+    .split("/")
+    .filter(Boolean);
+  const lastTail = tailSegments[tailSegments.length - 1];
+  let tailLabel: string | null = null;
+  if (lastTail) {
+    try {
+      tailLabel = decodeURIComponent(lastTail);
+    } catch {
+      tailLabel = lastTail;
+    }
+    tailLabel = tailLabel.replaceAll(/[-_]+/g, " ").trim();
+    tailLabel =
+      tailLabel.length > 0
+        ? tailLabel.charAt(0).toUpperCase() + tailLabel.slice(1)
+        : null;
+    if (tailLabel && tailLabel.length > 16) {
+      tailLabel = `${tailLabel.slice(0, 12)}…`;
+    }
+  }
+  const crumbs: { label: string; href?: string }[] = [
+    { label: "Admin", href: "/admin" },
+  ];
+  if (sectionLink && sectionLink.href !== "/admin") {
+    crumbs.push({ label: sectionLink.label, href: sectionLink.href });
+  }
+  if (tailLabel) {
+    crumbs.push({ label: tailLabel });
+  }
+
   // Labels sit in spans so the collapsed rail can hide them visually
   // while assistive technology still reads them (see admin-ds.css).
   // The same fragment renders in the sidebar and in the mobile drawer;
@@ -363,7 +411,7 @@ export function AdminShell({
       <aside id="admin-sidebar" className="aa-sidebar">
         <Link href="/admin" aria-label="Attires Arena administration">
           <Image
-            src={stagingTools ? "/brand/logo-white.png" : "/brand/logo-maroon.png"}
+            src="/brand/logo-maroon.png"
             alt="Attires Arena"
             width={90}
             height={86}
@@ -389,6 +437,24 @@ export function AdminShell({
               <PanelLeftClose size={18} strokeWidth={1.6} aria-hidden="true" />
             )}
           </button>
+          <nav aria-label="Breadcrumb" className="aa-breadcrumb">
+            <ol>
+              {crumbs.map((crumb, index) => {
+                const isLast = index === crumbs.length - 1;
+                return (
+                  <li key={`${index}-${crumb.label}`}>
+                    {isLast || !crumb.href ? (
+                      <span aria-current={isLast ? "page" : undefined}>
+                        {crumb.label}
+                      </span>
+                    ) : (
+                      <Link href={crumb.href}>{crumb.label}</Link>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
           <button
             type="button"
             className="aa-mobile-toggle aa-secondary"

@@ -5,18 +5,11 @@ import {
   Receipt,
   Banknote,
   Users,
-  Hourglass,
-  ClipboardCheck,
   Package,
-  Truck,
-  PackageCheck,
-  CheckCircle2,
-  XCircle,
-  Undo2,
-  FolderClock,
   AlertTriangle,
   ArrowUpRight,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { requireStaff } from "@/lib/admin/authorization";
 import { adminConfiguration } from "@/lib/admin/supabase";
 import {
@@ -88,18 +81,11 @@ import { StatusBadge } from "@/components/design-system/StatusBadge";
  * and handler is unchanged. Charts keep the hand-built SeriesChart and
  * PieChart: their legends link to filtered order lists and their data
  * tables stay available, which the Recharts wrappers do not offer.
+ * Layout follows the owner's reference structure (business KPIs,
+ * operational-overview status grid, chart + donut, best/least
+ * sellers). Statuses are exactly the DB's fixed 8 — 'Processing'
+ * never appears.
  */
-
-const STATUS_ICONS: Record<OrderStatus, typeof Hourglass> = {
-  pending: Hourglass,
-  confirmed: ClipboardCheck,
-  packed: Package,
-  shipped: Truck,
-  "out-for-delivery": PackageCheck,
-  delivered: CheckCircle2,
-  cancelled: XCircle,
-  returned: Undo2,
-};
 
 const GRANULARITY_LABELS: Record<RevenueGranularity, string> = {
   day: "Daily",
@@ -125,7 +111,7 @@ function KpiCard({
   deltaCaption,
 }: {
   href: string;
-  Icon: typeof Hourglass;
+  Icon: LucideIcon;
   label: string;
   value: KpiValue;
   delta: number | null;
@@ -159,8 +145,48 @@ function KpiCard({
         trend={trend ?? undefined}
         trendTone="neutral"
         description={trend === null ? deltaCaption : undefined}
-        className="h-full transition-shadow hover:shadow-admin-lift"
+        className="aa-kpi h-full transition-shadow hover:shadow-admin-lift"
       />
+    </Link>
+  );
+}
+
+/** Compact status cell (reference: operational-overview grid): a
+ * coloured dot matching the donut slice, the status label, and the
+ * real count. The whole cell links to the filtered orders list. The
+ * dot is decorative; the link name carries label + count. No delta
+ * is shown here (the reference cells carry none); deltas stay on the
+ * four business KPI cards above. */
+function StatusCell({
+  href,
+  dotColor,
+  label,
+  countText,
+}: {
+  href: string;
+  dotColor: string;
+  label: string;
+  countText: string;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-label={`${label}: ${countText}`}
+      className="aa-ds-plain-link block h-full rounded-admin-card border border-admin-border bg-admin-card p-4 transition-shadow hover:border-admin-primary/40 hover:shadow-admin-lift"
+    >
+      <span className="flex items-center gap-2">
+        <span
+          aria-hidden="true"
+          className="h-2.5 w-2.5 shrink-0 rounded-full"
+          style={{ backgroundColor: dotColor }}
+        />
+        <span className="min-w-0 text-[13px] font-medium leading-5 text-admin-text-secondary [overflow-wrap:anywhere]">
+          {label}
+        </span>
+      </span>
+      <span className="admin-ds-numeric mt-2 block min-w-0 text-[28px] font-semibold leading-8 text-admin-text [overflow-wrap:anywhere]">
+        {countText}
+      </span>
     </Link>
   );
 }
@@ -234,13 +260,9 @@ function ViewAllLink({
 
 function UnavailableDashboard({ message }: { message: string }) {
   return (
-    <main id="main" tabIndex={-1} className="aa-main aa-main--ds">
+    <main id="main" tabIndex={-1} className="aa-main aa-main--ds aa-dashboard-v2">
       <div className="space-y-5">
-        <PageHeader title="Dashboard" description="Sales, orders and stock at a glance.">
-          <p className="text-[13px] font-medium text-admin-text-secondary">
-            Administration
-          </p>
-        </PageHeader>
+        <PageHeader title="Dashboard" description="Sales, orders and stock at a glance." />
         <Notice kind="error">{message}</Notice>
         <p className="aa-muted">
           No data is shown because the store database could not be reached from
@@ -329,7 +351,7 @@ export default async function AdminDashboard({
   }
 
   return (
-    <main id="main" tabIndex={-1} className="aa-main aa-main--ds">
+    <main id="main" tabIndex={-1} className="aa-main aa-main--ds aa-dashboard-v2">
       <div className="space-y-6">
         <PageHeader
           title="Dashboard"
@@ -339,11 +361,7 @@ export default async function AdminDashboard({
               {formatDate(today)} · Dhaka
             </span>
           }
-        >
-          <p className="text-[13px] font-medium text-admin-text-secondary">
-            Administration
-          </p>
-        </PageHeader>
+        />
 
         <form
           method="get"
@@ -458,12 +476,12 @@ export default async function AdminDashboard({
         <section aria-label="Totals">
           <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
             <KpiCard
-              href="/admin/catalog/products"
-              Icon={Boxes}
-              label="Total Products"
-              value={{ kind: "count-up", value: data.totalProducts, format: "count" }}
-              delta={periodDelta(data.productsCreatedCurrent, data.productsCreatedPrevious)}
-              deltaCaption="new products vs previous period"
+              href="/admin/sales/orders"
+              Icon={Banknote}
+              label="Total Revenue"
+              value={{ kind: "count-up", value: data.revenueMinor, format: "money" }}
+              delta={periodDelta(data.revenueMinor, data.revenueMinorPrevious)}
+              deltaCaption="vs previous period"
             />
             <KpiCard
               href="/admin/sales/orders"
@@ -474,14 +492,6 @@ export default async function AdminDashboard({
               deltaCaption="vs previous period"
             />
             <KpiCard
-              href="/admin/sales/orders"
-              Icon={Banknote}
-              label="Total Revenue"
-              value={{ kind: "count-up", value: data.revenueMinor, format: "money" }}
-              delta={periodDelta(data.revenueMinor, data.revenueMinorPrevious)}
-              deltaCaption="vs previous period"
-            />
-            <KpiCard
               href="/admin/sales/customers"
               Icon={Users}
               label="Total Customers"
@@ -489,40 +499,38 @@ export default async function AdminDashboard({
               delta={periodDelta(data.customerCount, data.customerCountPrevious)}
               deltaCaption="vs previous period"
             />
+            <KpiCard
+              href="/admin/catalog/products"
+              Icon={Boxes}
+              label="Total Products"
+              value={{ kind: "count-up", value: data.totalProducts, format: "count" }}
+              delta={periodDelta(data.productsCreatedCurrent, data.productsCreatedPrevious)}
+              deltaCaption="new products vs previous period"
+            />
           </div>
         </section>
 
-        <section aria-label="Orders by status">
-          <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-            {ORDER_STATUSES.map((status) => (
-              <KpiCard
+        <section aria-label="Operational overview">
+          <h2 className="aa-dashboard-section-title">Operational overview</h2>
+          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
+            {ORDER_STATUSES.map((status, index) => (
+              <StatusCell
                 key={status}
                 href={`/admin/sales/orders?status=${status}`}
-                Icon={STATUS_ICONS[status]}
+                dotColor={PIE_PALETTE[index % PIE_PALETTE.length] ?? "#9A9494"}
                 label={ORDER_STATUS_LABELS[status]}
-                value={{
-                  kind: "count-up",
-                  value: data.statusCounts[status],
-                  format: "count",
-                }}
-                delta={periodDelta(
-                  data.statusCounts[status],
-                  data.statusCountsPrevious[status],
-                )}
-                deltaCaption="vs previous period"
+                countText={formatCount(data.statusCounts[status])}
               />
             ))}
-            <KpiCard
+            <StatusCell
               href="/admin/sales/incomplete"
-              Icon={FolderClock}
+              dotColor="rgb(var(--admin-text-secondary))"
               label="Incomplete Orders"
-              value={
+              countText={
                 failed("Incomplete orders")
-                  ? { kind: "text", text: "—" }
-                  : { kind: "count-up", value: data.incompleteCount, format: "count" }
+                  ? "—"
+                  : formatCount(data.incompleteCount)
               }
-              delta={null}
-              deltaCaption="current total · abandoned checkouts with items"
             />
           </div>
         </section>

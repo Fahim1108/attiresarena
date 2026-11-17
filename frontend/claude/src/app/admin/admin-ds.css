@@ -25,10 +25,15 @@
  *    (admin.css / workspace.css still provide the layout), and this
  *    file overrides theme, spacing and the collapsed rail. Selectors
  *    are prefixed so they win on specificity, not on import order.
- *    Production renders the light sidebar; the staging workspace
- *    (`.aa-admin--workspace`) keeps the dark maroon sidebar that its
- *    white logo needs. Both use the scoped `--admin-*` variables,
- *    which resolve because the shell root carries `.aa-admin-ds`.
+ *    Redesign v2 (step 1) makes the sidebar LIGHT in both
+ *    environments — white surface, dark text, maroon icons and a
+ *    solid maroon active pill — because the v1 dark-maroon staging
+ *    sidebar looked identical to the old UI. The legacy staging
+ *    stylesheets assume a dark sidebar (white text, white focus
+ *    outlines, pale paragraph text), so every such rule is
+ *    overridden here; miss one and its text goes invisible on white.
+ *    Both environments use the scoped `--admin-*` variables, which
+ *    resolve because the shell root carries `.aa-admin-ds`.
  *
  * Later waves: add the `.aa-main--ds` marker class to a redesigned
  * page's <main> to opt its `.aa-table` tables into the palette rules
@@ -62,6 +67,12 @@
  * (which activates the `--admin-*` variables) plus the `.aa-login--ds`
  * marker, and section 6 repaints only the login chrome under that
  * marker. Auth behaviour, flows and error states are untouched.
+ *
+ * Redesign v2, step 1 adds section 7 (dashboard only): the dashboard
+ * <main> carries the `.aa-dashboard-v2` marker, and every rule there
+ * is scoped to it, so the other pages keep their v1 look until their
+ * turn. The shell changes in section 2 are global by nature — the
+ * shell is shared — and are the point of step 1.
  */
 
 /* ------------------------------------------------------------------ */
@@ -175,17 +186,13 @@
   background: rgb(var(--admin-bg));
 }
 
-.aa-admin--workspace .aa-admin-ds.aa-shell {
-  background: rgb(var(--admin-primary));
-}
-
 .aa-admin .aa-admin-ds .aa-content {
   min-width: 0;
   min-height: 100svh;
   background: rgb(var(--admin-bg));
 }
 
-/* Sidebar: light on production, dark maroon on staging. */
+/* Sidebar: light in both environments (redesign v2, step 1). */
 .aa-admin .aa-admin-ds .aa-sidebar {
   width: 240px;
   position: sticky;
@@ -199,14 +206,9 @@
   color: rgb(var(--admin-text));
 }
 
-.aa-admin--workspace .aa-admin-ds .aa-sidebar {
-  background: rgb(var(--admin-primary));
-  border-right-color: rgb(var(--admin-primary));
-  color: rgb(var(--admin-card));
-}
-
-/* Navigation links: shared shape, per-environment colours. Drawer
-   links keep 44px targets; sidebar links use 42px on desktop. */
+/* Navigation links: shared shape in both environments. Drawer
+   links keep 44px targets; sidebar links use 42px on desktop.
+   Icons are maroon; the current page is a solid maroon pill. */
 .aa-admin .aa-admin-ds .aa-sidebar nav a,
 .aa-admin .aa-admin-ds .aa-drawer nav a {
   display: flex;
@@ -216,6 +218,7 @@
   margin: 2px 0;
   border-radius: var(--admin-radius-control);
   font-size: 13px;
+  font-weight: 500;
   text-decoration: none;
 }
 
@@ -229,6 +232,12 @@
   color: rgb(var(--admin-text));
 }
 
+.aa-admin .aa-admin-ds .aa-sidebar nav a svg,
+.aa-admin .aa-admin-ds .aa-drawer nav a svg {
+  flex-shrink: 0;
+  color: rgb(var(--admin-primary));
+}
+
 .aa-admin .aa-admin-ds .aa-sidebar nav a:hover,
 .aa-admin .aa-admin-ds .aa-drawer nav a:hover {
   background: rgb(var(--admin-soft-bg));
@@ -237,26 +246,29 @@
 
 .aa-admin .aa-admin-ds .aa-sidebar nav a[aria-current="page"],
 .aa-admin .aa-admin-ds .aa-drawer nav a[aria-current="page"] {
-  background: rgb(var(--admin-soft-bg));
-  color: rgb(var(--admin-primary));
-  font-weight: 600;
-}
-
-.aa-admin--workspace .aa-admin-ds .aa-sidebar nav a,
-.aa-admin--workspace .aa-admin-ds .aa-drawer nav a {
-  color: inherit;
-}
-
-.aa-admin--workspace .aa-admin-ds .aa-sidebar nav a:hover,
-.aa-admin--workspace .aa-admin-ds .aa-drawer nav a:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.aa-admin--workspace .aa-admin-ds .aa-sidebar nav a[aria-current="page"],
-.aa-admin--workspace .aa-admin-ds .aa-drawer nav a[aria-current="page"] {
-  background: rgba(255, 255, 255, 0.16);
+  background: rgb(var(--admin-primary));
   color: rgb(var(--admin-card));
   font-weight: 600;
+}
+
+.aa-admin .aa-admin-ds .aa-sidebar nav a[aria-current="page"]:hover,
+.aa-admin .aa-admin-ds .aa-drawer nav a[aria-current="page"]:hover {
+  background: rgb(var(--admin-primary));
+  color: rgb(var(--admin-card));
+}
+
+.aa-admin .aa-admin-ds .aa-sidebar nav a[aria-current="page"] svg,
+.aa-admin .aa-admin-ds .aa-drawer nav a[aria-current="page"] svg {
+  color: rgb(var(--admin-card));
+}
+
+/* Focus outlines: the legacy staging rule paints them white for the
+   dark sidebar; on the light sidebar they must be primary. */
+.aa-admin .aa-admin-ds .aa-sidebar a:focus-visible,
+.aa-admin .aa-admin-ds .aa-sidebar summary:focus-visible,
+.aa-admin .aa-admin-ds .aa-drawer a:focus-visible,
+.aa-admin .aa-admin-ds .aa-drawer summary:focus-visible {
+  outline-color: rgb(var(--admin-primary));
 }
 
 /* Group headings. No min-height here: the drawer keeps its 44px
@@ -268,11 +280,7 @@
   text-transform: uppercase;
   color: rgb(var(--admin-text-secondary));
   cursor: pointer;
-  padding: 10px 12px 6px;
-}
-
-.aa-admin--workspace .aa-admin-ds .aa-nav-group summary {
-  color: rgba(255, 255, 255, 0.65);
+  padding: 14px 12px 6px;
 }
 
 .aa-admin .aa-admin-ds .aa-visit-store {
@@ -292,23 +300,47 @@
   text-decoration: none;
 }
 
-.aa-admin--workspace .aa-admin-ds .aa-visit-store {
-  color: inherit;
-}
-
-.aa-admin--workspace .aa-admin-ds .aa-visit-store:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
 .aa-admin .aa-admin-ds .aa-sidebar .aa-role {
   margin-top: auto;
   color: rgb(var(--admin-text-secondary));
   font-size: 12px;
 }
 
-.aa-admin--workspace .aa-admin-ds .aa-sidebar .aa-role {
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 11px;
+/* Secondary buttons in the sidebar (sign out) and drawer (close):
+   the legacy staging rule paints them white-on-transparent for the
+   dark sidebar; on the light sidebar they take the card surface
+   with a primary label. */
+.aa-admin .aa-admin-ds .aa-sidebar .aa-secondary,
+.aa-admin .aa-admin-ds .aa-drawer .aa-secondary {
+  background: rgb(var(--admin-card));
+  color: rgb(var(--admin-primary));
+  border-color: rgb(var(--admin-border));
+  font-weight: 600;
+}
+
+.aa-admin .aa-admin-ds .aa-sidebar .aa-secondary:hover,
+.aa-admin .aa-admin-ds .aa-drawer .aa-secondary:hover {
+  background: rgb(var(--admin-soft-bg));
+  border-color: rgb(var(--admin-primary));
+}
+
+/* Service-availability disclosure: the legacy staging rule paints
+   its paragraphs pale pink for the dark sidebar; on the light
+   sidebar they take secondary text with a semibold heading. */
+.aa-admin .aa-admin-ds .aa-sidebar .aa-unavailable,
+.aa-admin .aa-admin-ds .aa-drawer .aa-unavailable {
+  color: rgb(var(--admin-text-secondary));
+}
+
+.aa-admin .aa-admin-ds .aa-sidebar .aa-unavailable summary,
+.aa-admin .aa-admin-ds .aa-drawer .aa-unavailable summary {
+  color: rgb(var(--admin-text));
+  font-weight: 600;
+}
+
+.aa-admin .aa-admin-ds .aa-sidebar .aa-unavailable p,
+.aa-admin .aa-admin-ds .aa-drawer .aa-unavailable p {
+  color: rgb(var(--admin-text-secondary));
 }
 
 /* Icon + label spacing for shell buttons (menu, close, sign out). */
@@ -359,18 +391,69 @@
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: rgb(var(--admin-text-secondary));
-  border: 1px solid rgb(var(--admin-border));
+  font-weight: 600;
+  color: rgb(var(--admin-primary));
+  border: 1px solid transparent;
   border-radius: 999px;
   padding: 6px 10px;
-  background: rgb(var(--admin-card));
+  background: rgb(var(--admin-soft-bg));
   white-space: nowrap;
 }
 
+/* The legacy "Administration" header label is superseded by the
+   breadcrumb, which names the same root plus the current section. */
 .aa-admin .aa-admin-ds .aa-admin-title {
+  display: none;
+}
+
+/* Header breadcrumb (redesign v2, step 1): root + section + detail
+   tail, derived from the pathname. It flexes and ellipsises so the
+   search box and environment pill keep their room; hidden on phones,
+   where the three-column header has no room for it. */
+.aa-admin .aa-admin-ds .aa-breadcrumb {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.aa-admin .aa-admin-ds .aa-breadcrumb ol {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.aa-admin .aa-admin-ds .aa-breadcrumb li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   font-size: 13px;
-  font-weight: 600;
+}
+
+.aa-admin .aa-admin-ds .aa-breadcrumb li + li::before {
+  content: "/";
+  color: rgb(var(--admin-text-secondary));
+}
+
+.aa-admin .aa-admin-ds .aa-breadcrumb a {
+  color: rgb(var(--admin-text-secondary));
+  text-decoration: none;
+}
+
+.aa-admin .aa-admin-ds .aa-breadcrumb a:hover {
+  color: rgb(var(--admin-primary));
+  text-decoration: underline;
+}
+
+.aa-admin .aa-admin-ds .aa-breadcrumb [aria-current="page"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: rgb(var(--admin-text));
+  font-weight: 600;
 }
 
 /* Global search (staging only; it never renders on production). */
@@ -388,20 +471,14 @@
   background: transparent;
 }
 
-/* Drawer: light on production, dark maroon on staging. The native
-   <dialog> keeps focus handling; the drawer always shows full
+/* Drawer: light in both environments (redesign v2, step 1). The
+   native <dialog> keeps focus handling; the drawer always shows full
    labels, even when the sidebar is collapsed. */
 .aa-admin .aa-admin-ds .aa-drawer {
   background: rgb(var(--admin-card));
   color: rgb(var(--admin-text));
   border-right: 1px solid rgb(var(--admin-border));
   overscroll-behavior: contain;
-}
-
-.aa-admin--workspace .aa-admin-ds .aa-drawer {
-  background: rgb(var(--admin-primary));
-  border-right-color: rgb(var(--admin-primary));
-  color: rgb(var(--admin-card));
 }
 
 /* Mobile bottom navigation (staging only). */
@@ -469,10 +546,6 @@
   list-style: none;
 }
 
-.aa-admin--workspace .aa-admin-ds.aa-shell[data-sidebar="collapsed"] .aa-sidebar .aa-nav-group summary {
-  border-top-color: rgba(255, 255, 255, 0.18);
-}
-
 .aa-admin .aa-admin-ds.aa-shell[data-sidebar="collapsed"] .aa-sidebar .aa-nav-group summary::-webkit-details-marker {
   display: none;
 }
@@ -514,6 +587,10 @@
   }
 
   .aa-admin .aa-admin-ds .aa-top .aa-collapse-toggle {
+    display: none;
+  }
+
+  .aa-admin .aa-admin-ds .aa-breadcrumb {
     display: none;
   }
 }
@@ -922,4 +999,62 @@
 
 .aa-admin .aa-login--ds .aa-form [role="status"] {
   color: rgb(var(--admin-success));
+}
+
+/* ------------------------------------------------------------------ */
+/* 7. Dashboard (redesign v2, step 1)                                  */
+/*                                                                     */
+/* Scoped to `.aa-dashboard-v2` on the dashboard <main> only: the      */
+/* larger title, the restyled KPI cards and the larger panel titles    */
+/* reach no other page. The shared StatCard/Card/ChartCard components  */
+/* are untouched — these rules restate sizes the same way section 1    */
+/* does, and win over the layered Tailwind utilities because they are  */
+/* unlayered author styles. Data, links, presets and empty states are  */
+/* unchanged.                                                          */
+/* ------------------------------------------------------------------ */
+
+/* Page title: larger and bolder than the v1 24px semibold. Beats the
+   section 1 repair by one extra class. */
+.aa-admin-ds .aa-dashboard-v2 h1[class*="text-admin-"] {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  font-weight: 700;
+}
+
+/* Panel titles (ChartCard / DashboardPanel h2): 16px instead of the
+   v1 14px, so chart and panel headings carry more weight. */
+.aa-admin-ds .aa-dashboard-v2 .rounded-admin-card h2[class*="text-admin-"] {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
+/* Operational-overview section heading: 18px semibold. Literal
+   values, same repair pattern as section 1 — the legacy `.aa-admin
+   h2` size and margin would otherwise win. */
+.aa-admin-ds .aa-dashboard-v2 h2.aa-dashboard-section-title {
+  margin: 0;
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  color: rgb(var(--admin-text));
+}
+
+/* KPI cards (`.aa-kpi` is set only by the dashboard's KpiCard): round
+   44px icon chip, larger bolder value, maroon border on hover. The
+   icon tile and value keep their component classes; only sizes and
+   the chip shape change. */
+.aa-admin-ds .aa-dashboard-v2 .aa-kpi span[class~="h-9"][class~="w-9"] {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 999px;
+}
+
+.aa-admin-ds .aa-dashboard-v2 .aa-kpi p[class~="text-3xl"] {
+  font-size: 2.125rem;
+  line-height: 2.5rem;
+  font-weight: 700;
+}
+
+.aa-admin-ds .aa-dashboard-v2 a:hover .aa-kpi {
+  border-color: rgb(var(--admin-primary) / 0.4);
 }
