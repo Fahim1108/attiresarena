@@ -234,15 +234,18 @@
   text-align: center;
 }
 
-.aa-invoice-code figcaption,
 .aa-invoice-code-label {
-  margin: 6px 0 0;
+  margin: 0 0 6px;
   font-size: 0.875rem;
   font-weight: 600;
 }
 
-.aa-invoice-code-label {
-  margin: 0 0 6px;
+/* Scan captions: one shared style, centered under each code. */
+.aa-invoice-caption {
+  margin: 6px 0 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-align: center;
 }
 
 .aa-invoice-qr {
@@ -302,6 +305,9 @@
 .aa-invoice-total-row--payable dd {
   font-size: 1.0625rem;
   font-weight: 800;
+  /* Explicit: workspace.css colors every dt gray, which would leave
+     this label unreadable on the maroon band. */
+  color: rgb(var(--admin-card));
 }
 
 .aa-invoice-total-row--due {
@@ -338,6 +344,15 @@
 
 .aa-invoice-foot a:hover {
   text-decoration: underline;
+}
+
+/* Closing line: last element of the sheet, small but visible in print. */
+.aa-invoice-thanks {
+  margin-top: 16px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-align: center;
+  color: rgb(var(--admin-primary));
 }
 
 /* Phones: stack, tighten, keep the table readable without scrolling. */
@@ -410,8 +425,14 @@
     border-radius: 0;
     box-shadow: none;
     max-width: none;
-    margin: 0;
+    /* !important: beats the Tailwind space-y margin-top from the detail
+       page wrapper, so no stray gap can tip the sheet onto page 2. */
+    margin: 0 !important;
     padding: 0;
+  }
+
+  .aa-invoice-code {
+    break-inside: avoid;
   }
 
   .aa-invoice,

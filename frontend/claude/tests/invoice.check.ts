@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { orderItemRowSchema, orderRowSchema } from "../src/lib/admin/orders";
 import {
   INVOICE_WEBSITE_HOST,
@@ -211,5 +212,87 @@ describe("QR symbol", () => {
       expect(rect.y).toBeLessThan(size);
       expect(data[rect.y * size + rect.x]).toBe(1);
     }
+  });
+});
+
+describe("invoice sheet copy and print hiding", () => {
+  const sheet = readFileSync(
+    new URL("../src/components/admin/sales/OrderInvoice.tsx", import.meta.url),
+    "utf8",
+  );
+  const invoiceCss = readFileSync(new URL("../src/app/admin/invoice.css", import.meta.url), "utf8");
+  const adminPanelCss = readFileSync(
+    new URL("../src/app/admin/admin-panel.css", import.meta.url),
+    "utf8",
+  );
+
+  it("ends with the thank-you line, below the website footer band", () => {
+    const thanksAt = sheet.indexOf("Thank you for your shopping");
+    expect(thanksAt).toBeGreaterThan(sheet.indexOf("aa-invoice-foot"));
+    expect(sheet).toContain('className="aa-invoice-thanks"');
+    const afterThanks = sheet.slice(
+      sheet.indexOf("</p>", thanksAt) + "</p>".length,
+      sheet.indexOf("</section>"),
+    );
+    expect(afterThanks.trim()).toBe("");
+  });
+
+  it("captions the QR code in both variants (unconditional figure)", () => {
+    expect(sheet).toContain(
+      '<figcaption className="aa-invoice-caption">Scan to see order details</figcaption>',
+    );
+    expect(sheet).not.toContain("Order Details QR");
+    const figureAt = sheet.indexOf('<figure className="aa-invoice-code">');
+    const figureEnd = sheet.indexOf("</figure>", figureAt);
+    const captionAt = sheet.indexOf("Scan to see order details");
+    expect(captionAt).toBeGreaterThan(figureAt);
+    expect(captionAt).toBeLessThan(figureEnd);
+    const codesAt = sheet.indexOf('className="aa-invoice-codes"');
+    expect(sheet.slice(codesAt, figureAt)).not.toContain("trackingCode ? (");
+  });
+
+  it("captions the barcode only when tracking exists, below the number", () => {
+    const conditionalAt = sheet.indexOf("{trackingCode ? (");
+    const captionAt = sheet.indexOf("Scan to track the parcel");
+    expect(captionAt).toBeGreaterThan(conditionalAt);
+    expect(captionAt).toBeGreaterThan(sheet.indexOf("aa-invoice-tracking-number"));
+    expect(sheet.indexOf("aa-invoice-tracking-number")).toBeGreaterThan(
+      sheet.indexOf("<TrackingBarcode"),
+    );
+  });
+
+  it("shares one centered caption style and a visible thank-you style", () => {
+    expect(invoiceCss).toContain(".aa-invoice-caption {");
+    const caption = invoiceCss.slice(invoiceCss.indexOf(".aa-invoice-caption {"));
+    expect(caption).toContain("text-align: center;");
+    expect(invoiceCss).toContain(".aa-invoice-thanks {");
+    const thanks = invoiceCss.slice(invoiceCss.indexOf(".aa-invoice-thanks {"));
+    expect(thanks).toContain("text-align: center;");
+  });
+
+  it("keeps the Total Payable label readable on the maroon band", () => {
+    const payable = invoiceCss.slice(invoiceCss.indexOf(".aa-invoice-total-row--payable dt,"));
+    expect(payable).toContain("color: rgb(var(--admin-card));");
+  });
+
+  it("keeps the printed page white even with background graphics on", () => {
+    const print = adminPanelCss.slice(adminPanelCss.indexOf("@media print"));
+    expect(print).toContain("background: #fff !important;");
+  });
+
+  it("hides the mobile bottom nav and other fixed chrome in print", () => {
+    const print = adminPanelCss.slice(adminPanelCss.indexOf("@media print"));
+    expect(print).toContain(".aa-admin-bottom,");
+    expect(print).toContain(".aa-drawer,");
+    expect(print).toContain(".aa-save-bar,");
+    expect(print).toContain("display: none !important;");
+    expect(print).toContain(".aa-content { margin: 0 !important; padding: 0 !important; }");
+  });
+
+  it("keeps the sheet margin-free in print so no stray gap spills page 2", () => {
+    const print = invoiceCss.slice(invoiceCss.indexOf("@media print"));
+    expect(print).toContain("margin: 0 !important;");
+    expect(print).toContain(".aa-invoice-code {");
+    expect(print).toContain("break-inside: avoid;");
   });
 });

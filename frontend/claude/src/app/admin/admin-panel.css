@@ -715,11 +715,20 @@ a.aa-kpi:hover { border-color: rgb(var(--aa-primary) / 0.5); transform: translat
   .aa-table:has(td[data-label]) tbody td[colspan] { display: block; }
 }
 
-/* Invoice printing: only the invoice sheet prints. */
+/* Invoice printing: only the invoice sheet prints. The mobile bottom
+   nav (.aa-admin-bottom) is fixed chrome outside .aa-top, so it needs
+   its own hide — without it, a stray Home item printed on page 2.
+   Zeroing .aa-content padding also drops the 90px mobile bottom
+   padding reserved for that nav, which alone could spill page 2. */
 @media print {
   .aa-sidebar,
   .aa-top,
+  .aa-admin-bottom,
+  .aa-drawer,
+  .aa-save-bar,
   .aa-no-print { display: none !important; }
-  .aa-content { margin: 0 !important; }
+  .aa-content { margin: 0 !important; padding: 0 !important; }
   .aa-admin .aa-main { padding: 0 !important; }
+  /* White page even when the browser prints background graphics. */
+  html, body, .aa-admin, .aa-shell, .aa-content { background: #fff !important; }
 }

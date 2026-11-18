@@ -175,13 +175,14 @@ export function OrderInvoice({
               })}
               label={`Order details QR code for invoice ${invoiceNo}`}
             />
-            <figcaption>Order Details QR</figcaption>
+            <figcaption className="aa-invoice-caption">Scan to see order details</figcaption>
           </figure>
           {trackingCode ? (
             <div className="aa-invoice-code">
               <p className="aa-invoice-code-label">Courier Tracking Barcode</p>
               <TrackingBarcode trackingCode={trackingCode} />
               <p className="aa-invoice-tracking-number">{trackingCode}</p>
+              <p className="aa-invoice-caption">Scan to track the parcel</p>
             </div>
           ) : null}
         </div>
@@ -204,6 +205,8 @@ export function OrderInvoice({
       <footer className="aa-invoice-foot">
         <a href={INVOICE_WEBSITE_URL}>{INVOICE_WEBSITE_HOST}</a>
       </footer>
+
+      <p className="aa-invoice-thanks">Thank you for your shopping</p>
     </section>
   );
 }
