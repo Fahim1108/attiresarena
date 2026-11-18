@@ -65,7 +65,17 @@ describe('checkout input validation', () => {
     const parsed = parseCheckoutOrder(order());
     expect(parsed?.customer).toEqual({ fullName: 'Nasrin Akter', phone: '+8801712345678', email: undefined });
     expect(parsed?.items).toEqual([{ variantId: V1, quantity: 1 }]);
-    expect(JSON.stringify(parsed)).not.toMatch(/unitPrice|total|coupon|productId/);
+    expect(JSON.stringify(parsed)).not.toMatch(/unitPrice|total|productId/);
+    // A coupon code is an identifier the server re-validates, not a price:
+    // it is kept, normalized to the database form.
+    expect(parsed?.couponCode).toBe('WELCOME10');
+  });
+  it('normalises a coupon code, drops an empty one and rejects a malformed one', () => {
+    expect(parseCheckoutOrder(order({ couponCode: ' welcome10 ' }))?.couponCode).toBe('WELCOME10');
+    expect(parseCheckoutOrder(order({ couponCode: ` ${'A'.repeat(30)} ` }))?.couponCode).toBe('A'.repeat(30));
+    expect(parseCheckoutOrder(order({ couponCode: '' }))?.couponCode).toBeUndefined();
+    expect(parseCheckoutOrder(order({ couponCode: 'bad code!' }))).toBeNull();
+    expect(parseCheckoutOrder(order({ couponCode: 'A'.repeat(31) }))).toBeNull();
   });
   it('rejects bad quantities, duplicate lines, non-UUID variants and an empty cart', () => {
     for (const items of [[{ variantId: V1, quantity: 0 }], [{ variantId: V1, quantity: 100 }], [{ variantId: V1, quantity: 1.5 }], [{ variantId: V1, quantity: '2' }], [{ variantId: 'aa-shirt-001', quantity: 1 }], [{ variantId: V1, quantity: 1 }, { variantId: V1.toUpperCase(), quantity: 1 }], []])
@@ -100,9 +110,12 @@ describe('checkout server flow', () => {
     for (const c of db.calls.filter((x) => ['start_checkout_session', 'set_checkout_items', 'place_checkout_order'].includes(x.name)))
       expect(c.args.client_key).toBe(CLIENT);
     const place = db.calls.find((c) => c.name === 'place_checkout_order')!;
-    expect(Object.keys(place.args).sort()).toEqual(['client_key', 'delivery', 'expected_items', 'order_note', 'payment_method', 'raw_token']);
+    expect(Object.keys(place.args).sort()).toEqual(['client_key', 'delivery', 'expected_items', 'order_note', 'p_coupon_code', 'payment_method', 'raw_token']);
     expect(place.args.expected_items).toEqual([{ variant_id: V1, quantity: 1 }]);
-    expect(JSON.stringify(db.calls)).not.toMatch(/unitPrice|WELCOME10|"total"|"price"/);
+    // The coupon code travels only as the p_coupon_code identifier; no price does.
+    expect(place.args.p_coupon_code).toBe('WELCOME10');
+    expect(JSON.stringify(db.calls)).not.toMatch(/unitPrice|"total"|"price"/);
+    expect(JSON.stringify(db.calls).match(/WELCOME10/g)).toHaveLength(1);
   });
   it('places an order and returns the server total, then clears the cookie', async () => {
     const db = fakeDatabase(); const cookies = jar();

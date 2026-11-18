@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {reconcileCartLines} from "@/lib/cart-catalogue";
 import { applyCartAdd, applyCartQuantity, cartUnitCount, MAX_UNITS_PER_ORDER, type CartLimitRefusal } from "@/lib/cart-limits";
+import { fromMinorUnits, isCouponFresh, toMinorUnits } from "@/lib/checkout/coupons";
 import type {Product} from "@/types";
 import { commerce } from "@/config";
 import { isInsideDhaka } from "@/data/bangladesh";
@@ -29,10 +30,11 @@ interface CartContextValue {
   removeItem: (lineId: string) => void;
   clear: () => void;
   coupon?: Coupon;
-  applyCoupon: (code: string) => { ok: boolean; message: string };
+  /** Store a coupon the server already validated (via the coupon action). */
+  applyCoupon: (coupon: Coupon) => void;
   removeCoupon: () => void;
-  /** Summary for a given delivery district (defaults to inside Dhaka). */
-  getSummary: (district?: string) => OrderSummary;
+  /** Summary for a given delivery district and phone (both defaulted). The phone decides coupon freshness. */
+  getSummary: (district?: string, phone?: string | null) => OrderSummary;
   isDrawerOpen: boolean;
   openDrawer: () => void;
   closeDrawer: () => void;
@@ -129,22 +131,31 @@ export function CartProvider({ children, initialItems = [], approvedVariantIds =
   const clear = useCallback(() => {
     itemsRef.current = [];
     setItems([]);
+    // A coupon validated for the old cart must not survive an empty cart.
+    setCoupon(undefined);
   }, []);
 
   const subtotal = items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
 
-  const applyCoupon = useCallback(() => ({ok:false,message:'Please sign in to redeem your coupon. Server validation is required.'}), []);
+  const applyCoupon = useCallback((validated: Coupon) => setCoupon(validated), []);
+
+  // Stable identity: the coupon field's re-validation effect depends on it,
+  // and an inline arrow would retrigger (and cancel) checks on every render.
+  const removeCoupon = useCallback(() => setCoupon(undefined), []);
 
   const getSummary = useCallback(
-    (district?: string): OrderSummary => {
+    (district?: string, phone?: string | null): OrderSummary => {
       const itemCount = items.reduce((n, i) => n + i.quantity, 0);
-      let discount = 0;
-      if (coupon?.type === "percent") discount = Math.round((subtotal * coupon.value) / 100);
-      if (coupon?.type === "fixed") discount = Math.min(coupon.value, subtotal);
+      // The discount applies only while the subtotal AND phone are exactly
+      // the ones the server validated it against. A stale coupon shows no
+      // discount and is omitted from the summary, so the checkout payload
+      // never sends a code the server has not validated for this cart.
+      const freshCoupon = isCouponFresh(coupon, toMinorUnits(subtotal), phone ?? null) ? coupon : undefined;
+      const discount = freshCoupon ? Math.min(fromMinorUnits(freshCoupon.discountMinor), subtotal) : 0;
       const baseDelivery = district && !isInsideDhaka(district) ? commerce.deliveryCharges.outsideDhaka : commerce.deliveryCharges.insideDhaka;
-      const free = coupon?.type === "free-shipping" || subtotal >= commerce.freeDeliveryThreshold;
+      const free = subtotal >= commerce.freeDeliveryThreshold;
       const deliveryCharge = itemCount === 0 || free ? 0 : baseDelivery;
-      return { itemCount, subtotal, discount, deliveryCharge, total: Math.max(0, subtotal - discount + deliveryCharge), coupon };
+      return { itemCount, subtotal, discount, deliveryCharge, total: Math.max(0, subtotal - discount + deliveryCharge), coupon: freshCoupon };
     },
     [items, coupon, subtotal],
   );
@@ -161,7 +172,7 @@ export function CartProvider({ children, initialItems = [], approvedVariantIds =
       clear,
       coupon,
       applyCoupon,
-      removeCoupon: () => setCoupon(undefined),
+      removeCoupon,
       getSummary,
       isDrawerOpen,
       openDrawer: () => setDrawerOpen(true),
@@ -169,7 +180,7 @@ export function CartProvider({ children, initialItems = [], approvedVariantIds =
       limitNotice,
       dismissLimitNotice,
     }),
-    [items, hydrated, addItem, updateQuantity, removeItem, clear, coupon, applyCoupon, getSummary, isDrawerOpen, limitNotice, dismissLimitNotice],
+    [items, hydrated, addItem, updateQuantity, removeItem, clear, coupon, applyCoupon, removeCoupon, getSummary, isDrawerOpen, limitNotice, dismissLimitNotice],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

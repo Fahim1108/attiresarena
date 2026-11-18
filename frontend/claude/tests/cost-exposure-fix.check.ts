@@ -542,14 +542,20 @@ describe("migration 20261117000200 text", () => {
   );
   const sql = readFileSync(migrationPath, "utf8");
 
-  it("is the last migration in glob order", () => {
+  it("is followed only by migrations that do not re-open variant cost reads", () => {
     const files = readdirSync(join(repoRoot, "supabase/migrations"))
       .filter((f) => f.endsWith(".sql"))
       .sort();
-    expect(files).toHaveLength(43);
-    expect(files[files.length - 1]).toBe(
-      "20261117000200_product_variant_cost_read_fix.sql",
-    );
+    expect(files).toHaveLength(44);
+    const fixIndex = files.indexOf("20261117000200_product_variant_cost_read_fix.sql");
+    expect(fixIndex).toBeGreaterThan(-1);
+    // Later migrations may call orderable_variant (the cost-safe reader) but
+    // must never re-grant the table or redefine the reader.
+    for (const later of files.slice(fixIndex + 1)) {
+      const laterSql = readFileSync(join(repoRoot, "supabase/migrations", later), "utf8");
+      expect(laterSql).not.toMatch(/grant\s+[^;]*on\s+public\.product_variants/i);
+      expect(laterSql).not.toMatch(/create\s+(or\s+replace\s+)?function\s+private\.orderable_variant/i);
+    }
   });
 
   it("revokes the table-level grant and re-grants exactly the 10 non-cost columns", () => {

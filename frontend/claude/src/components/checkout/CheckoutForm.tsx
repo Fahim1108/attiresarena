@@ -10,6 +10,7 @@ import { commerce } from "@/config";
 import { useCart } from "@/context/CartContext";
 import { areasOf, districtsOf, divisionNames, isInsideDhaka } from "@/data/bangladesh";
 import { canPlaceOrder } from "@/lib/checkout/gate";
+import { toMinorUnits } from "@/lib/checkout/coupons";
 import { formatPrice } from "@/lib/format";
 import { isValidBdPhone, isValidEmail, normalizePhone, type FieldErrors } from "@/lib/validation";
 import { placeOrderAction, saveCheckoutProgressAction } from "@/services/actions";
@@ -49,8 +50,14 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
   }, [step]);
 
   const orderable = canPlaceOrder(orderingEnabled, manualPaymentConfiguration.available);
-  const summary = getSummary(form.district || undefined);
-  const advance = payment === "cod" ? advanceBreakdown(summary.total * 100, form.division, form.district, manualPaymentConfiguration.policy) : null;
+  // The coupon phone: a valid normalized number, else null. Shared by the
+  // summary (coupon freshness) and the coupon field (per-customer counting).
+  const couponPhone = isValidBdPhone(form.phone) ? normalizePhone(form.phone) : null;
+  const summary = getSummary(form.district || undefined, couponPhone);
+  // Totals can hold fractional taka once a percent discount applies; round
+  // to minor units instead of multiplying, which can leave float residue
+  // that the payment helpers reject.
+  const advance = payment === "cod" ? advanceBreakdown(toMinorUnits(summary.total), form.division, form.district, manualPaymentConfiguration.policy) : null;
   const districts = useMemo(() => districtsOf(form.division), [form.division]);
   const areas = useMemo(() => areasOf(form.district), [form.district]);
 
@@ -66,13 +73,13 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
 
   const validate = (): boolean => {
     const e: FieldErrors<Field> = {};
-    if (form.fullName.trim().length < 3) e.fullName = "Please enter your full name";
-    if (!isValidBdPhone(form.phone)) e.phone = "Enter a valid Bangladeshi mobile number (01XXXXXXXXX)";
-    if (form.email && !isValidEmail(form.email)) e.email = "Enter a valid email address";
-    if (!form.division) e.division = "Select a division";
-    if (!form.district) e.district = "Select a district";
-    if (!form.area.trim()) e.area = "Select or enter your area";
-    if (form.addressLine.trim().length < 8) e.addressLine = "Enter house, road and area details";
+    if (form.fullName.trim().length < 3) e.fullName = "আপনার পুরো নাম লিখুন";
+    if (!isValidBdPhone(form.phone)) e.phone = "সঠিক বাংলাদেশি মোবাইল নম্বর দিন (01XXXXXXXXX)";
+    if (form.email && !isValidEmail(form.email)) e.email = "সঠিক ইমেইল ঠিকানা দিন";
+    if (!form.division) e.division = "বিভাগ বেছে নিন";
+    if (!form.district) e.district = "জেলা বেছে নিন";
+    if (!form.area.trim()) e.area = "এলাকা / উপজেলা বেছে নিন";
+    if (form.addressLine.trim().length < 8) e.addressLine = "বাসা, রোড ও এলাকার বিস্তারিত লিখুন";
     setErrors(e);
     const first = Object.keys(e)[0];
     if (first) document.getElementById(`checkout-${first}`)?.focus();
@@ -142,7 +149,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
   if (!items.length)
     return <EmptyState icon={<ShoppingBag className="h-7 w-7" aria-hidden />} title="Your cart is empty" description="Add products to your cart before checking out." action={<ButtonLink href="/shop">Browse Products</ButtonLink>} />;
 
-  const deliveryLabel = form.district ? (isInsideDhaka(form.district) ? "Inside Dhaka" : "Outside Dhaka") : "Select a district to calculate delivery";
+  const deliveryLabel = form.district ? (isInsideDhaka(form.district) ? "ঢাকার ভিতরে" : "ঢাকার বাইরে") : "ডেলিভারি চার্জ জানতে জেলা বেছে নিন";
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_400px] lg:gap-12 [&>*]:min-w-0" data-checkout-content>
@@ -158,43 +165,40 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
           {step === 0 && (
             <form
               noValidate
+              lang="bn"
               onSubmit={(e) => {
                 e.preventDefault();
                 next();
               }}
               className="space-y-5"
             >
-              <h2 tabIndex={-1} className="font-serif text-2xl text-ink">Delivery Information</h2>
+              <h2 tabIndex={-1} className="font-serif text-2xl text-ink">ডেলিভারি তথ্য</h2>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Input id="checkout-fullName" label="Full Name" required autoComplete="name" placeholder="Enter your full name" value={form.fullName} onChange={(e) => set("fullName", e.target.value)} error={errors.fullName} wrapperClassName="sm:col-span-2" />
-                <Input id="checkout-phone" label="Phone Number" required type="tel" inputMode="tel" autoComplete="tel" placeholder="01XXXXXXXXX" value={form.phone} onChange={(e) => set("phone", e.target.value)} onBlur={captureContact} error={errors.phone} hint="We'll call to confirm your order." />
-                <Input id="checkout-email" label="Email (optional)" type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(e) => set("email", e.target.value)} error={errors.email} />
-                <Select id="checkout-division" label="Division" required placeholder="Select division" options={divisionNames.map((d) => ({ value: d, label: d }))} value={form.division} onChange={(e) => set("division", e.target.value)} error={errors.division} />
+                <Input id="checkout-fullName" label="পুরো নাম" required autoComplete="name" placeholder="আপনার নাম লিখুন" value={form.fullName} onChange={(e) => set("fullName", e.target.value)} error={errors.fullName} wrapperClassName="sm:col-span-2" />
+                <Input id="checkout-phone" label="মোবাইল নম্বর" required type="tel" inputMode="tel" autoComplete="tel" placeholder="01XXXXXXXXX" value={form.phone} onChange={(e) => set("phone", e.target.value)} onBlur={captureContact} error={errors.phone} hint="অর্ডার নিশ্চিত করতে আমরা কল করব।" />
+                <Input id="checkout-email" label="ইমেইল (ঐচ্ছিক)" type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(e) => set("email", e.target.value)} error={errors.email} />
+                <Select id="checkout-division" label="বিভাগ" required placeholder="বিভাগ বেছে নিন" options={divisionNames.map((d) => ({ value: d, label: d }))} value={form.division} onChange={(e) => set("division", e.target.value)} error={errors.division} />
                 <Select
                   id="checkout-district"
-                  label="District"
+                  label="জেলা"
                   required
-                  placeholder={form.division ? "Select district" : "Select division first"}
+                  placeholder={form.division ? "জেলা বেছে নিন" : "আগে বিভাগ বেছে নিন"}
                   disabled={!form.division}
                   options={districts.map((d) => ({ value: d, label: d }))}
                   value={form.district}
                   onChange={(e) => set("district", e.target.value)}
                   error={errors.district}
                 />
-                {areas.length ? (
-                  <Select id="checkout-area" label="Area / Thana" required placeholder="Select area" options={areas.map((a) => ({ value: a, label: a }))} value={form.area} onChange={(e) => set("area", e.target.value)} error={errors.area} wrapperClassName="sm:col-span-2" />
-                ) : (
-                  <Input id="checkout-area" label="Area / Upazila" required placeholder={form.district ? "e.g. Sadar" : "Select district first"} disabled={!form.district} value={form.area} onChange={(e) => set("area", e.target.value)} error={errors.area} wrapperClassName="sm:col-span-2" />
-                )}
-                <Textarea id="checkout-addressLine" label="Detailed Address" required autoComplete="street-address" placeholder="House, road, area details" value={form.addressLine} onChange={(e) => set("addressLine", e.target.value)} error={errors.addressLine} wrapperClassName="sm:col-span-2" className="min-h-[88px]" />
+                <Select id="checkout-area" label="এলাকা / উপজেলা" required placeholder={form.district ? "এলাকা / উপজেলা বেছে নিন" : "আগে জেলা বেছে নিন"} disabled={!form.district} options={areas.map((a) => ({ value: a, label: a }))} value={form.area} onChange={(e) => set("area", e.target.value)} error={errors.area} wrapperClassName="sm:col-span-2" />
+                <Textarea id="checkout-addressLine" label="বিস্তারিত ঠিকানা" required autoComplete="street-address" placeholder="বাসা, রোড, এলাকার বিস্তারিত লিখুন" value={form.addressLine} onChange={(e) => set("addressLine", e.target.value)} error={errors.addressLine} wrapperClassName="sm:col-span-2" className="min-h-[88px]" />
               </div>
-              <Checkbox label="Save this address for next time" checked={saveAddress} onChange={(e) => setSaveAddress(e.target.checked)} />
+              <Checkbox label="পরের বার ব্যবহারের জন্য এই ঠিকানাটি সংরক্ষণ করুন" checked={saveAddress} onChange={(e) => setSaveAddress(e.target.checked)} />
               <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-between">
                 <Link href="/cart" className="inline-flex items-center justify-center gap-2 text-sm text-ink-muted hover:text-primary">
-                  <ArrowLeft className="h-4 w-4" aria-hidden /> Back to cart
+                  <ArrowLeft className="h-4 w-4" aria-hidden /> কার্টে ফিরুন
                 </Link>
                 <Button variant="burgundy" type="submit" size="lg" rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}>
-                  Continue to Payment
+                  পেমেন্টে এগিয়ে যান
                 </Button>
               </div>
             </form>
@@ -204,14 +208,16 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
             <div className="space-y-6">
               <h2 tabIndex={-1} className="font-serif text-2xl text-ink">Payment</h2>
               <PaymentMethodSelector value={payment} onChange={setPayment} onlineEnabled={commerce.onlinePaymentEnabled} previewEnabled />
-              <ManualAdvancePayment mode={payment} configuration={manualPaymentConfiguration} totalMinor={summary.total * 100} division={form.division} district={form.district} />
-              <Textarea label="Order note (optional)" placeholder="Anything we should know? e.g. preferred delivery time" value={note} onChange={(e) => setNote(e.target.value)} className="min-h-[80px]" />
+              <ManualAdvancePayment mode={payment} configuration={manualPaymentConfiguration} totalMinor={toMinorUnits(summary.total)} division={form.division} district={form.district} />
+              <div lang="bn">
+                <Textarea label="অর্ডার নোট (ঐচ্ছিক)" placeholder="কিছু জানানোর থাকলে লিখুন, যেমন: পছন্দের ডেলিভারি সময়" value={note} onChange={(e) => setNote(e.target.value)} className="min-h-[80px]" />
+              </div>
               <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
                 <Button variant="ghost" onClick={() => setStep(0)} leftIcon={<ArrowLeft className="h-4 w-4" aria-hidden />}>
                   Back
                 </Button>
                 <Button variant="burgundy" size="lg" onClick={next} rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}>
-                  Review Order
+                  Continue shopping
                 </Button>
               </div>
             </div>
@@ -244,7 +250,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
                     </button>
                   </dt>
                   <dd className="mt-2 text-ink">{payment === "cod" ? "Cash on Delivery" : "Online Payment"}</dd>
-                  <dd className="mt-1 text-xs text-ink-muted">{deliveryLabel}</dd>
+                  <dd lang="bn" className="mt-1 text-xs text-ink-muted">{deliveryLabel}</dd>
                 </div>
               </dl>
               <ul className="divide-y divide-line border-y border-line">
@@ -296,10 +302,10 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
               </li>
             ))}
           </ul>
-          <CouponField />
+          <CouponField phone={couponPhone} />
           <OrderSummary summary={summary} title={null} deliveryNote={deliveryLabel} />
           <div className="space-y-2 border-t border-line pt-3 text-sm" aria-label="Payment summary" aria-live="polite">
-            <div className="flex justify-between gap-3"><span>{payment === "cod" ? "Required advance" : "Full payment amount"}</span><strong data-summary-advance>{payment === "online" ? formatPaymentAmount(summary.total * 100) : advance ? formatPaymentAmount(advance.advanceMinor) : "Select location"}</strong></div>
+            <div className="flex justify-between gap-3"><span>{payment === "cod" ? "Required advance" : "Full payment amount"}</span><strong data-summary-advance>{payment === "online" ? formatPaymentAmount(toMinorUnits(summary.total)) : advance ? formatPaymentAmount(advance.advanceMinor) : "Select location"}</strong></div>
             <div className="flex justify-between gap-3"><span>Remaining on delivery</span><strong data-summary-remaining>{payment === "online" ? formatPaymentAmount(0) : advance ? formatPaymentAmount(advance.remainingMinor) : "—"}</strong></div>
             <p className="text-xs leading-relaxed text-ink-muted">{payment === "cod" ? "Advance counts toward the total, including delivery." : "Full payment includes delivery."} Payment is not yet verified.</p>
           </div>
