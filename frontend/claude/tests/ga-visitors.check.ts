@@ -163,6 +163,28 @@ describe("gaVisitorsConfiguration", () => {
       }),
     ).toBeNull();
   });
+
+  it("logs which field failed validation, never the rejected value", () => {
+    const errorSpy = vi.mocked(console.error);
+    errorSpy.mockClear();
+    gaVisitorsConfiguration({ ...fixtureEnv(), GA_PROPERTY_ID: "G-SECRET123" });
+    gaVisitorsConfiguration({ ...fixtureEnv(), GA_SERVICE_ACCOUNT_EMAIL: "bad-secret@example" });
+    gaVisitorsConfiguration({ ...fixtureEnv(), GA_SERVICE_ACCOUNT_PRIVATE_KEY: "" });
+    gaVisitorsConfiguration({
+      ...fixtureEnv(),
+      GA_SERVICE_ACCOUNT_PRIVATE_KEY: "secret-without-markers",
+    });
+    const messages = errorSpy.mock.calls.map((call) => String(call[0]));
+    expect(messages).toContain("[attiresarena:ga-visitors] config invalid: property id");
+    expect(messages).toContain("[attiresarena:ga-visitors] config invalid: service account email");
+    expect(messages).toContain("[attiresarena:ga-visitors] config invalid: private key missing");
+    expect(messages).toContain("[attiresarena:ga-visitors] config invalid: private key markers");
+    for (const message of messages) {
+      expect(message).not.toContain("SECRET");
+      expect(message).not.toContain("bad-secret");
+      expect(message).not.toContain("secret-without-markers");
+    }
+  });
 });
 
 describe("buildServiceAccountJwt", () => {

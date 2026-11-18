@@ -65,14 +65,24 @@ export function gaVisitorsConfiguration(
   const propertyId = (env.GA_PROPERTY_ID ?? "").trim();
   const clientEmail = (env.GA_SERVICE_ACCOUNT_EMAIL ?? "").trim();
   const rawKey = (env.GA_SERVICE_ACCOUNT_PRIVATE_KEY ?? "").trim();
-  if (!PROPERTY_ID_PATTERN.test(propertyId)) return null;
-  if (!isPlausibleEmail(clientEmail)) return null;
+  if (!PROPERTY_ID_PATTERN.test(propertyId)) {
+    console.error(`${DIAGNOSTIC_PREFIX} config invalid: property id`);
+    return null;
+  }
+  if (!isPlausibleEmail(clientEmail)) {
+    console.error(`${DIAGNOSTIC_PREFIX} config invalid: service account email`);
+    return null;
+  }
   const privateKey = rawKey.replace(/\\n/g, "\n").trim();
-  if (privateKey.length === 0) return null;
+  if (privateKey.length === 0) {
+    console.error(`${DIAGNOSTIC_PREFIX} config invalid: private key missing`);
+    return null;
+  }
   if (
     !privateKey.includes("-----BEGIN PRIVATE KEY-----") ||
     !privateKey.includes("-----END PRIVATE KEY-----")
   ) {
+    console.error(`${DIAGNOSTIC_PREFIX} config invalid: private key markers`);
     return null;
   }
   return { propertyId, clientEmail, privateKey };
