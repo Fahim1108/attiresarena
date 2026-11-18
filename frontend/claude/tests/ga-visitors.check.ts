@@ -56,6 +56,17 @@ function fixtureConfig(): GaVisitorsConfiguration {
   return config;
 }
 
+/** Signs a JWT with the config and verifies it against the fixture public key. */
+function signedJwtVerifies(config: GaVisitorsConfiguration | null): boolean {
+  if (config === null) return false;
+  const jwt = buildServiceAccountJwt(config, 1_763_000_000);
+  const parts = jwt.split(".");
+  if (parts.length !== 3) return false;
+  const verifier = createVerify("RSA-SHA256");
+  verifier.update(`${parts[0]}.${parts[1]}`);
+  return verifier.verify(publicKey, Buffer.from(parts[2] as string, "base64url"));
+}
+
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
@@ -134,6 +145,57 @@ describe("gaVisitorsConfiguration", () => {
     expect(config?.privateKey).toBe(privateKey.trim());
     expect(config?.privateKey).toContain("\n");
     expect(isGaVisitorsConfigured(fixtureEnv())).toBe(true);
+  });
+
+  it("accepts the whole service-account JSON pasted as the key value", () => {
+    const wholeJson = JSON.stringify({
+      type: "service_account",
+      project_id: "fixture-project",
+      private_key: privateKey,
+      client_email: "fixture@example.iam.gserviceaccount.com",
+    });
+    const config = gaVisitorsConfiguration({
+      ...fixtureEnv(),
+      GA_SERVICE_ACCOUNT_PRIVATE_KEY: wholeJson,
+    });
+    expect(config?.privateKey).toBe(privateKey.trim());
+    expect(signedJwtVerifies(config)).toBe(true);
+  });
+
+  it("accepts the base64 body alone, with or without literal escapes", () => {
+    const body = privateKey
+      .replace("-----BEGIN PRIVATE KEY-----", "")
+      .replace("-----END PRIVATE KEY-----", "")
+      .replace(/\s+/g, "");
+    const foldedWithEscapes = body.match(/.{1,64}/g)?.join("\\n") ?? body;
+    for (const pasted of [body, foldedWithEscapes]) {
+      const config = gaVisitorsConfiguration({
+        ...fixtureEnv(),
+        GA_SERVICE_ACCOUNT_PRIVATE_KEY: pasted,
+      });
+      expect(config).not.toBeNull();
+      expect(signedJwtVerifies(config)).toBe(true);
+    }
+  });
+
+  it("accepts a PEM wrapped in one pair of double quotes", () => {
+    const config = gaVisitorsConfiguration({
+      ...fixtureEnv(),
+      GA_SERVICE_ACCOUNT_PRIVATE_KEY: `"${privateKey.replaceAll("\n", "\\n")}"`,
+    });
+    expect(config?.privateKey).toBe(privateKey.trim());
+  });
+
+  it("still rejects short base64-looking values and key-id-like hex", () => {
+    expect(
+      gaVisitorsConfiguration({ ...fixtureEnv(), GA_SERVICE_ACCOUNT_PRIVATE_KEY: "QUJDREVGR0g=" }),
+    ).toBeNull();
+    expect(
+      gaVisitorsConfiguration({
+        ...fixtureEnv(),
+        GA_SERVICE_ACCOUNT_PRIVATE_KEY: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+      }),
+    ).toBeNull();
   });
 
   it("rejects a non-numeric property ID", () => {

@@ -14,9 +14,11 @@ import { createSign } from "node:crypto";
 /* NEXT_PUBLIC_, never committed, never logged):                       */
 /*   GA_PROPERTY_ID                 numeric GA4 property ID            */
 /*   GA_SERVICE_ACCOUNT_EMAIL       service-account client email       */
-/*   GA_SERVICE_ACCOUNT_PRIVATE_KEY PEM private key (Vercel paste      */
-/*                                  keeps the JSON \n escapes; this    */
-/*                                  module unescapes them)             */
+/*   GA_SERVICE_ACCOUNT_PRIVATE_KEY PEM private key; the whole       */
+/*                                  service-account JSON, the PEM      */
+/*                                  text, or the base64 body alone     */
+/*                                  are all accepted (see              */
+/*                                  normalizePrivateKey)               */
 /* The service account needs Viewer (or higher) on the GA4 property    */
 /* and the Analytics Data API enabled in its GCP project. Whether a    */
 /* GA4 property exists at all is UNVERIFIED — the owner confirms it    */
@@ -54,10 +56,54 @@ function isPlausibleEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+/** PEM markers, defined once: the marker-check test counts these literals. */
+const BEGIN_MARKER = "-----BEGIN PRIVATE KEY-----";
+const END_MARKER = "-----END PRIVATE KEY-----";
+
+/**
+ * Accepts the private key in the shapes a dashboard paste actually
+ * produces, so one paste-format slip cannot wedge the graph:
+ * the whole service-account JSON, the PEM text (with literal `\n`
+ * escapes or real newlines), or the base64 body alone (markers
+ * re-wrapped, folded at 64 columns). Anything else passes through
+ * unchanged and the marker check below rejects it, as before.
+ * Never logs: the value is secret in every shape.
+ */
+function normalizePrivateKey(rawKey: string): string {
+  let candidate = rawKey.trim();
+  if (candidate.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(candidate) as { private_key?: unknown };
+      if (typeof parsed.private_key === "string" && parsed.private_key.length > 0) {
+        candidate = parsed.private_key;
+      }
+    } catch {
+      /* Not JSON after all: fall through to the marker check. */
+    }
+  }
+  candidate = candidate.replace(/\\n/g, "\n").trim();
+  if (
+    candidate.length >= 2 &&
+    candidate.startsWith('"') &&
+    candidate.endsWith('"')
+  ) {
+    candidate = candidate.slice(1, -1).trim();
+  }
+  if (candidate.includes(BEGIN_MARKER) && candidate.includes(END_MARKER)) {
+    return candidate;
+  }
+  const body = candidate.replace(/\s+/g, "");
+  if (/^[A-Za-z0-9+/]+={0,2}$/.test(body) && body.length >= 500) {
+    const folded = body.match(/.{1,64}/g)?.join("\n") ?? body;
+    return `${BEGIN_MARKER}\n${folded}\n${END_MARKER}`;
+  }
+  return candidate;
+}
+
 /**
  * Env-gated configuration (courier.ts shape: null-when-unconfigured).
- * The private key may arrive with literal `\n` escapes (Vercel paste
- * from the JSON key file) — those are unescaped to real newlines.
+ * The private key is normalized for paste shapes (see
+ * normalizePrivateKey) before the marker check.
  */
 export function gaVisitorsConfiguration(
   env: Record<string, string | undefined> = process.env,
@@ -73,14 +119,14 @@ export function gaVisitorsConfiguration(
     console.error(`${DIAGNOSTIC_PREFIX} config invalid: service account email`);
     return null;
   }
-  const privateKey = rawKey.replace(/\\n/g, "\n").trim();
+  const privateKey = normalizePrivateKey(rawKey);
   if (privateKey.length === 0) {
     console.error(`${DIAGNOSTIC_PREFIX} config invalid: private key missing`);
     return null;
   }
   if (
-    !privateKey.includes("-----BEGIN PRIVATE KEY-----") ||
-    !privateKey.includes("-----END PRIVATE KEY-----")
+    !privateKey.includes(BEGIN_MARKER) ||
+    !privateKey.includes(END_MARKER)
   ) {
     console.error(`${DIAGNOSTIC_PREFIX} config invalid: private key markers`);
     return null;
