@@ -229,8 +229,16 @@
   align-content: start;
 }
 
+/* Each code is a centered unit: a flex column with centered items keeps
+   the QR svg / barcode img on the same center line as their captions.
+   text-align alone cannot do this — Tailwind preflight makes replaced
+   elements display: block, so the fixed-size svg sat at the left edge
+   while the caption text centered in the wider figure. */
 .aa-invoice-code {
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
 }
 

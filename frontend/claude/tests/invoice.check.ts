@@ -261,6 +261,13 @@ describe("invoice sheet copy and print hiding", () => {
     );
   });
 
+  it("centers each code as one unit, so block-level svg/img cannot sit left of its caption", () => {
+    const code = invoiceCss.slice(invoiceCss.indexOf(".aa-invoice-code {"));
+    expect(code).toContain("display: flex;");
+    expect(code).toContain("flex-direction: column;");
+    expect(code).toContain("align-items: center;");
+  });
+
   it("shares one centered caption style and a visible thank-you style", () => {
     expect(invoiceCss).toContain(".aa-invoice-caption {");
     const caption = invoiceCss.slice(invoiceCss.indexOf(".aa-invoice-caption {"));
