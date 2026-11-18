@@ -579,8 +579,27 @@
    the collapse toggle has nothing to collapse. The selector must
    match the base rule's specificity (including `.aa-top`), or the
    base `display: inline-flex` wins and the toggle stays visible,
-   crowding the three-column phone header. */
+   crowding the three-column phone header.
+   The shell grid MUST collapse here too, at the same specificity as
+   the base and collapsed rules above. The legacy `admin.css` phone
+   rule collapses `.aa-shell` at 0,1,0, which the design-system rule
+   at 0,3,0 (and the collapsed rule at 0,4,0) silently beats — so on
+   phones the grid stayed `240px minmax(0, 1fr)` while the sidebar
+   was `display: none`, and `.aa-content` auto-placed into the 240px
+   first column, squeezing every admin page into the left ~55% of
+   the screen. Staging never showed it: the staging-only
+   `workspace.css` phone rule sets `display: block` on the shell,
+   which makes the column template moot. In production the
+   staging-only workspace rules don't match at all (the layout root
+   carries no `.aa-admin--workspace` class), so the collapse has to
+   live here, in `.aa-admin` scope, for both sidebar states (the
+   collapsed preference persists from desktop via localStorage). */
 @media (max-width: 767px) {
+  .aa-admin .aa-admin-ds.aa-shell,
+  .aa-admin .aa-admin-ds.aa-shell[data-sidebar="collapsed"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .aa-admin .aa-admin-ds .aa-top {
     padding: 12px 16px;
     min-height: 68px;

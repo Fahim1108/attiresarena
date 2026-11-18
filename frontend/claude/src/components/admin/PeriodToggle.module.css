@@ -54,6 +54,26 @@
   outline-offset: 2px;
 }
 
+/* Phones: the pill wraps into rows, and a 999px radius on a
+   multi-row container reads as a tall oval with scattered options.
+   A full-width panel with a modest radius and two options per row
+   keeps the control orderly; labels stay on one line and the
+   selected state (solid maroon) stays clear. Desktop is unchanged:
+   the pill stays a single inline row. */
+@media (max-width: 767px) {
+  .control {
+    display: flex;
+    width: 100%;
+    border-radius: 1rem;
+  }
+
+  .option,
+  .optionActive {
+    flex: 1 1 40%;
+    white-space: nowrap;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .option,
   .optionActive {

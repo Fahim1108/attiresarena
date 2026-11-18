@@ -60,7 +60,7 @@ export function StatCard({
     <Card className={className}>
       <CardContent className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-3">
-          <p className="min-w-0 text-[13px] font-medium leading-5 text-admin-text-secondary [overflow-wrap:anywhere]">
+          <p className="min-w-0 break-words text-xs font-medium leading-5 text-admin-text-secondary sm:text-[13px]">
             {label}
           </p>
           {icon ? (
@@ -83,11 +83,11 @@ export function StatCard({
             )}
           >
             <TrendIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <span className="[overflow-wrap:anywhere]">{trend.label}</span>
+            <span className="break-words">{trend.label}</span>
           </p>
         ) : null}
         {description ? (
-          <p className="min-w-0 text-[13px] leading-5 text-admin-text-secondary [overflow-wrap:anywhere]">
+          <p className="min-w-0 break-words text-[13px] leading-5 text-admin-text-secondary">
             {description}
           </p>
         ) : null}

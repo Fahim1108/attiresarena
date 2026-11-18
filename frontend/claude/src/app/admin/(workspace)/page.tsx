@@ -180,7 +180,7 @@ function StatusCell({
           className="h-2.5 w-2.5 shrink-0 rounded-full"
           style={{ backgroundColor: dotColor }}
         />
-        <span className="min-w-0 text-[13px] font-medium leading-5 text-admin-text-secondary [overflow-wrap:anywhere]">
+        <span className="min-w-0 break-words text-[13px] font-medium leading-5 text-admin-text-secondary">
           {label}
         </span>
       </span>

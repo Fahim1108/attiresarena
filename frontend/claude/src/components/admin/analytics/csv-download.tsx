@@ -48,7 +48,7 @@ export function CsvDownloadButton({
     <span className="inline-flex flex-wrap items-center gap-2">
       <button
         type="button"
-        className="inline-flex min-h-11 items-center gap-2 rounded-admin-control bg-admin-primary px-4 text-sm font-medium text-white transition-colors hover:bg-admin-primary/90"
+        className="inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-admin-control bg-admin-primary px-4 text-sm font-medium text-white transition-colors hover:bg-admin-primary/90"
         onClick={download}
         disabled={busy}
       >
