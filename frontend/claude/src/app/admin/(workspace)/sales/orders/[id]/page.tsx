@@ -1,26 +1,26 @@
 import Link from "next/link";
 import {
   ORDER_STATUS_LABELS,
-  PAYMENT_METHOD_LABELS,
   PAYMENT_STATUS_LABELS,
   areaRoles,
 } from "@/lib/admin/constants";
 import {
+  buildSteadfastInvoice,
   isSteadfastConfigured,
   readOrderShipment,
   sendOrderToCourier,
   toShipmentSummary,
 } from "@/lib/admin/courier";
 import { readCustomerOrderHistory } from "@/lib/admin/customers";
-import { formatDateTime, formatMoney } from "@/lib/admin/format";
+import { formatDateTime } from "@/lib/admin/format";
 import { readOrderDetail, setPaymentStatus, transitionOrder } from "@/lib/admin/orders";
 import { resolveDisplayRecord } from "@/lib/admin/sample-data";
 import { SAMPLE_ORDER_DETAIL } from "@/lib/admin/sample-sales";
 import { Notice } from "@/components/admin/ui";
 import { SampleBadge } from "@/components/admin/SampleBadge";
-import { ProductThumbnail } from "@/components/admin/access/ProductThumbnail";
 import { CourierBookingPanel } from "@/components/admin/sales/CourierBookingPanel";
 import { CustomerOrderHistoryPanel } from "@/components/admin/sales/CustomerOrderHistoryPanel";
+import { OrderInvoice } from "@/components/admin/sales/OrderInvoice";
 import { OrderStatusForm } from "@/components/admin/sales/OrderStatusForm";
 import { PaymentStatusForm } from "@/components/admin/sales/PaymentStatusForm";
 import { PrintInvoiceButton } from "@/components/admin/sales/PrintInvoiceButton";
@@ -33,7 +33,6 @@ import {
   CardTitle,
 } from "@/components/design-system/Card";
 import { PageHeader } from "@/components/design-system/PageHeader";
-import { StatusBadge } from "@/components/design-system/StatusBadge";
 
 export const metadata = { title: "Order details" };
 
@@ -106,119 +105,13 @@ export default async function OrderDetailPage({
         </div>
 
         {/* Invoice: the only section that prints. */}
-        <Card>
-          <CardHeader>
-            <CardTitle headingLevel="h2">Attires Arena — Invoice</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl className="aa-fact-grid">
-              <div>
-                <dt>Order</dt>
-                <dd>
-                  {orderLabel}{" "}
-                  <StatusBadge status={order.status} />
-                </dd>
-              </div>
-              <div>
-                <dt>Placed</dt>
-                <dd>
-                  <time dateTime={order.placed_at}>{formatDateTime(order.placed_at)}</time>
-                </dd>
-              </div>
-              <div>
-                <dt>Customer</dt>
-                <dd>{order.customer_name}</dd>
-              </div>
-              <div>
-                <dt>Phone</dt>
-                <dd>{order.phone}</dd>
-              </div>
-              <div>
-                <dt>Email</dt>
-                <dd>{order.email ?? "—"}</dd>
-              </div>
-              <div>
-                <dt>Delivery address</dt>
-                <dd>
-                  {order.address_line}, {order.area}, {order.district}, {order.division}
-                </dd>
-              </div>
-              <div>
-                <dt>Payment method</dt>
-                <dd>{PAYMENT_METHOD_LABELS[order.payment_method] ?? order.payment_method}</dd>
-              </div>
-              <div>
-                <dt>Payment status</dt>
-                <dd>{PAYMENT_STATUS_LABELS[order.payment_status] ?? order.payment_status}</dd>
-              </div>
-            </dl>
-            {order.note ? (
-              <p>
-                <strong>Customer note:</strong> {order.note}
-              </p>
-            ) : null}
-
-            <div className="aa-table-scroll">
-              <table className="aa-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Item</th>
-                    <th scope="col">Variant</th>
-                    <th scope="col">Qty</th>
-                    <th scope="col">Unit price</th>
-                    <th scope="col">Line total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item) => (
-                    <tr key={item.id}>
-                      <th scope="row">
-                        <span style={{ display: "inline-flex", gap: "0.6rem", alignItems: "center" }}>
-                          <ProductThumbnail url={item.imageUrl} alt={item.imageAlt} />
-                          <span className="aa-cell-main">{item.product_name}</span>
-                        </span>
-                      </th>
-                      <td data-label="Variant">
-                        {item.size} · {item.color}
-                      </td>
-                      <td data-label="Qty">{item.quantity}</td>
-                      <td data-label="Unit price">{formatMoney(item.unit_price_minor)}</td>
-                      <td data-label="Line total">{formatMoney(item.line_total_minor)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <dl className="aa-fact-grid">
-              <div>
-                <dt>Subtotal</dt>
-                <dd>{formatMoney(order.subtotal_minor)}</dd>
-              </div>
-              <div>
-                <dt>Delivery charge</dt>
-                <dd>{formatMoney(order.delivery_charge_minor)}</dd>
-              </div>
-              <div>
-                <dt>Discount</dt>
-                <dd>{formatMoney(order.discount_minor)}</dd>
-              </div>
-              <div>
-                <dt>Coupon</dt>
-                <dd>Not recorded</dd>
-              </div>
-              <div>
-                <dt>Total</dt>
-                <dd>
-                  <strong>{formatMoney(order.total_minor)}</strong>
-                </dd>
-              </div>
-            </dl>
-            <p className="aa-hint">
-              Orders do not record which coupon, if any, was used, so no coupon name is shown.
-            </p>
-          </CardContent>
-        </Card>
+        <OrderInvoice
+          invoiceNo={buildSteadfastInvoice(order)}
+          order={order}
+          items={items}
+          shipment={shipment}
+          isSample={isSample}
+        />
 
         <div className="aa-no-print space-y-6">
           {isSample ? (

@@ -4,6 +4,7 @@ import "./workspace.css";
 import "./login.css";
 import "./admin-panel.css";
 import "./admin-ds.css";
+import "./invoice.css";
 import {isProductionStorefront} from '@/lib/storefront-policy';
 export const metadata: Metadata = {
   title: "Administration | Attires Arena",
