@@ -1,11 +1,14 @@
 import { z } from "zod";
 import { DIVISIONS } from "@/data/bangladesh";
 import { BD_PHONE_REGEX, normalizePhone } from "@/lib/validation";
+import { COUPON_CODE_PATTERN, normalizeCouponCode } from "./coupons";
 
 /**
  * Everything arriving from the browser is untrusted. These schemas keep only what the
  * server needs: who, where, and WHICH variants in what quantity. Prices, totals, product
- * ids, coupon codes and delivery charges sent by the browser are never read.
+ * ids and delivery charges sent by the browser are never read. A coupon code is an
+ * identifier only: the server re-validates it and computes the discount, and the
+ * browser never sends a discount amount.
  */
 const contact = z.object({
   fullName: z.string().trim().min(3).max(120),
@@ -45,6 +48,17 @@ const order = z.object({
     .max(500)
     .optional()
     .transform((value) => (value ? value : undefined)),
+  // Normalized to the database form (trimmed, upper-case) before the
+  // pattern check, so surrounding spaces never fail a well-formed code. An
+  // empty value means "no coupon"; a malformed code fails the whole parse.
+  couponCode: z
+    .string()
+    .optional()
+    .transform((value) => {
+      const code = normalizeCouponCode(value ?? "");
+      return code === "" ? undefined : code;
+    })
+    .pipe(z.string().regex(COUPON_CODE_PATTERN).optional()),
 });
 
 export type CheckoutProgressInput = z.infer<typeof progress>;

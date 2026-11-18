@@ -19,19 +19,36 @@ export interface CheckoutOrdersConfiguration {
 }
 
 /**
- * Ordering runs only when ALL of these hold:
- *  - not a production storefront (VERCEL_ENV / NODE_ENV);
- *  - STAGING_CHECKOUT_ORDERS=1 is set explicitly;
- *  - the Supabase URL is the verified Staging project;
- *  - SUPABASE_SERVICE_ROLE_KEY is present (server-only, never NEXT_PUBLIC_).
- * The database also keeps ordering disabled until its own settings flag is switched on.
+ * Ordering runs only when ALL of these hold, on exactly one of two paths:
+ *  - Staging/Preview: not a production storefront; STAGING_CHECKOUT_ORDERS=1
+ *    is set explicitly; the Supabase URL is the verified Staging project.
+ *  - Production: a production storefront; PRODUCTION_CHECKOUT_ORDERS=1 is set
+ *    explicitly (Production scope); the Supabase URL is the verified
+ *    Production project.
+ * Both paths additionally require SUPABASE_SERVICE_ROLE_KEY (server-only,
+ * never NEXT_PUBLIC_, at least 20 characters, different from the publishable
+ * key). Neither flag enables the other path, and neither flag can enable
+ * ordering against the wrong project: a staging flag on production, or a
+ * production flag on a Preview, both return null. "Production storefront"
+ * follows isProductionStorefront(): VERCEL_ENV=production, or a production
+ * Node run with VERCEL_ENV unset — the latter still needs the explicit flag,
+ * the pinned production URL, and a valid service key, so it is opt-in too.
+ * The database keeps ordering disabled until its own settings flag is
+ * switched on: the checkout RPCs refuse with CK008 while orders_enabled is
+ * false, on either project. This code can therefore never enable ordering by
+ * itself — the owner must also flip orders_enabled in the database.
  */
 export function checkoutOrdersConfiguration(): CheckoutOrdersConfiguration | null {
-  if (isProductionStorefront() || process.env.STAGING_CHECKOUT_ORDERS !== "1") return null;
   const url = (process.env.SUPABASE_URL ?? "").replace(/\/$/, "");
-  if (url !== `https://${projects.staging}.supabase.co`) return null;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
   if (serviceKey.length < 20 || serviceKey === process.env.SUPABASE_PUBLISHABLE_KEY) return null;
+  if (isProductionStorefront()) {
+    if (process.env.PRODUCTION_CHECKOUT_ORDERS !== "1") return null;
+    if (url !== `https://${projects.production}.supabase.co`) return null;
+    return { url, serviceKey };
+  }
+  if (process.env.STAGING_CHECKOUT_ORDERS !== "1") return null;
+  if (url !== `https://${projects.staging}.supabase.co`) return null;
   return { url, serviceKey };
 }
 

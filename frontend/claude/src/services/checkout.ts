@@ -2,7 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { CHECKOUT_COOKIE, type CheckoutOrdersConfiguration, checkoutCookieOptions, checkoutOrdersConfiguration } from "@/lib/checkout/config";
-import { createCheckoutService, type CheckoutRpc, type PlacedOrder, type RpcResult } from "@/lib/checkout/service";
+import { createCheckoutService, validateCoupon, type CheckoutRpc, type CouponValidationResult, type PlacedOrder, type RpcResult } from "@/lib/checkout/service";
 import { customerClient } from "@/lib/customer/supabase";
 import { publicSupabaseConfiguration } from "@/lib/supabase-public";
 import type { ActionResult } from "@/types";
@@ -20,6 +20,8 @@ const notConnected = { ok: false as const, reason: "not_connected" as const, mes
 export interface CustomerCheckoutCredential {
   apikey: string;
   accessToken: string;
+  /** Signed-in customer id, for coupon checks that count per-customer usage. */
+  userId: string;
 }
 
 /**
@@ -44,7 +46,7 @@ async function customerCheckoutCredential(): Promise<CustomerCheckoutCredential 
   } = await client.auth.getSession();
   const accessToken = session?.access_token;
   if (!accessToken) return "unusable";
-  return { apikey: config.key, accessToken };
+  return { apikey: config.key, accessToken, userId: user.id };
 }
 
 /**
@@ -156,4 +158,44 @@ export async function placeCheckoutOrder(input: unknown): Promise<ActionResult<P
   const result = await resolved.checkout.placeOrder(input);
   if (!result.ok && resolved.didCustomerAuthFail()) return expiredSessionFailure();
   return result;
+}
+
+export type CheckedCoupon = Extract<CouponValidationResult, { ok: true }>;
+
+/**
+ * Check a coupon against a cart subtotal. Guests are checked under the
+ * trusted server credential (the migration grants `validate_coupon` to
+ * service_role for this read-only check); signed-in customers are checked
+ * under their own JWT so per-customer and first-order rules count their
+ * account. The phone, when given, must already be a normalized Bangladeshi
+ * mobile number (or null): the RPC compares it verbatim against past
+ * redemptions. This never records a redemption — only placing the order
+ * does that.
+ *
+ * Identity note: the check uses the CURRENT session's user id, while
+ * place time uses the checkout session's user id (set when the session
+ * started). A customer who signs in after starting checkout can therefore
+ * see a discount the place-time check refuses (CK009). The place-time
+ * check is authoritative; the display is corrected on the next
+ * re-validation once the session is re-created.
+ */
+export async function validateCheckoutCoupon(input: { code: string; phone: string | null; subtotalMinor: number }): Promise<ActionResult<CheckedCoupon>> {
+  const config = checkoutOrdersConfiguration();
+  if (!config) return notConnected;
+  const credential = await customerCheckoutCredential();
+  if (credential === "unusable") return expiredSessionFailure();
+  let customerAuthFailed = false;
+  const result = await validateCoupon(rpcFor(config, credential ?? undefined, () => {
+    customerAuthFailed = true;
+  }), {
+    code: input.code,
+    userId: credential?.userId ?? null,
+    phone: input.phone,
+    subtotalMinor: input.subtotalMinor,
+  });
+  if (!result.ok) {
+    if (customerAuthFailed) return expiredSessionFailure();
+    return { ok: false, reason: "error", message: "The coupon could not be checked. Please try again." };
+  }
+  return { ok: true, data: result };
 }

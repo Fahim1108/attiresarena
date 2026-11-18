@@ -35,8 +35,9 @@ export function ProductCard({ product, brandName, priority, sizes = "(min-width:
     const size = color ? firstAvailableSize(product, color) : undefined;
     const variant = color && size ? findVariant(product, color, size) : undefined;
     if (variant && variant.stock > 0) {
-      addItem(toCartLine(product, variant, brandName));
-      openDrawer();
+      // A limit refusal already shows the order-limit popup: do not open the drawer over it.
+      const { added } = addItem(toCartLine(product, variant, brandName));
+      if (added) openDrawer();
     } else {
       router.push(href);
     }

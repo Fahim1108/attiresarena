@@ -4,7 +4,7 @@ import Image from "next/image";
 import { PaymentInstructions } from "./PaymentInstructions";
 import { Copy } from "lucide-react";
 import { useId, useRef, useState, useTransition } from "react";
-import { Button, Input, Textarea } from "@/components/ui";
+import { Button, Input } from "@/components/ui";
 import { manualPaymentBreakdown, formatPaymentAmount, validatePaymentDetails } from "@/lib/manual-payment";
 import { submitManualPaymentAction } from "@/services/manual-payment-actions";
 import type { AdvanceProvider, ManualPaymentConfiguration, PaymentSubmissionReceipt } from "@/types/manual-payment";
@@ -25,8 +25,7 @@ export function ManualAdvancePayment({ configuration, totalMinor, division, dist
   const [provider, setProvider] = useState<AdvanceProvider>("bkash");
   const [transactionId, setTransactionId] = useState("");
   const [senderNumber, setSenderNumber] = useState("");
-  const [note, setNote] = useState("");
-  const [errors, setErrors] = useState<Partial<Record<"transactionId" | "senderNumber" | "note" | "form", string>>>({});
+  const [errors, setErrors] = useState<Partial<Record<"transactionId" | "senderNumber" | "form", string>>>({});
   const [message, setMessage] = useState("");
   const [copyMessage, setCopyMessage] = useState("");
   const [receipt, setReceipt] = useState<PaymentSubmissionReceipt | null>(null);
@@ -47,9 +46,11 @@ export function ManualAdvancePayment({ configuration, totalMinor, division, dist
     if (inFlight.current || receipt) return;
     if (!canSubmit) { setMessage("Live payment submission is disabled. Do not send money."); return; }
     if (!breakdown) { setMessage("Select a valid delivery location before submitting."); return; }
-    const fingerprint = JSON.stringify([orderReference, provider, transactionId.trim(), senderNumber.trim(), note.trim()]);
+    const fingerprint = JSON.stringify([orderReference, provider, transactionId.trim(), senderNumber.trim()]);
     if (submissionKey.current?.fingerprint !== fingerprint) submissionKey.current = { fingerprint, key: crypto.randomUUID() };
-    const parsed = validatePaymentDetails({ provider, transactionId, senderNumber, note, orderReference, idempotencyKey: submissionKey.current.key });
+    // The payment-details note field was removed: checkout has a single order
+    // note field. An empty note keeps the validation contract unchanged.
+    const parsed = validatePaymentDetails({ provider, transactionId, senderNumber, note: "", orderReference, idempotencyKey: submissionKey.current.key });
     if (!parsed.ok) {
       setErrors(parsed.errors);
       const first = Object.keys(parsed.errors)[0];
@@ -120,7 +121,6 @@ export function ManualAdvancePayment({ configuration, totalMinor, division, dist
         <fieldset disabled={pending} className="space-y-4">
           <Input id={`${id}-transactionId`} label="Transaction ID / Last 4 digits of number" hint="Last 4 digits of your sending number. A review hint only; payment must be verified separately." placeholder="Transaction ID or last 4 digits" required maxLength={128} autoComplete="off" autoCapitalize="characters" spellCheck={false} value={transactionId} onChange={e => { setTransactionId(e.target.value); setErrors(current => ({ ...current, transactionId: undefined })); }} onBlur={() => setTransactionId(s => s.trim())} error={errors.transactionId} />
           <Input id={`${id}-senderNumber`} label={`Your ${names[provider]} Number`} required type="tel" inputMode="tel" autoComplete="tel" value={senderNumber} onChange={e => { setSenderNumber(e.target.value); setErrors(current => ({ ...current, senderNumber: undefined })); }} error={errors.senderNumber} />
-          <Textarea id={`${id}-note`} label="Note (optional)" maxLength={1000} rows={3} value={note} onChange={e => { setNote(e.target.value); setErrors(current => ({ ...current, note: undefined })); }} error={errors.note} />
           {(message || errors.form) && <p role="alert" className="text-sm leading-relaxed text-primary">{message || errors.form}</p>}
           <Button type="submit" variant="burgundy" fullWidth size="lg" loading={pending} disabled={!canSubmit}>Submit Payment</Button>
         </fieldset>

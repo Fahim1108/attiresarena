@@ -65,7 +65,17 @@ describe('checkout input validation', () => {
     const parsed = parseCheckoutOrder(order());
     expect(parsed?.customer).toEqual({ fullName: 'Nasrin Akter', phone: '+8801712345678', email: undefined });
     expect(parsed?.items).toEqual([{ variantId: V1, quantity: 1 }]);
-    expect(JSON.stringify(parsed)).not.toMatch(/unitPrice|total|coupon|productId/);
+    expect(JSON.stringify(parsed)).not.toMatch(/unitPrice|total|productId/);
+    // A coupon code is an identifier the server re-validates, not a price:
+    // it is kept, normalized to the database form.
+    expect(parsed?.couponCode).toBe('WELCOME10');
+  });
+  it('normalises a coupon code, drops an empty one and rejects a malformed one', () => {
+    expect(parseCheckoutOrder(order({ couponCode: ' welcome10 ' }))?.couponCode).toBe('WELCOME10');
+    expect(parseCheckoutOrder(order({ couponCode: ` ${'A'.repeat(30)} ` }))?.couponCode).toBe('A'.repeat(30));
+    expect(parseCheckoutOrder(order({ couponCode: '' }))?.couponCode).toBeUndefined();
+    expect(parseCheckoutOrder(order({ couponCode: 'bad code!' }))).toBeNull();
+    expect(parseCheckoutOrder(order({ couponCode: 'A'.repeat(31) }))).toBeNull();
   });
   it('rejects bad quantities, duplicate lines, non-UUID variants and an empty cart', () => {
     for (const items of [[{ variantId: V1, quantity: 0 }], [{ variantId: V1, quantity: 100 }], [{ variantId: V1, quantity: 1.5 }], [{ variantId: V1, quantity: '2' }], [{ variantId: 'aa-shirt-001', quantity: 1 }], [{ variantId: V1, quantity: 1 }, { variantId: V1.toUpperCase(), quantity: 1 }], []])
@@ -100,9 +110,12 @@ describe('checkout server flow', () => {
     for (const c of db.calls.filter((x) => ['start_checkout_session', 'set_checkout_items', 'place_checkout_order'].includes(x.name)))
       expect(c.args.client_key).toBe(CLIENT);
     const place = db.calls.find((c) => c.name === 'place_checkout_order')!;
-    expect(Object.keys(place.args).sort()).toEqual(['client_key', 'delivery', 'expected_items', 'order_note', 'payment_method', 'raw_token']);
+    expect(Object.keys(place.args).sort()).toEqual(['client_key', 'delivery', 'expected_items', 'order_note', 'p_coupon_code', 'payment_method', 'raw_token']);
     expect(place.args.expected_items).toEqual([{ variant_id: V1, quantity: 1 }]);
-    expect(JSON.stringify(db.calls)).not.toMatch(/unitPrice|WELCOME10|"total"|"price"/);
+    // The coupon code travels only as the p_coupon_code identifier; no price does.
+    expect(place.args.p_coupon_code).toBe('WELCOME10');
+    expect(JSON.stringify(db.calls)).not.toMatch(/unitPrice|"total"|"price"/);
+    expect(JSON.stringify(db.calls).match(/WELCOME10/g)).toHaveLength(1);
   });
   it('places an order and returns the server total, then clears the cookie', async () => {
     const db = fakeDatabase(); const cookies = jar();
@@ -188,19 +201,55 @@ describe('checkout configuration', () => {
     env.NODE_ENV = before;
     expect(checkoutCookieOptions()).toMatchObject({ httpOnly: true, maxAge: 604800 });
   });
-  it('ordering needs the explicit flag, the verified Staging project and a server-only service key; never production', () => {
+  it('staging ordering needs the explicit flag, the verified Staging project and a server-only service key; the staging flag never enables production', () => {
     const env = process.env as Record<string, string | undefined>;
     const saved = { ...env };
     const set = (values: Record<string, string | undefined>) => { for (const [k, v] of Object.entries(values)) { if (v === undefined) delete env[k]; else env[k] = v; } };
     const staging = { SUPABASE_URL: 'https://jwccyndyaamodxjtjtfo.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test', SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_server_only_key_value', VERCEL_ENV: 'preview', CLAUDE_DESIGN_PREVIEW: '1' };
-    set({ ...staging, STAGING_CHECKOUT_ORDERS: undefined }); expect(checkoutOrdersConfiguration()).toBeNull();
-    set({ ...staging, STAGING_CHECKOUT_ORDERS: '1' }); expect(checkoutOrdersConfiguration()).toMatchObject({ url: 'https://jwccyndyaamodxjtjtfo.supabase.co', serviceKey: 'sb_secret_server_only_key_value' });
-    set({ ...staging, STAGING_CHECKOUT_ORDERS: '1', VERCEL_ENV: 'production' }); expect(checkoutOrdersConfiguration()).toBeNull();
-    set({ ...staging, STAGING_CHECKOUT_ORDERS: '1', SUPABASE_URL: 'https://euoannuvovsbwxjqnriw.supabase.co' }); expect(checkoutOrdersConfiguration()).toBeNull();
-    set({ ...staging, STAGING_CHECKOUT_ORDERS: '1', SUPABASE_SERVICE_ROLE_KEY: undefined }); expect(checkoutOrdersConfiguration()).toBeNull();
-    set({ ...staging, STAGING_CHECKOUT_ORDERS: '1', SUPABASE_SERVICE_ROLE_KEY: 'sb_publishable_test' }); expect(checkoutOrdersConfiguration()).toBeNull();
-    for (const k of Object.keys(env)) if (!(k in saved)) delete env[k];
-    Object.assign(env, saved);
+    try {
+      set({ ...staging, STAGING_CHECKOUT_ORDERS: undefined }); expect(checkoutOrdersConfiguration()).toBeNull();
+      set({ ...staging, STAGING_CHECKOUT_ORDERS: '1' }); expect(checkoutOrdersConfiguration()).toMatchObject({ url: 'https://jwccyndyaamodxjtjtfo.supabase.co', serviceKey: 'sb_secret_server_only_key_value' });
+      set({ ...staging, STAGING_CHECKOUT_ORDERS: '1', VERCEL_ENV: 'production' }); expect(checkoutOrdersConfiguration()).toBeNull();
+      set({ ...staging, STAGING_CHECKOUT_ORDERS: '1', SUPABASE_URL: 'https://euoannuvovsbwxjqnriw.supabase.co' }); expect(checkoutOrdersConfiguration()).toBeNull();
+      set({ ...staging, STAGING_CHECKOUT_ORDERS: '1', SUPABASE_SERVICE_ROLE_KEY: undefined }); expect(checkoutOrdersConfiguration()).toBeNull();
+      set({ ...staging, STAGING_CHECKOUT_ORDERS: '1', SUPABASE_SERVICE_ROLE_KEY: 'sb_publishable_test' }); expect(checkoutOrdersConfiguration()).toBeNull();
+    } finally {
+      for (const k of Object.keys(env)) if (!(k in saved)) delete env[k];
+      Object.assign(env, saved);
+    }
+  });
+  it('production ordering needs its own explicit flag, the verified Production project and a server-only service key; the production flag never enables a Preview', () => {
+    const env = process.env as Record<string, string | undefined>;
+    const saved = { ...env };
+    const set = (values: Record<string, string | undefined>) => { for (const [k, v] of Object.entries(values)) { if (v === undefined) delete env[k]; else env[k] = v; } };
+    const production = { SUPABASE_URL: 'https://euoannuvovsbwxjqnriw.supabase.co', SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test', SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_server_only_key_value', VERCEL_ENV: 'production' };
+    try {
+      // No production flag, even with the staging flag set: fail closed.
+      set({ ...production, PRODUCTION_CHECKOUT_ORDERS: undefined, STAGING_CHECKOUT_ORDERS: '1' }); expect(checkoutOrdersConfiguration()).toBeNull();
+      // Every production gate holds: valid configuration against the production project.
+      set({ ...production, PRODUCTION_CHECKOUT_ORDERS: '1' }); expect(checkoutOrdersConfiguration()).toMatchObject({ url: 'https://euoannuvovsbwxjqnriw.supabase.co', serviceKey: 'sb_secret_server_only_key_value' });
+      // Production flag against the staging project: fail closed.
+      set({ ...production, PRODUCTION_CHECKOUT_ORDERS: '1', SUPABASE_URL: 'https://jwccyndyaamodxjtjtfo.supabase.co' }); expect(checkoutOrdersConfiguration()).toBeNull();
+      // Production flag on a Preview deployment: ignored, fail closed.
+      set({ ...production, PRODUCTION_CHECKOUT_ORDERS: '1', VERCEL_ENV: 'preview', STAGING_CHECKOUT_ORDERS: undefined }); expect(checkoutOrdersConfiguration()).toBeNull();
+      // Production flag on a Preview pointing at staging, without the staging flag: fail closed.
+      set({ ...production, PRODUCTION_CHECKOUT_ORDERS: '1', VERCEL_ENV: 'preview', SUPABASE_URL: 'https://jwccyndyaamodxjtjtfo.supabase.co', STAGING_CHECKOUT_ORDERS: undefined }); expect(checkoutOrdersConfiguration()).toBeNull();
+      // Missing, short, or publishable-equal service key: fail closed on production too.
+      set({ ...production, PRODUCTION_CHECKOUT_ORDERS: '1', SUPABASE_SERVICE_ROLE_KEY: undefined }); expect(checkoutOrdersConfiguration()).toBeNull();
+      set({ ...production, PRODUCTION_CHECKOUT_ORDERS: '1', SUPABASE_SERVICE_ROLE_KEY: 'short' }); expect(checkoutOrdersConfiguration()).toBeNull();
+      set({ ...production, PRODUCTION_CHECKOUT_ORDERS: '1', SUPABASE_SERVICE_ROLE_KEY: 'sb_publishable_test' }); expect(checkoutOrdersConfiguration()).toBeNull();
+      // Only the exact value "1" enables: truthy-looking values fail closed.
+      for (const value of ['true', '0', '', 'yes']) {
+        set({ ...production, PRODUCTION_CHECKOUT_ORDERS: value }); expect(checkoutOrdersConfiguration()).toBeNull();
+      }
+      // NODE_ENV-only production clause: VERCEL_ENV unset + NODE_ENV=production
+      // is a production storefront too, still gated on the flag.
+      set({ ...production, VERCEL_ENV: undefined, NODE_ENV: 'production', PRODUCTION_CHECKOUT_ORDERS: undefined }); expect(checkoutOrdersConfiguration()).toBeNull();
+      set({ ...production, VERCEL_ENV: undefined, NODE_ENV: 'production', PRODUCTION_CHECKOUT_ORDERS: '1' }); expect(checkoutOrdersConfiguration()).toMatchObject({ url: 'https://euoannuvovsbwxjqnriw.supabase.co', serviceKey: 'sb_secret_server_only_key_value' });
+    } finally {
+      for (const k of Object.keys(env)) if (!(k in saved)) delete env[k];
+      Object.assign(env, saved);
+    }
   });
 });
 

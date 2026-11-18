@@ -45,7 +45,7 @@ export function curatedInventoryCollection(products:Product[],kind:'new-arrivals
  return (kind==='new-arrivals'?inventory:inventory.slice(8)).slice(0,Math.max(0,Math.min(limit,8)));
 }
 export const ownerCatalogue:StorefrontDataSource={...unavailableServices,...customerServices,
- // Real orders on verified Staging only; otherwise this reports "not connected".
+ // Real orders only when the checkout gate opens (staging or production path); otherwise this reports "not connected".
  async placeOrder(payload){return placeCheckoutOrder(payload);},
  async getHomepageProducts(){return []; /* Publication dates must come from trusted publication metadata. */},
  async getProducts(query={}){

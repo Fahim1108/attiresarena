@@ -116,7 +116,10 @@ function useOverlayBehaviour(onClose: () => void, panelRef: React.RefObject<HTML
 
 const overlayClasses = (shown: boolean) => cn("aa-overlay absolute inset-0 bg-ink/50", shown ? "opacity-100" : "opacity-0");
 
-export function Modal({ open, onClose, title, hideTitle, description, children, footer, className }: OverlayProps) {
+export function Modal({ open, onClose, title, hideTitle, description, children, footer, className, zIndexClass = "z-[60]" }: OverlayProps & {
+  /** Stacking class for the fixed wrapper; overlays that must sit above other overlays pass a higher one. */
+  zIndexClass?: string;
+}) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const descriptionId = useId();
@@ -124,7 +127,7 @@ export function Modal({ open, onClose, title, hideTitle, description, children, 
   useOverlayBehaviour(onClose, panelRef, mounted && open);
   if (!mounted || typeof document === "undefined") return null;
   return createPortal(
-    <div className="aa-modal-portal fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:p-4" aria-hidden={!open || undefined} inert={!open}>
+    <div className={cn("aa-modal-portal fixed inset-0 flex items-end justify-center sm:items-center sm:p-4", zIndexClass)} aria-hidden={!open || undefined} inert={!open}>
       <div className={overlayClasses(shown)} onClick={onClose} aria-hidden />
       <div
         ref={panelRef}

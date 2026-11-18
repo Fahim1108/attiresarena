@@ -17,12 +17,21 @@ export interface CartItem {
   maxQuantity: number;
 }
 
+/**
+ * A coupon validated by the server. The discount is the exact amount the
+ * `validate_coupon` RPC returned for one exact subtotal and phone — the
+ * browser never computes coupon math. When the cart subtotal or the phone
+ * changes, the coupon is stale until it is re-validated.
+ */
 export interface Coupon {
+  /** Normalized code (trimmed, upper-case), exactly as the server validated it. */
   code: string;
-  description: string;
-  type: "percent" | "fixed" | "free-shipping";
-  value: number;
-  minSubtotal?: Money;
+  /** Discount in minor units (paisa) returned by `validate_coupon`. */
+  discountMinor: number;
+  /** Cart subtotal in minor units the discount was validated against. */
+  validatedSubtotalMinor: number;
+  /** Phone the discount was validated against (null when checked without one). */
+  validatedPhone: string | null;
 }
 
 export interface OrderSummary {

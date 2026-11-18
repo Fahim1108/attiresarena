@@ -1694,7 +1694,7 @@ describe("D1 checkout transport (customer JWT vs guest service-role)", () => {
     let authFailed = 0;
     const customer = rpcFor(
       config,
-      { apikey: FAKE_PUBLISHABLE_KEY, accessToken: "fake-customer-access-token" },
+      { apikey: FAKE_PUBLISHABLE_KEY, accessToken: "fake-customer-access-token", userId: "33333333-3333-4333-8333-333333333333" },
       () => {
         authFailed += 1;
       },

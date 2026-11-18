@@ -96,7 +96,7 @@ export function SizeSelector({ sizes, labels, locked = false, value, onChange, i
                 "aa-press relative h-11 min-w-14 px-3 rounded-control border text-sm transition-colors",
                 active ? "border-primary bg-primary text-white" : "border-line bg-surface text-ink hover:border-ink/50",
                 !available && locked && "opacity-40",
-                !available && !locked && "cursor-not-allowed text-ink-muted/50 after:absolute after:left-1/2 after:top-1/2 after:h-px after:w-[70%] after:-translate-x-1/2 after:-rotate-[20deg] after:bg-ink/25 hover:border-line",
+                !available && !locked && "cursor-not-allowed text-ink-muted/50 hover:border-line",
               )}
             >
               {labels?.[s] ?? labels?.[canonicalSize(s) ?? s] ?? canonicalSize(s) ?? s}

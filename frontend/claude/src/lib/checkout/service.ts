@@ -1,4 +1,5 @@
 import type { ActionResult } from "@/types";
+import { COUPON_CODE_PATTERN, isCouponReason, normalizeCouponCode, type CouponReason } from "./coupons";
 import { parseCheckoutOrder, parseCheckoutProgress, type CheckoutProgressInput } from "./validation";
 
 /**
@@ -39,6 +40,7 @@ const messages: Record<string, string> = {
   CK006: "This mobile number has reached today's order limit. Please try again tomorrow.",
   CK007: "Please choose a district that belongs to the division you selected.",
   CK008: "Ordering is not available right now. No order was placed.",
+  CK009: "This coupon could not be applied to your order. Remove the coupon and try again.",
   CK010: "This order has too many items. Please reduce your cart and try again.",
   CK011: "Only one of each item can be ordered.",
   "22023": "Please check your name, mobile number, delivery address and cart, then try again.",
@@ -116,6 +118,11 @@ export function createCheckoutService(rpc: CheckoutRpc, jar: CheckoutCookieJar, 
         order_note: input.note ?? null,
         client_key: clientKey,
         expected_items: itemArgs(input.items),
+        // The coupon argument is sent only when a coupon is applied, so
+        // databases without the coupon migration keep placing orders with
+        // the six-argument signature. The seventh parameter has a default
+        // once the migration is applied.
+        ...(input.couponCode ? { p_coupon_code: input.couponCode } : {}),
       });
     const done = (row: OrderRow): ActionResult<PlacedOrder> => {
       jar.clear();
@@ -133,12 +140,57 @@ export function createCheckoutService(rpc: CheckoutRpc, jar: CheckoutCookieJar, 
         jar.clear();
         continue;
       }
+      if (input.couponCode && (placed.code === "PGRST202" || placed.code === "42883")) {
+        // The database has no seven-argument place_checkout_order yet, so the
+        // coupon cannot be applied there. Never place the order silently at
+        // full price: the customer must remove the coupon first.
+        return { ok: false, reason: "validation", message: "Coupons are not available yet. Remove the coupon to place your order." };
+      }
       return failure(placed.code);
     }
     return failure("unknown");
   }
 
   return { saveProgress, placeOrder };
+}
+
+/** Outcome of a `validate_coupon` call. `ok: false` means the check itself failed. */
+export type CouponValidationResult =
+  | { ok: true; valid: true; discountMinor: number }
+  | { ok: true; valid: false; reason: CouponReason }
+  | { ok: false };
+
+/**
+ * Check a coupon against the cart subtotal. The RPC never raises for an
+ * ineligible coupon: it returns `{valid, reason, discount_minor}`. Any
+ * transport error or unparseable response is `ok: false`, so the caller
+ * says the check failed instead of inventing a discount.
+ */
+export async function validateCoupon(
+  rpc: CheckoutRpc,
+  input: { code: string; userId: string | null; phone: string | null; subtotalMinor: number },
+): Promise<CouponValidationResult> {
+  const code = typeof input.code === "string" ? normalizeCouponCode(input.code) : "";
+  if (!COUPON_CODE_PATTERN.test(code) || !Number.isInteger(input.subtotalMinor) || input.subtotalMinor < 0) {
+    return { ok: true, valid: false, reason: "invalid_request" };
+  }
+  const result = await rpc<unknown>("validate_coupon", {
+    p_code: code,
+    p_user_id: input.userId,
+    p_phone: input.phone,
+    p_subtotal_minor: input.subtotalMinor,
+  });
+  if (!result.ok) return { ok: false };
+  const data = result.data as { valid?: unknown; reason?: unknown; discount_minor?: unknown } | null;
+  if (!data || typeof data !== "object") return { ok: false };
+  if (data.valid === true) {
+    if (typeof data.discount_minor !== "number" || !Number.isInteger(data.discount_minor) || data.discount_minor < 0) return { ok: false };
+    return { ok: true, valid: true, discountMinor: data.discount_minor };
+  }
+  if (data.valid === false && isCouponReason(data.reason)) {
+    return { ok: true, valid: false, reason: data.reason };
+  }
+  return { ok: false };
 }
 
 export const checkoutMessagesForTests = { ...messages, generic };

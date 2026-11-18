@@ -8,8 +8,9 @@ import { OrderSummary } from "@/components/cart/OrderSummary";
 import { Button, ButtonLink, Checkbox, DemoNotice, EmptyState, Input, Modal, Select, CheckoutSkeleton, SmartImage, Textarea } from "@/components/ui";
 import { commerce } from "@/config";
 import { useCart } from "@/context/CartContext";
-import { areasOf, districtsOf, divisionNames, isInsideDhaka } from "@/data/bangladesh";
+import { areaLabel, areasOf, districtLabel, districtsOf, divisionLabel, divisionNames, isInsideDhaka } from "@/data/bangladesh";
 import { canPlaceOrder } from "@/lib/checkout/gate";
+import { toMinorUnits } from "@/lib/checkout/coupons";
 import { formatPrice } from "@/lib/format";
 import { isValidBdPhone, isValidEmail, normalizePhone, type FieldErrors } from "@/lib/validation";
 import { placeOrderAction, saveCheckoutProgressAction } from "@/services/actions";
@@ -24,7 +25,7 @@ type Field = "fullName" | "phone" | "email" | "division" | "district" | "area" |
 
 const STEPS = ["Delivery", "Payment", "Review"];
 
-export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = false }: { manualPaymentConfiguration: ManualPaymentConfiguration; orderingEnabled?: boolean }) {
+export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = false, isProduction = false }: { manualPaymentConfiguration: ManualPaymentConfiguration; orderingEnabled?: boolean; isProduction?: boolean }) {
   const { items, hydrated, getSummary, clear } = useCart();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<Record<Field, string>>({ fullName: "", phone: "", email: "", division: "", district: "", area: "", addressLine: "" });
@@ -49,8 +50,14 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
   }, [step]);
 
   const orderable = canPlaceOrder(orderingEnabled, manualPaymentConfiguration.available);
-  const summary = getSummary(form.district || undefined);
-  const advance = payment === "cod" ? advanceBreakdown(summary.total * 100, form.division, form.district, manualPaymentConfiguration.policy) : null;
+  // The coupon phone: a valid normalized number, else null. Shared by the
+  // summary (coupon freshness) and the coupon field (per-customer counting).
+  const couponPhone = isValidBdPhone(form.phone) ? normalizePhone(form.phone) : null;
+  const summary = getSummary(form.district || undefined, couponPhone);
+  // Totals can hold fractional taka once a percent discount applies; round
+  // to minor units instead of multiplying, which can leave float residue
+  // that the payment helpers reject.
+  const advance = payment === "cod" ? advanceBreakdown(toMinorUnits(summary.total), form.division, form.district, manualPaymentConfiguration.policy) : null;
   const districts = useMemo(() => districtsOf(form.division), [form.division]);
   const areas = useMemo(() => areasOf(form.district), [form.district]);
 
@@ -66,13 +73,13 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
 
   const validate = (): boolean => {
     const e: FieldErrors<Field> = {};
-    if (form.fullName.trim().length < 3) e.fullName = "Please enter your full name";
-    if (!isValidBdPhone(form.phone)) e.phone = "Enter a valid Bangladeshi mobile number (01XXXXXXXXX)";
-    if (form.email && !isValidEmail(form.email)) e.email = "Enter a valid email address";
-    if (!form.division) e.division = "Select a division";
-    if (!form.district) e.district = "Select a district";
-    if (!form.area.trim()) e.area = "Select or enter your area";
-    if (form.addressLine.trim().length < 8) e.addressLine = "Enter house, road and area details";
+    if (form.fullName.trim().length < 3) e.fullName = "আপনার পুরো নাম লিখুন";
+    if (!isValidBdPhone(form.phone)) e.phone = "সঠিক বাংলাদেশি মোবাইল নম্বর দিন (01XXXXXXXXX)";
+    if (form.email && !isValidEmail(form.email)) e.email = "সঠিক ইমেইল ঠিকানা দিন";
+    if (!form.division) e.division = "বিভাগ বেছে নিন";
+    if (!form.district) e.district = "জেলা বেছে নিন";
+    if (!form.area.trim()) e.area = "এলাকা / উপজেলা বেছে নিন";
+    if (form.addressLine.trim().length < 8) e.addressLine = "বাসা, রোড ও এলাকার বিস্তারিত লিখুন";
     setErrors(e);
     const first = Object.keys(e)[0];
     if (first) document.getElementById(`checkout-${first}`)?.focus();
@@ -144,20 +151,33 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
 
   const deliveryLabel = form.district ? (isInsideDhaka(form.district) ? "Inside Dhaka" : "Outside Dhaka") : "Select a district to calculate delivery";
 
+  // The notice must name the environment honestly. On production with
+  // ordering enabled this is a real store, so no demo notice renders at
+  // all; on production with ordering disabled the notice says so without
+  // the Preview wording. Staging/Preview keeps the existing copy.
+  const checkoutNotice = isProduction
+    ? orderingEnabled
+      ? null
+      : "Ordering and payment collection are currently unavailable. Totals are estimates; do not send money or enter real payment details."
+    : orderingEnabled
+      ? "This is a Staging test store. Orders placed here are test orders and the final total is calculated by the server. Payment collection is not connected; do not send money."
+      : "Ordering and payment collection are currently unavailable. Totals are estimates; do not send money or enter real payment details in this Preview.";
+
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_400px] lg:gap-12 [&>*]:min-w-0" data-checkout-content>
       <div className="min-w-0">
-        <DemoNotice force className="mb-5">
-          {orderingEnabled
-            ? "This is a Staging test store. Orders placed here are test orders and the final total is calculated by the server. Payment collection is not connected; do not send money."
-            : "Ordering and payment collection are currently unavailable. Totals are estimates; do not send money or enter real payment details in this Preview."}
-        </DemoNotice>
+        {checkoutNotice && (
+          <DemoNotice force className="mb-5">
+            {checkoutNotice}
+          </DemoNotice>
+        )}
         <CheckoutSteps steps={STEPS} current={step} onStepClick={setStep} />
 
         <div ref={panelRef} className="mt-6 rounded-card border border-line p-5 sm:p-7">
           {step === 0 && (
             <form
               noValidate
+              lang="bn"
               onSubmit={(e) => {
                 e.preventDefault();
                 next();
@@ -166,27 +186,23 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
             >
               <h2 tabIndex={-1} className="font-serif text-2xl text-ink">Delivery Information</h2>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Input id="checkout-fullName" label="Full Name" required autoComplete="name" placeholder="Enter your full name" value={form.fullName} onChange={(e) => set("fullName", e.target.value)} error={errors.fullName} wrapperClassName="sm:col-span-2" />
-                <Input id="checkout-phone" label="Phone Number" required type="tel" inputMode="tel" autoComplete="tel" placeholder="01XXXXXXXXX" value={form.phone} onChange={(e) => set("phone", e.target.value)} onBlur={captureContact} error={errors.phone} hint="We'll call to confirm your order." />
+                <Input id="checkout-fullName" label="Your name" required autoComplete="name" placeholder="আপনার নাম লিখুন" value={form.fullName} onChange={(e) => set("fullName", e.target.value)} error={errors.fullName} wrapperClassName="sm:col-span-2" />
+                <Input id="checkout-phone" label="Mobile number" required type="tel" inputMode="tel" autoComplete="tel" placeholder="01XXXXXXXXX" value={form.phone} onChange={(e) => set("phone", e.target.value)} onBlur={captureContact} error={errors.phone} hint="অর্ডার নিশ্চিত করতে আমরা কল করব।" />
                 <Input id="checkout-email" label="Email (optional)" type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(e) => set("email", e.target.value)} error={errors.email} />
-                <Select id="checkout-division" label="Division" required placeholder="Select division" options={divisionNames.map((d) => ({ value: d, label: d }))} value={form.division} onChange={(e) => set("division", e.target.value)} error={errors.division} />
+                <Select id="checkout-division" label="Division" required placeholder="বিভাগ বেছে নিন" options={divisionNames.map((d) => ({ value: d, label: divisionLabel(d) }))} value={form.division} onChange={(e) => set("division", e.target.value)} error={errors.division} />
                 <Select
                   id="checkout-district"
                   label="District"
                   required
-                  placeholder={form.division ? "Select district" : "Select division first"}
+                  placeholder={form.division ? "জেলা বেছে নিন" : "আগে বিভাগ বেছে নিন"}
                   disabled={!form.division}
-                  options={districts.map((d) => ({ value: d, label: d }))}
+                  options={districts.map((d) => ({ value: d, label: districtLabel(d) }))}
                   value={form.district}
                   onChange={(e) => set("district", e.target.value)}
                   error={errors.district}
                 />
-                {areas.length ? (
-                  <Select id="checkout-area" label="Area / Thana" required placeholder="Select area" options={areas.map((a) => ({ value: a, label: a }))} value={form.area} onChange={(e) => set("area", e.target.value)} error={errors.area} wrapperClassName="sm:col-span-2" />
-                ) : (
-                  <Input id="checkout-area" label="Area / Upazila" required placeholder={form.district ? "e.g. Sadar" : "Select district first"} disabled={!form.district} value={form.area} onChange={(e) => set("area", e.target.value)} error={errors.area} wrapperClassName="sm:col-span-2" />
-                )}
-                <Textarea id="checkout-addressLine" label="Detailed Address" required autoComplete="street-address" placeholder="House, road, area details" value={form.addressLine} onChange={(e) => set("addressLine", e.target.value)} error={errors.addressLine} wrapperClassName="sm:col-span-2" className="min-h-[88px]" />
+                <Select id="checkout-area" label="Area / Upazila" required placeholder={form.district ? "এলাকা / উপজেলা বেছে নিন" : "আগে জেলা বেছে নিন"} disabled={!form.district} options={areas.map((a) => ({ value: a, label: areaLabel(form.district, a) }))} value={form.area} onChange={(e) => set("area", e.target.value)} error={errors.area} wrapperClassName="sm:col-span-2" />
+                <Textarea id="checkout-addressLine" label="Detailed address" required autoComplete="street-address" placeholder="বাসা, রোড, এলাকার বিস্তারিত লিখুন" value={form.addressLine} onChange={(e) => set("addressLine", e.target.value)} error={errors.addressLine} wrapperClassName="sm:col-span-2" className="min-h-[88px]" />
               </div>
               <Checkbox label="Save this address for next time" checked={saveAddress} onChange={(e) => setSaveAddress(e.target.checked)} />
               <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-between">
@@ -204,14 +220,14 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
             <div className="space-y-6">
               <h2 tabIndex={-1} className="font-serif text-2xl text-ink">Payment</h2>
               <PaymentMethodSelector value={payment} onChange={setPayment} onlineEnabled={commerce.onlinePaymentEnabled} previewEnabled />
-              <ManualAdvancePayment mode={payment} configuration={manualPaymentConfiguration} totalMinor={summary.total * 100} division={form.division} district={form.district} />
+              <ManualAdvancePayment mode={payment} configuration={manualPaymentConfiguration} totalMinor={toMinorUnits(summary.total)} division={form.division} district={form.district} />
               <Textarea label="Order note (optional)" placeholder="Anything we should know? e.g. preferred delivery time" value={note} onChange={(e) => setNote(e.target.value)} className="min-h-[80px]" />
               <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
                 <Button variant="ghost" onClick={() => setStep(0)} leftIcon={<ArrowLeft className="h-4 w-4" aria-hidden />}>
                   Back
                 </Button>
                 <Button variant="burgundy" size="lg" onClick={next} rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}>
-                  Review Order
+                  Continue shopping
                 </Button>
               </div>
             </div>
@@ -296,10 +312,10 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
               </li>
             ))}
           </ul>
-          <CouponField />
+          <CouponField phone={couponPhone} />
           <OrderSummary summary={summary} title={null} deliveryNote={deliveryLabel} />
           <div className="space-y-2 border-t border-line pt-3 text-sm" aria-label="Payment summary" aria-live="polite">
-            <div className="flex justify-between gap-3"><span>{payment === "cod" ? "Required advance" : "Full payment amount"}</span><strong data-summary-advance>{payment === "online" ? formatPaymentAmount(summary.total * 100) : advance ? formatPaymentAmount(advance.advanceMinor) : "Select location"}</strong></div>
+            <div className="flex justify-between gap-3"><span>{payment === "cod" ? "Required advance" : "Full payment amount"}</span><strong data-summary-advance>{payment === "online" ? formatPaymentAmount(toMinorUnits(summary.total)) : advance ? formatPaymentAmount(advance.advanceMinor) : "Select location"}</strong></div>
             <div className="flex justify-between gap-3"><span>Remaining on delivery</span><strong data-summary-remaining>{payment === "online" ? formatPaymentAmount(0) : advance ? formatPaymentAmount(advance.remainingMinor) : "—"}</strong></div>
             <p className="text-xs leading-relaxed text-ink-muted">{payment === "cod" ? "Advance counts toward the total, including delivery." : "Full payment includes delivery."} Payment is not yet verified.</p>
           </div>

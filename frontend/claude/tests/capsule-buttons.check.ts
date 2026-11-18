@@ -93,7 +93,10 @@ it("keeps the workspace button base pill-shaped", () => {
 });
 
 it("marks both Modal/Overlay portal roots for dialog button coverage", () => {
-  expect(modalTsx.match(/className="aa-modal-portal fixed inset-0/g)?.length).toBe(2);
+  // Merged shape: the Modal root builds its class list through cn() so the
+  // cart-limit zIndexClass prop can raise it above the drawer; the Drawer
+  // root keeps the literal string. Both must carry the marker + positioning.
+  expect(modalTsx.match(/aa-modal-portal fixed inset-0/g)?.length).toBe(2);
   // .aa-dialog already styles native <dialog> elements (border, 26rem
   // max-width) — reusing it on the full-viewport portal roots would
   // shrink the overlay. The marker must stay distinct.
