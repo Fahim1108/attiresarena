@@ -6,7 +6,7 @@
    contrast-pinned neutrals for the switch track and the dropzone
    boundary (3.45:1), not brand colours. */
 
-/* ---- Storefront feed health (admin products page, diagnostics) ---- */
+/* ---- Storefront feed counts (admin products page) ---- */
 
 .feedHealth {
   border: 1px solid rgb(var(--admin-border));
@@ -50,17 +50,6 @@
 
 .feedHealthValue {
   font-weight: 600;
-}
-
-.feedHealthWarning {
-  color: rgb(var(--admin-primary));
-  font-weight: 600;
-}
-
-.feedHealthFootnote {
-  margin: 0;
-  font-size: 0.8125rem;
-  color: rgb(var(--admin-text-secondary));
 }
 
 /* ---- Category hierarchy ---- */

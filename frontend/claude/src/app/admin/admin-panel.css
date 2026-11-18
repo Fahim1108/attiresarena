@@ -709,8 +709,29 @@ a.aa-kpi:hover { border-color: rgb(var(--aa-primary) / 0.5); transform: translat
     color: rgb(var(--aa-text-muted));
   }
   .aa-table:has(td[data-label]) tbody td.aa-cell-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
     white-space: normal;
     text-align: left;
+  }
+  /* Actions cells: symmetrical equal-width buttons instead of a ragged
+     wrap (Edit / Duplicate / Set Active / Delete). The ::before label
+     spans the full row; a lone action or a note spans it too; buttons
+     wrapped in inline forms fill their track like direct children. */
+  .aa-table:has(td[data-label]) tbody td[data-label].aa-cell-actions::before {
+    grid-column: 1 / -1;
+    max-width: none;
+  }
+  .aa-table:has(td[data-label]) tbody td.aa-cell-actions > :only-child,
+  .aa-table:has(td[data-label]) tbody td.aa-cell-actions > .aa-cell-sub {
+    grid-column: 1 / -1;
+  }
+  .aa-table:has(td[data-label]) tbody td.aa-cell-actions > form > .aa-row-action {
+    width: 100%;
+  }
+  .aa-table:has(td[data-label]) tbody td.aa-cell-actions .aa-row-action {
+    white-space: normal;
   }
   .aa-table:has(td[data-label]) tbody td[colspan] { display: block; }
 }
