@@ -370,7 +370,7 @@
   min-height: 40px;
   padding: 0;
   border: 1px solid rgb(var(--admin-border));
-  border-radius: var(--admin-radius-control);
+  border-radius: 999px;
   background: rgb(var(--admin-card));
   color: rgb(var(--admin-text-secondary));
   box-shadow: none;
@@ -640,7 +640,7 @@
 .aa-admin .aa-main--ds .aa-pagination a,
 .aa-admin .aa-main--ds .aa-pagination span {
   border-color: rgb(var(--admin-border));
-  border-radius: var(--admin-radius-control);
+  border-radius: 999px;
   background: rgb(var(--admin-card));
   color: rgb(var(--admin-primary));
   box-shadow: none;
@@ -966,13 +966,13 @@
 .aa-admin .aa-login--ds .aa-form button:not(:disabled):not([data-danger]):not(.aa-secondary):not(.aa-login-eye):not(.aa-login-help-trigger) {
   background: rgb(var(--admin-primary));
   border-color: rgb(var(--admin-primary));
-  border-radius: var(--admin-radius-control);
+  border-radius: 999px;
 }
 
 .aa-admin .aa-login--ds .aa-secondary:not(:disabled) {
   color: rgb(var(--admin-primary));
   border-color: rgb(var(--admin-primary));
-  border-radius: var(--admin-radius-control);
+  border-radius: 999px;
 }
 
 .aa-admin .aa-login--ds .aa-secondary:not(:disabled):hover {
@@ -1199,7 +1199,7 @@
 .aa-admin-ds .aa-orders-v2 .aa-button:not(:disabled):not([data-danger]) {
   background: rgb(var(--admin-primary));
   border-color: rgb(var(--admin-primary));
-  border-radius: var(--admin-radius-control);
+  border-radius: 999px;
 }
 
 .aa-admin-ds .aa-orders-v2 .aa-button:not(:disabled):not([data-danger]):hover {
@@ -1211,7 +1211,7 @@
   background: rgb(var(--admin-card));
   color: rgb(var(--admin-primary));
   border-color: rgb(var(--admin-primary));
-  border-radius: var(--admin-radius-control);
+  border-radius: 999px;
 }
 
 .aa-admin-ds .aa-orders-v2 .aa-secondary:not(:disabled):hover {
@@ -1299,4 +1299,29 @@
   .aa-admin-ds .aa-orders-v2 .aa-table:has(td[data-label]) tbody td[data-label]:not([data-label=""])::before {
     color: rgb(var(--admin-text-secondary));
   }
+}
+
+/* Capsule buttons (owner request, 2026-11-18): every admin text button
+   is a pill. This block is the central shape rule: it beats the 7px
+   legacy base (admin.css, workspace.css) and the Tailwind radius
+   utilities on ad-hoc buttons at equal/lower specificity because this
+   sheet loads last, and it beats single-class module rules
+   (.expandButton, .dangerButton) on specificity. It deliberately
+   loses to the higher-specificity treatments that must keep their
+   own shape: underline tabs (radius 0), workspace tabs (radius 0),
+   and the switch track (already a pill). Higher-specificity button
+   rules in this file and admin-panel.css/login.css carry their own
+   999px declarations. .aa-modal-portal covers Modal/Overlay portals,
+   which render under document.body outside .aa-admin (and must not
+   reuse .aa-dialog, which styles native dialog elements); Modal is
+   admin-only, and this sheet loads only on admin routes. The unscoped
+   .aa-button base in admin.css is untouched so storefront buttons
+   keep 7px. */
+.aa-admin button,
+.aa-admin .aa-button,
+.aa-admin .aa-secondary,
+.aa-modal-portal button,
+.aa-modal-portal .aa-button,
+.aa-modal-portal .aa-secondary {
+  border-radius: 999px;
 }

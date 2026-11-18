@@ -14,7 +14,7 @@
 .aa-admin .aa-login-input input{min-width:0;width:100%;height:46px;border:0;background:transparent;padding:10px 0;font-size:14px;box-shadow:none;color:#171717}
 .aa-admin .aa-login-input input:focus{outline:0}
 .aa-admin .aa-login-input:focus-within{outline:2px solid #6b0202;outline-offset:2px}
-.aa-admin .aa-login-form .aa-login-eye{flex-shrink:0;background:#fff;border:1px solid #a86e6e;border-radius:6px;min-height:44px;width:44px;padding:0;color:#6b0202;box-shadow:0 1px 2px rgba(64,0,0,.08)}
+.aa-admin .aa-login-form .aa-login-eye{flex-shrink:0;background:#fff;border:1px solid #a86e6e;border-radius:999px;min-height:44px;width:44px;padding:0;color:#6b0202;box-shadow:0 1px 2px rgba(64,0,0,.08)}
 .aa-admin .aa-login-form .aa-login-eye:not(:disabled):hover{background:#f6eaea;border-color:#6b0202;color:#6b0202}
 .aa-admin .aa-login-options{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:-3px}
 .aa-admin .aa-login-options label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:400;min-height:44px}
@@ -22,7 +22,7 @@
 .aa-admin .aa-login-form .aa-login-help-trigger{border:0;background:transparent;color:#6b0202;font-size:12px;font-weight:600;padding:0;min-height:44px;text-decoration:underline;text-underline-offset:4px;box-shadow:none}
 .aa-admin .aa-login-form .aa-login-help-trigger:not(:disabled):hover{background:transparent;color:#4c0101;text-decoration:underline;text-underline-offset:4px}
 .aa-admin .aa-login-form .aa-login-help{font-size:12px;color:#5f5a57;line-height:1.7;margin:0;padding:12px;border:1px solid #eaeaea;border-radius:7px;background:#fff}
-.aa-admin .aa-login-form .aa-login-submit{width:100%;min-height:46px;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:9px;margin-top:-6px;background:#6b0202;border-color:#6b0202;font-size:14px}
+.aa-admin .aa-login-form .aa-login-submit{width:100%;min-height:46px;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:9px;margin-top:-6px;background:#6b0202;border-color:#6b0202;font-size:14px}
 .aa-admin .aa-login-form [role=alert]{margin:0;font-size:13px;line-height:1.5;color:#a42121}
 .aa-admin .aa-login-security{display:flex;align-items:flex-start;gap:12px;padding:16px;margin-top:26px;border-top:1px solid #eaeaea;color:#6b0202}
 .aa-admin .aa-login-security>svg{flex-shrink:0;margin-top:2px}

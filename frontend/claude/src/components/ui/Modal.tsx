@@ -124,7 +124,7 @@ export function Modal({ open, onClose, title, hideTitle, description, children, 
   useOverlayBehaviour(onClose, panelRef, mounted && open);
   if (!mounted || typeof document === "undefined") return null;
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:p-4" aria-hidden={!open || undefined} inert={!open}>
+    <div className="aa-modal-portal fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:p-4" aria-hidden={!open || undefined} inert={!open}>
       <div className={overlayClasses(shown)} onClick={onClose} aria-hidden />
       <div
         ref={panelRef}
@@ -168,7 +168,7 @@ export function Drawer({ open, onClose, title, hideTitle, children, footer, side
   useOverlayBehaviour(onClose, panelRef, mounted && open);
   if (!mounted || typeof document === "undefined") return null;
   return createPortal(
-    <div className="fixed inset-0 z-[60]" aria-hidden={!open || undefined} inert={!open}>
+    <div className="aa-modal-portal fixed inset-0 z-[60]" aria-hidden={!open || undefined} inert={!open}>
       <div className={overlayClasses(shown)} onClick={onClose} aria-hidden />
       <div
         ref={panelRef}
