@@ -1,23 +1,17 @@
 /**
  * Total Visitors data seam for the Analytics page.
  *
- * There is currently NO visitor/pageview data source in the app: no
- * visitor table, no stored counts, and no read-back API. The only
- * related code sends data out (the Meta Pixel PageView event and the
- * Google Analytics gtag snippet), and getAnalyticsReport() covers
- * orders/sales/inventory/customers only.
- *
- * getVisitorReport() is therefore the single seam a future build
- * replaces: Fahim decided (2026-11-17) that Google Analytics will be
- * the source, as a separate follow-up build after this redesign,
- * reading back through the GA Data API once a GA4 property and
- * API/service-account access exist (whether either is live is
- * unverified). That build replaces this accessor's body with the
- * real read-back and fills `points`; until then this accessor
- * returns the honest unavailable state below and the graph shows an
- * empty state. Never seed, estimate, smooth, or demo visitor
- * numbers here.
+ * Source: Google Analytics (Fahim's decision, 2026-11-17), read back
+ * through the GA Data API by src/lib/admin/ga-visitors.ts — a
+ * service-account read, strictly env-gated and server-only. Whether
+ * a GA4 property or measurement ID is live is UNVERIFIED (the owner
+ * confirms it in his browser); until the env config exists, and on
+ * any API failure, getVisitorReport() returns the honest unavailable
+ * state below and the graph shows its empty state. Never seed,
+ * estimate, smooth, or demo visitor numbers here.
  */
+
+import { readGaDailyVisitors } from "@/lib/admin/ga-visitors";
 
 /** Visitor periods, in the order Fahim listed them. */
 export const VISITOR_PERIODS = [
@@ -63,16 +57,35 @@ export type VisitorPoint = {
 };
 
 /**
- * Visitor report for one period. `status` is always `"unavailable"`
- * until a real source is wired in, and `points` is always empty, so
- * the graph renders its empty state and no visitor number is shown.
+ * Visitor report for one period. `status` is `"unavailable"` (with
+ * empty `points`) whenever the GA env config is absent or the read
+ * fails, so the graph renders its empty state and no visitor number
+ * is shown. `"available"` means the API answered; `points` may still
+ * be empty when no visitors were recorded in the period.
  */
 export type VisitorReport = {
-  status: "unavailable";
+  status: "available" | "unavailable";
   period: VisitorPeriod;
   points: readonly VisitorPoint[];
 };
 
-export function getVisitorReport(period: VisitorPeriod): VisitorReport {
-  return { status: "unavailable", period, points: [] };
+/**
+ * Test-only overrides (env/fetch injection, courier.ts pattern).
+ * Production callers pass none: config comes from process.env and
+ * the read uses the global fetch.
+ */
+export type VisitorReportOverrides = {
+  env?: Record<string, string | undefined>;
+  fetchImpl?: typeof fetch;
+};
+
+export async function getVisitorReport(
+  period: VisitorPeriod,
+  overrides?: VisitorReportOverrides,
+): Promise<VisitorReport> {
+  const points = await readGaDailyVisitors(period, overrides);
+  if (points === null) {
+    return { status: "unavailable", period, points: [] };
+  }
+  return { status: "available", period, points };
 }

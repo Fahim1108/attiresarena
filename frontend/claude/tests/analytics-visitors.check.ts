@@ -54,9 +54,9 @@ describe("visitor periods", () => {
 });
 
 describe("getVisitorReport", () => {
-  it("returns the honest unavailable state with no points, for every period", () => {
+  it("returns the honest unavailable state with no points, for every period, when unconfigured", async () => {
     for (const period of VISITOR_PERIODS) {
-      expect(getVisitorReport(period)).toEqual({
+      await expect(getVisitorReport(period, { env: {} })).resolves.toEqual({
         status: "unavailable",
         period,
         points: [],
@@ -64,9 +64,23 @@ describe("getVisitorReport", () => {
     }
   });
 
-  it("invents no visitor numbers", () => {
+  it("invents no visitor numbers when unconfigured", async () => {
     for (const period of VISITOR_PERIODS) {
-      expect(getVisitorReport(period).points).toHaveLength(0);
+      const report = await getVisitorReport(period, { env: {} });
+      expect(report.points).toHaveLength(0);
+    }
+  });
+
+  it("never calls the API when unconfigured, even with a fetch that would succeed", async () => {
+    const fetchImpl = () => {
+      throw new Error("must not be called");
+    };
+    for (const period of VISITOR_PERIODS) {
+      const report = await getVisitorReport(period, {
+        env: {},
+        fetchImpl: fetchImpl as typeof fetch,
+      });
+      expect(report.status).toBe("unavailable");
     }
   });
 });

@@ -45,8 +45,8 @@ import {
  * BarChart: their legends link to filtered order lists and their data
  * tables stay available, which the Recharts wrappers do not offer.
  * Total Visitors follows the same pattern: SeriesChart fed by the
- * co-located visitors.ts seam, which returns an honest unavailable
- * state until a real visitor source is wired in.
+ * co-located visitors.ts seam, which reads the GA Data API when
+ * configured and returns an honest unavailable state otherwise.
  */
 
 /** Card panel with a title row and an optional description. */
@@ -130,11 +130,12 @@ export default async function AnalyticsPage({
 
   // Total Visitors period: URL state only (visitorsPeriod param), so
   // the selector is a set of deep links and switching periods keeps
-  // the report range above untouched. The accessor returns no data
-  // until a real visitor source exists; only the period label and
-  // the selector's active option change between periods.
+  // the report range above untouched. The accessor reads the GA Data
+  // API when configured and returns the honest unavailable state
+  // otherwise; only the period label, the selector's active option,
+  // and the empty-state guidance change between periods.
   const visitorPeriod = parseVisitorPeriod(params[VISITOR_PERIOD_PARAM]);
-  const visitorReport = getVisitorReport(visitorPeriod);
+  const visitorReport = await getVisitorReport(visitorPeriod);
   const visitorPeriodLabel = VISITOR_PERIOD_LABELS[visitorPeriod];
   const visitorPeriodPhrase =
     visitorPeriod === "today" ? "today" : visitorPeriodLabel;
@@ -337,7 +338,11 @@ export default async function AnalyticsPage({
             formatValue={formatCount}
             ariaLabel="Total visitors"
             emptyMessage={`No visitor data for ${visitorPeriodPhrase}.`}
-            emptyGuidance="Visitor data is not connected yet."
+            emptyGuidance={
+              visitorReport.status === "available"
+                ? "No visitors were recorded in this period."
+                : "Visitor data is not connected yet."
+            }
           />
         </ChartCard>
 
