@@ -93,51 +93,61 @@ describe("upazila dataset", () => {
 });
 
 describe("Bangla delivery form", () => {
-  it("labels, placeholders and hints are in Bangla", () => {
+  it("placeholders and hints are in Bangla, labels and heading are in English", () => {
+    // Final owner spec: the heading and field labels are English, while
+    // the placeholders inside the inputs, the helper hint and the
+    // validation errors stay in Bangla.
     for (const text of [
-      "ডেলিভারি তথ্য",
-      "পুরো নাম",
       "আপনার নাম লিখুন",
-      "মোবাইল নম্বর",
       "অর্ডার নিশ্চিত করতে আমরা কল করব।",
-      "ইমেইল (ঐচ্ছিক)",
-      "বিভাগ",
       "বিভাগ বেছে নিন",
-      "জেলা",
       "জেলা বেছে নিন",
       "আগে বিভাগ বেছে নিন",
-      "এলাকা / উপজেলা",
       "এলাকা / উপজেলা বেছে নিন",
       "আগে জেলা বেছে নিন",
-      "বিস্তারিত ঠিকানা",
       "বাসা, রোড, এলাকার বিস্তারিত লিখুন",
-      "পরের বার ব্যবহারের জন্য এই ঠিকানাটি সংরক্ষণ করুন",
-      "কার্টে ফিরুন",
-      "পেমেন্টে এগিয়ে যান",
+    ]) {
+      expect(checkoutForm).toContain(text);
+    }
+    for (const text of [
+      ">Delivery Information</h2>",
+      'label="Your name"',
+      'label="Mobile number"',
+      'label="Email (optional)"',
+      'label="Division"',
+      'label="District"',
+      'label="Area / Upazila"',
+      'label="Detailed address"',
+      'label="Save this address for next time"',
+      "Back to cart",
+      "Continue to Payment",
     ]) {
       expect(checkoutForm).toContain(text);
     }
     expect(checkoutForm).toContain('lang="bn"');
   });
 
-  it("validation errors and the delivery label are in Bangla", () => {
+  it("validation errors are in Bangla", () => {
     for (const text of [
       "আপনার পুরো নাম লিখুন",
       "সঠিক বাংলাদেশি মোবাইল নম্বর দিন (01XXXXXXXXX)",
       "সঠিক ইমেইল ঠিকানা দিন",
       "এলাকা / উপজেলা বেছে নিন",
       "বাসা, রোড ও এলাকার বিস্তারিত লিখুন",
-      "ঢাকার ভিতরে",
-      "ঢাকার বাইরে",
-      "ডেলিভারি চার্জ জানতে জেলা বেছে নিন",
     ]) {
       expect(checkoutForm).toContain(text);
     }
   });
 
-  it("has no English delivery-form strings left", () => {
+  it("has no English placeholders, hints or validation errors left", () => {
+    // The heading, labels, checkbox and buttons are deliberately NOT in
+    // this list: the final owner spec keeps them in English. Only the
+    // placeholders, the helper hint and the validation errors are Bangla,
+    // so their pre-checkout-fixes English forms must be gone. The delivery
+    // label ("Inside Dhaka" / "Outside Dhaka" / "Select a district to
+    // calculate delivery") renders outside the delivery form and likewise
+    // stays in English.
     for (const text of [
-      "Delivery Information",
       "Enter your full name",
       "We'll call to confirm your order.",
       "Select division",
@@ -145,12 +155,6 @@ describe("Bangla delivery form", () => {
       "Select division first",
       "Area / Thana",
       "House, road, area details",
-      "Save this address for next time",
-      "Back to cart",
-      "Continue to Payment",
-      "Inside Dhaka",
-      "Outside Dhaka",
-      "Select a district to calculate delivery",
       "Please enter your full name",
       "Select or enter your area",
     ]) {
@@ -160,7 +164,7 @@ describe("Bangla delivery form", () => {
 
   it("always renders the area as a select, never a free-text input", () => {
     expect(checkoutForm).not.toContain("areas.length ?");
-    expect(checkoutForm).toContain('id="checkout-area" label="এলাকা / উপজেলা"');
+    expect(checkoutForm).toContain('id="checkout-area" label="Area / Upazila"');
     expect(checkoutForm.match(/id="checkout-area"/g)).toHaveLength(1);
   });
 });
@@ -183,11 +187,13 @@ describe("single note field", () => {
     expect(manualPayment).toContain('note: ""');
   });
 
-  it("keeps only the lower order note, in Bangla, feeding the payload", () => {
-    expect(checkoutForm).toContain('label="অর্ডার নোট (ঐচ্ছিক)"');
-    expect(checkoutForm).toContain("কিছু জানানোর থাকলে লিখুন, যেমন: পছন্দের ডেলিভারি সময়");
+  it("keeps only the lower order note, in English, feeding the payload", () => {
+    // The Bangla-form correction reverted the note to the pre-checkout-fixes
+    // English: the note lives in the Payment step, outside the delivery form.
+    expect(checkoutForm).toContain('label="Order note (optional)"');
+    expect(checkoutForm).toContain("Anything we should know? e.g. preferred delivery time");
     expect(checkoutForm).toContain("note: note.trim() || undefined");
-    expect(checkoutForm).not.toContain("Order note (optional)");
+    expect(checkoutForm).not.toContain("অর্ডার নোট");
   });
 });
 

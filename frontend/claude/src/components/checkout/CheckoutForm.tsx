@@ -8,7 +8,7 @@ import { OrderSummary } from "@/components/cart/OrderSummary";
 import { Button, ButtonLink, Checkbox, DemoNotice, EmptyState, Input, Modal, Select, CheckoutSkeleton, SmartImage, Textarea } from "@/components/ui";
 import { commerce } from "@/config";
 import { useCart } from "@/context/CartContext";
-import { areasOf, districtsOf, divisionNames, isInsideDhaka } from "@/data/bangladesh";
+import { areaLabel, areasOf, districtLabel, districtsOf, divisionLabel, divisionNames, isInsideDhaka } from "@/data/bangladesh";
 import { canPlaceOrder } from "@/lib/checkout/gate";
 import { toMinorUnits } from "@/lib/checkout/coupons";
 import { formatPrice } from "@/lib/format";
@@ -149,7 +149,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
   if (!items.length)
     return <EmptyState icon={<ShoppingBag className="h-7 w-7" aria-hidden />} title="Your cart is empty" description="Add products to your cart before checking out." action={<ButtonLink href="/shop">Browse Products</ButtonLink>} />;
 
-  const deliveryLabel = form.district ? (isInsideDhaka(form.district) ? "ঢাকার ভিতরে" : "ঢাকার বাইরে") : "ডেলিভারি চার্জ জানতে জেলা বেছে নিন";
+  const deliveryLabel = form.district ? (isInsideDhaka(form.district) ? "Inside Dhaka" : "Outside Dhaka") : "Select a district to calculate delivery";
 
   // The notice must name the environment honestly. On production with
   // ordering enabled this is a real store, so no demo notice renders at
@@ -184,33 +184,33 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
               }}
               className="space-y-5"
             >
-              <h2 tabIndex={-1} className="font-serif text-2xl text-ink">ডেলিভারি তথ্য</h2>
+              <h2 tabIndex={-1} className="font-serif text-2xl text-ink">Delivery Information</h2>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Input id="checkout-fullName" label="পুরো নাম" required autoComplete="name" placeholder="আপনার নাম লিখুন" value={form.fullName} onChange={(e) => set("fullName", e.target.value)} error={errors.fullName} wrapperClassName="sm:col-span-2" />
-                <Input id="checkout-phone" label="মোবাইল নম্বর" required type="tel" inputMode="tel" autoComplete="tel" placeholder="01XXXXXXXXX" value={form.phone} onChange={(e) => set("phone", e.target.value)} onBlur={captureContact} error={errors.phone} hint="অর্ডার নিশ্চিত করতে আমরা কল করব।" />
-                <Input id="checkout-email" label="ইমেইল (ঐচ্ছিক)" type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(e) => set("email", e.target.value)} error={errors.email} />
-                <Select id="checkout-division" label="বিভাগ" required placeholder="বিভাগ বেছে নিন" options={divisionNames.map((d) => ({ value: d, label: d }))} value={form.division} onChange={(e) => set("division", e.target.value)} error={errors.division} />
+                <Input id="checkout-fullName" label="Your name" required autoComplete="name" placeholder="আপনার নাম লিখুন" value={form.fullName} onChange={(e) => set("fullName", e.target.value)} error={errors.fullName} wrapperClassName="sm:col-span-2" />
+                <Input id="checkout-phone" label="Mobile number" required type="tel" inputMode="tel" autoComplete="tel" placeholder="01XXXXXXXXX" value={form.phone} onChange={(e) => set("phone", e.target.value)} onBlur={captureContact} error={errors.phone} hint="অর্ডার নিশ্চিত করতে আমরা কল করব।" />
+                <Input id="checkout-email" label="Email (optional)" type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(e) => set("email", e.target.value)} error={errors.email} />
+                <Select id="checkout-division" label="Division" required placeholder="বিভাগ বেছে নিন" options={divisionNames.map((d) => ({ value: d, label: divisionLabel(d) }))} value={form.division} onChange={(e) => set("division", e.target.value)} error={errors.division} />
                 <Select
                   id="checkout-district"
-                  label="জেলা"
+                  label="District"
                   required
                   placeholder={form.division ? "জেলা বেছে নিন" : "আগে বিভাগ বেছে নিন"}
                   disabled={!form.division}
-                  options={districts.map((d) => ({ value: d, label: d }))}
+                  options={districts.map((d) => ({ value: d, label: districtLabel(d) }))}
                   value={form.district}
                   onChange={(e) => set("district", e.target.value)}
                   error={errors.district}
                 />
-                <Select id="checkout-area" label="এলাকা / উপজেলা" required placeholder={form.district ? "এলাকা / উপজেলা বেছে নিন" : "আগে জেলা বেছে নিন"} disabled={!form.district} options={areas.map((a) => ({ value: a, label: a }))} value={form.area} onChange={(e) => set("area", e.target.value)} error={errors.area} wrapperClassName="sm:col-span-2" />
-                <Textarea id="checkout-addressLine" label="বিস্তারিত ঠিকানা" required autoComplete="street-address" placeholder="বাসা, রোড, এলাকার বিস্তারিত লিখুন" value={form.addressLine} onChange={(e) => set("addressLine", e.target.value)} error={errors.addressLine} wrapperClassName="sm:col-span-2" className="min-h-[88px]" />
+                <Select id="checkout-area" label="Area / Upazila" required placeholder={form.district ? "এলাকা / উপজেলা বেছে নিন" : "আগে জেলা বেছে নিন"} disabled={!form.district} options={areas.map((a) => ({ value: a, label: areaLabel(form.district, a) }))} value={form.area} onChange={(e) => set("area", e.target.value)} error={errors.area} wrapperClassName="sm:col-span-2" />
+                <Textarea id="checkout-addressLine" label="Detailed address" required autoComplete="street-address" placeholder="বাসা, রোড, এলাকার বিস্তারিত লিখুন" value={form.addressLine} onChange={(e) => set("addressLine", e.target.value)} error={errors.addressLine} wrapperClassName="sm:col-span-2" className="min-h-[88px]" />
               </div>
-              <Checkbox label="পরের বার ব্যবহারের জন্য এই ঠিকানাটি সংরক্ষণ করুন" checked={saveAddress} onChange={(e) => setSaveAddress(e.target.checked)} />
+              <Checkbox label="Save this address for next time" checked={saveAddress} onChange={(e) => setSaveAddress(e.target.checked)} />
               <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-between">
                 <Link href="/cart" className="inline-flex items-center justify-center gap-2 text-sm text-ink-muted hover:text-primary">
-                  <ArrowLeft className="h-4 w-4" aria-hidden /> কার্টে ফিরুন
+                  <ArrowLeft className="h-4 w-4" aria-hidden /> Back to cart
                 </Link>
                 <Button variant="burgundy" type="submit" size="lg" rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}>
-                  পেমেন্টে এগিয়ে যান
+                  Continue to Payment
                 </Button>
               </div>
             </form>
@@ -221,9 +221,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
               <h2 tabIndex={-1} className="font-serif text-2xl text-ink">Payment</h2>
               <PaymentMethodSelector value={payment} onChange={setPayment} onlineEnabled={commerce.onlinePaymentEnabled} previewEnabled />
               <ManualAdvancePayment mode={payment} configuration={manualPaymentConfiguration} totalMinor={toMinorUnits(summary.total)} division={form.division} district={form.district} />
-              <div lang="bn">
-                <Textarea label="অর্ডার নোট (ঐচ্ছিক)" placeholder="কিছু জানানোর থাকলে লিখুন, যেমন: পছন্দের ডেলিভারি সময়" value={note} onChange={(e) => setNote(e.target.value)} className="min-h-[80px]" />
-              </div>
+              <Textarea label="Order note (optional)" placeholder="Anything we should know? e.g. preferred delivery time" value={note} onChange={(e) => setNote(e.target.value)} className="min-h-[80px]" />
               <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
                 <Button variant="ghost" onClick={() => setStep(0)} leftIcon={<ArrowLeft className="h-4 w-4" aria-hidden />}>
                   Back
@@ -262,7 +260,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
                     </button>
                   </dt>
                   <dd className="mt-2 text-ink">{payment === "cod" ? "Cash on Delivery" : "Online Payment"}</dd>
-                  <dd lang="bn" className="mt-1 text-xs text-ink-muted">{deliveryLabel}</dd>
+                  <dd className="mt-1 text-xs text-ink-muted">{deliveryLabel}</dd>
                 </div>
               </dl>
               <ul className="divide-y divide-line border-y border-line">
