@@ -879,7 +879,7 @@ describe("ordering banner condition (sizes build)", () => {
     vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", SERVICE_KEY);
   }
 
-  it("conditions the layout banner on the gate: no unconditional render", () => {
+  it("renders no ordering banner in the layout: the notice was removed", () => {
     const layout = readFileSync(
       join(
         dirname(fileURLToPath(import.meta.url)),
@@ -890,16 +890,14 @@ describe("ordering banner condition (sizes build)", () => {
       ),
       "utf8",
     );
-    expect(layout).toContain("{!checkoutOrdersEnabled() ? (");
-    expect(layout).toContain("Ordering is not yet available.");
-    expect(layout).toContain(") : null}");
-    // The banner renders exactly once, inside the conditional: an
-    // unconditional render, or a flipped condition, fails here.
-    expect(layout.match(/<aside/g)).toHaveLength(1);
-    expect(layout.match(/design-preview-notice/g)).toHaveLength(1);
-    expect(
-      layout.indexOf("{!checkoutOrdersEnabled() ? ("),
-    ).toBeLessThan(layout.indexOf("design-preview-notice"));
+    // The ordering-off notice was removed from the layout entirely (banner +
+    // strikethrough polish). Checkout stays blocked by the checkout-page gate
+    // (CheckoutForm orderingEnabled), not by this banner. Nothing in the
+    // layout may render the notice text or its aside element.
+    expect(layout).not.toContain("Ordering is not yet available.");
+    expect(layout).not.toContain("design-preview-notice");
+    expect(layout).not.toContain("<aside");
+    expect(layout).not.toContain("checkoutOrdersEnabled");
   });
 
   it("enables ordering only when every staging gate holds", () => {
