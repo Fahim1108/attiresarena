@@ -25,7 +25,7 @@ type Field = "fullName" | "phone" | "email" | "division" | "district" | "area" |
 
 const STEPS = ["Delivery", "Payment", "Review"];
 
-export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = false }: { manualPaymentConfiguration: ManualPaymentConfiguration; orderingEnabled?: boolean }) {
+export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = false, isProduction = false }: { manualPaymentConfiguration: ManualPaymentConfiguration; orderingEnabled?: boolean; isProduction?: boolean }) {
   const { items, hydrated, getSummary, clear } = useCart();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<Record<Field, string>>({ fullName: "", phone: "", email: "", division: "", district: "", area: "", addressLine: "" });
@@ -151,14 +151,26 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
 
   const deliveryLabel = form.district ? (isInsideDhaka(form.district) ? "ঢাকার ভিতরে" : "ঢাকার বাইরে") : "ডেলিভারি চার্জ জানতে জেলা বেছে নিন";
 
+  // The notice must name the environment honestly. On production with
+  // ordering enabled this is a real store, so no demo notice renders at
+  // all; on production with ordering disabled the notice says so without
+  // the Preview wording. Staging/Preview keeps the existing copy.
+  const checkoutNotice = isProduction
+    ? orderingEnabled
+      ? null
+      : "Ordering and payment collection are currently unavailable. Totals are estimates; do not send money or enter real payment details."
+    : orderingEnabled
+      ? "This is a Staging test store. Orders placed here are test orders and the final total is calculated by the server. Payment collection is not connected; do not send money."
+      : "Ordering and payment collection are currently unavailable. Totals are estimates; do not send money or enter real payment details in this Preview.";
+
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_400px] lg:gap-12 [&>*]:min-w-0" data-checkout-content>
       <div className="min-w-0">
-        <DemoNotice force className="mb-5">
-          {orderingEnabled
-            ? "This is a Staging test store. Orders placed here are test orders and the final total is calculated by the server. Payment collection is not connected; do not send money."
-            : "Ordering and payment collection are currently unavailable. Totals are estimates; do not send money or enter real payment details in this Preview."}
-        </DemoNotice>
+        {checkoutNotice && (
+          <DemoNotice force className="mb-5">
+            {checkoutNotice}
+          </DemoNotice>
+        )}
         <CheckoutSteps steps={STEPS} current={step} onStepClick={setStep} />
 
         <div ref={panelRef} className="mt-6 rounded-card border border-line p-5 sm:p-7">

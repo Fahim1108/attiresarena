@@ -862,8 +862,9 @@ describe("skipped-variant collision localization (sizes build)", () => {
 describe("ordering banner condition (sizes build)", () => {
   // The root layout renders the "Ordering is not yet available" banner
   // only when checkoutOrdersEnabled() is false. These tests pin the
-  // condition itself: production can never enable ordering (the banner
-  // stays), and staging enables it only with every gate satisfied.
+  // condition itself: staging enables ordering only with every staging
+  // gate satisfied, and production enables it only with its own flag plus
+  // the production project — the staging flag never enables production.
   const SERVICE_KEY = "service-role-fixture-key-long-enough";
   beforeEach(() => {
     vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_unit_fixture");
@@ -931,9 +932,24 @@ describe("ordering banner condition (sizes build)", () => {
     expect(checkoutOrdersEnabled()).toBe(false);
   });
 
-  it("never enables ordering on a production storefront, even with every flag set", () => {
+  it("keeps ordering disabled on a production storefront with only the staging flag set", () => {
     stagingEnv();
     vi.stubEnv("VERCEL_ENV", "production");
+    expect(checkoutOrdersEnabled()).toBe(false);
+  });
+
+  it("enables ordering on a production storefront only with the production flag and the production project", () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("SUPABASE_URL", `https://${projects.production}.supabase.co`);
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", SERVICE_KEY);
+    vi.stubEnv("STAGING_CHECKOUT_ORDERS", "1");
+    expect(checkoutOrdersEnabled()).toBe(false);
+    vi.stubEnv("PRODUCTION_CHECKOUT_ORDERS", "1");
+    expect(checkoutOrdersEnabled()).toBe(true);
+    vi.stubEnv(
+      "SUPABASE_URL",
+      `https://${projects.staging}.supabase.co`,
+    );
     expect(checkoutOrdersEnabled()).toBe(false);
   });
 });

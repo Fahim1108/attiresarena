@@ -6,6 +6,7 @@ import { getStorefrontContent } from "@/lib/store-settings";
 import { Breadcrumbs } from "@/components/ui";
 import { getManualPaymentConfiguration } from "@/services";
 import { checkoutOrdersEnabled } from "@/lib/checkout/config";
+import { isProductionStorefront } from "@/lib/storefront-policy";
 
 export async function generateMetadata(): Promise<Metadata> {
   const content = await getStorefrontContent();
@@ -18,7 +19,7 @@ export default async function CheckoutPage() {
     <div className="container py-6 sm:py-8">
       <Breadcrumbs items={[{ label: "Cart", href: "/cart" }, { label: "Checkout" }]} />
       <h1 className="mb-6 mt-4 text-balance font-serif text-4xl text-ink sm:text-5xl">Checkout</h1>
-      <CheckoutForm manualPaymentConfiguration={configuration} orderingEnabled={checkoutOrdersEnabled()} />
+      <CheckoutForm manualPaymentConfiguration={configuration} orderingEnabled={checkoutOrdersEnabled()} isProduction={isProductionStorefront()} />
     </div>
   );
 }

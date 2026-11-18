@@ -61,6 +61,11 @@ A checkout session exists only after a valid name and mobile number are entered 
 
 Known difference: the application-layer feed additionally requires the image path to match the thrift inventory pattern, and the database does not check it. Intake records always store that path, so the practical effect is nil, but the two layers are not identical.
 
-## Production stays disabled
+## Production ordering gate
 
-Three independent gates must all open before any order can be placed: the application flag `STAGING_CHECKOUT_ORDERS=1` on the verified Staging project URL, the server-only service key, and `private.checkout_settings.orders_enabled = true`. Production migrations leave the database flag `false`. The application refuses to run ordering on production storefronts regardless of the flag.
+Ordering opens only on exactly one of two paths. Each path requires its own explicit flag, the pinned project URL, and the server-only service key — plus the database flag:
+
+- Staging/Preview: `STAGING_CHECKOUT_ORDERS=1` with the verified Staging project URL.
+- Production: `PRODUCTION_CHECKOUT_ORDERS=1` (Production scope only) with the verified Production project URL.
+
+Neither flag enables the other path, and neither flag can enable ordering against the wrong project. The database gate stands independently on both paths: `private.checkout_settings.orders_enabled` must be `true`, or the checkout RPCs refuse with CK008. Production migrations leave the database flag `false`, so ordering stays off until the owner explicitly flips it — the code alone can never enable ordering.
