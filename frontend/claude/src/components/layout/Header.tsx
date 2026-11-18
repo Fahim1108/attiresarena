@@ -14,6 +14,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { CartBadge } from "@/components/motion/CartBadge";
 import { CartDrawer } from "@/components/cart/CartDrawer";
+import { CartLimitModal } from "@/components/cart/CartLimitModal";
 import { IconButton } from "@/components/ui/IconButton";
 import { Modal } from "@/components/ui/Modal";
 import { useCart } from "@/context/CartContext";
@@ -198,6 +199,7 @@ export function Header({ accountMenu }: { accountMenu?: ReactNode }) {
 
       <MobileMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
       <CartDrawer />
+      <CartLimitModal />
       {!compact && <Modal
         open={searchOpen}
         onClose={() => setSearchOpen(false)}

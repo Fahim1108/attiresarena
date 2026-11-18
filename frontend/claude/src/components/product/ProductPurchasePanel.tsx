@@ -47,7 +47,10 @@ export function ProductPurchasePanel({ product, brandName, colorId, sizeGuide, c
       return;
     }
     if (variant.stock < 1) return;
-    addItem(toCartLine(product, variant, brandName), qty);
+    // A limit refusal already shows the order-limit popup: do not open the
+    // drawer or navigate to checkout over it.
+    const { added } = addItem(toCartLine(product, variant, brandName), qty);
+    if (!added) return;
     onAdded?.();
     if (buyNow) {
       router.push("/checkout");

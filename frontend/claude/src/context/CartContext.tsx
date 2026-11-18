@@ -1,19 +1,31 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {reconcileCartLines} from "@/lib/cart-catalogue";
+import { applyCartAdd, applyCartQuantity, cartUnitCount, MAX_UNITS_PER_ORDER, type CartLimitRefusal } from "@/lib/cart-limits";
 import type {Product} from "@/types";
 import { commerce } from "@/config";
 import { isInsideDhaka } from "@/data/bangladesh";
 import { readStorage, STORAGE_KEYS, writeStorage } from "@/lib/storage";
 import type { CartItem, Coupon, OrderSummary } from "@/types";
 
+/**
+ * Outcome of an add-to-cart or quantity attempt. `added: false` only ever
+ * means the per-order unit limit refused it — the limit popup is already
+ * showing, so callers must not open the drawer or navigate to checkout.
+ * Every other path (including today's silent no-ops for unavailable or
+ * already-maxed lines) reports `added: true`, preserving caller behaviour.
+ */
+export type CartAddOutcome = { added: true } | { added: false; reason: "limit" };
+
 interface CartContextValue {
   items: CartItem[];
   hydrated: boolean;
   itemCount: number;
-  addItem: (item: Omit<CartItem, "quantity">, quantity?: number) => void;
-  updateQuantity: (lineId: string, quantity: number) => void;
+  /** Maximum total units in one order (mirrors the database checkout setting). */
+  maxUnitsPerOrder: number;
+  addItem: (item: Omit<CartItem, "quantity">, quantity?: number) => CartAddOutcome;
+  updateQuantity: (lineId: string, quantity: number) => CartAddOutcome;
   removeItem: (lineId: string) => void;
   clear: () => void;
   coupon?: Coupon;
@@ -24,6 +36,9 @@ interface CartContextValue {
   isDrawerOpen: boolean;
   openDrawer: () => void;
   closeDrawer: () => void;
+  /** Set when an add or quantity increase is refused by the order limit; drives the limit popup. */
+  limitNotice: CartLimitRefusal | null;
+  dismissLimitNotice: () => void;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -37,18 +52,37 @@ export function CartProvider({ children, initialItems = [], approvedVariantIds =
   const [approvedIds] = useState(()=>new Set(approvedVariantIds));
   const [initialSeed] = useState(initialItems);
   const [items, setItems] = useState<CartItem[]>([]);
+  // Synchronous mirror of `items` for cart mutations. Outcomes (added vs
+  // refused) must be computed from the latest committed lines, and state
+  // updaters may run later than the dispatch — so every mutation computes
+  // from this ref and updates it in the same handler. All mutations go
+  // through addItem/updateQuantity/removeItem/clear and the hydration
+  // effect below, which keep the ref and the state in step.
+  const itemsRef = useRef<CartItem[]>([]);
   const [coupon, setCoupon] = useState<Coupon | undefined>();
   const [hydrated, setHydrated] = useState(false);
   const [isDrawerOpen, setDrawerOpen] = useState(false);
+  const [limitNotice, setLimitNotice] = useState<CartLimitRefusal | null>(null);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
     const stored = readStorage<CartItem[] | null>(STORAGE_KEYS.cart, null);
     const seeded = readStorage<boolean>(STORAGE_KEYS.cartSeeded, false);
-    if (stored) setItems(reconcileCartLines(stored,approvedProducts).filter(item=>approvedIds.has(item.variantId)));
+    let restored: CartItem[] | null = null;
+    if (stored) restored = reconcileCartLines(stored,approvedProducts).filter(item=>approvedIds.has(item.variantId));
     else if (initialSeed.length && !seeded) {
-      setItems(initialSeed);
+      restored = initialSeed;
       writeStorage(STORAGE_KEYS.cartSeeded, true);
+    }
+    if (restored) {
+      itemsRef.current = restored;
+      setItems(restored);
+      // A stored cart written before the cap (or hand-edited) can exceed the
+      // limit: keep the items, but explain the rule at once instead of
+      // failing silently at checkout.
+      if (cartUnitCount(restored) > MAX_UNITS_PER_ORDER) {
+        setLimitNotice({ currentUnits: cartUnitCount(restored), attemptedUnits: 0, limit: MAX_UNITS_PER_ORDER });
+      }
     }
     setHydrated(true);
     });
@@ -60,25 +94,42 @@ export function CartProvider({ children, initialItems = [], approvedVariantIds =
   }, [items, hydrated]);
 
   const addItem = useCallback<CartContextValue["addItem"]>((item, quantity = 1) => {
-    if (!Number.isSafeInteger(quantity) || quantity < 1 || item.maxQuantity < 1) return;
+    if (!Number.isSafeInteger(quantity) || quantity < 1 || item.maxQuantity < 1) return { added: true };
     const approved=reconcileCartLines([{variantId:item.variantId,quantity}],approvedProducts)[0];
-    if(!approved||!approvedIds.has(approved.variantId))return;
+    if(!approved||!approvedIds.has(approved.variantId))return { added: true };
     item=approved;
-    setItems((current) => {
-      const existing = current.find((i) => i.id === item.id);
-      if (existing) {
-        return current.map((i) => (i.id === item.id ? { ...i, quantity: Math.min(i.quantity + quantity, i.maxQuantity) } : i));
-      }
-      return [...current, { ...item, quantity: Math.min(quantity, item.maxQuantity) }];
-    });
+    const { lines, result } = applyCartAdd(itemsRef.current, item, quantity);
+    itemsRef.current = lines;
+    setItems(lines);
+    if (result.refused) {
+      setLimitNotice(result.refusal);
+      return { added: false, reason: "limit" };
+    }
+    return { added: true };
   }, [approvedProducts,approvedIds]);
 
-  const updateQuantity = useCallback((lineId: string, quantity: number) => {
-    setItems((current) => current.map((i) => (i.id === lineId ? { ...i, quantity: Math.max(1, Math.min(quantity, i.maxQuantity)) } : i)));
+  const updateQuantity = useCallback<CartContextValue["updateQuantity"]>((lineId, quantity) => {
+    const { lines, result } = applyCartQuantity(itemsRef.current, lineId, quantity);
+    itemsRef.current = lines;
+    setItems(lines);
+    if (result.refused) {
+      setLimitNotice(result.refusal);
+      return { added: false, reason: "limit" };
+    }
+    return { added: true };
   }, []);
 
-  const removeItem = useCallback((lineId: string) => setItems((current) => current.filter((i) => i.id !== lineId)), []);
-  const clear = useCallback(() => setItems([]), []);
+  const dismissLimitNotice = useCallback(() => setLimitNotice(null), []);
+
+  const removeItem = useCallback((lineId: string) => {
+    const next = itemsRef.current.filter((i) => i.id !== lineId);
+    itemsRef.current = next;
+    setItems(next);
+  }, []);
+  const clear = useCallback(() => {
+    itemsRef.current = [];
+    setItems([]);
+  }, []);
 
   const subtotal = items.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
 
@@ -103,6 +154,7 @@ export function CartProvider({ children, initialItems = [], approvedVariantIds =
       items,
       hydrated,
       itemCount: items.reduce((n, i) => n + i.quantity, 0),
+      maxUnitsPerOrder: MAX_UNITS_PER_ORDER,
       addItem,
       updateQuantity,
       removeItem,
@@ -114,8 +166,10 @@ export function CartProvider({ children, initialItems = [], approvedVariantIds =
       isDrawerOpen,
       openDrawer: () => setDrawerOpen(true),
       closeDrawer: () => setDrawerOpen(false),
+      limitNotice,
+      dismissLimitNotice,
     }),
-    [items, hydrated, addItem, updateQuantity, removeItem, clear, coupon, applyCoupon, getSummary, isDrawerOpen],
+    [items, hydrated, addItem, updateQuantity, removeItem, clear, coupon, applyCoupon, getSummary, isDrawerOpen, limitNotice, dismissLimitNotice],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
