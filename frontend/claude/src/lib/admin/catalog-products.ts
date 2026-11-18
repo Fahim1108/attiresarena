@@ -63,6 +63,7 @@ import {
   canViewProductCosts,
   requireStaff,
   type AdminActionResult,
+  type StaffSession,
 } from "./authorization";
 import {
   areaRoles,
@@ -89,7 +90,9 @@ import {
   type VariantStockRow,
 } from "./catalog-variants";
 import { readPublishedFeed } from "../../services/adapters/published-thrift";
-import type { StorefrontFeedHealth } from "../catalog-publication";
+import type {
+  StorefrontFeedHealthWithCatalogueTotal,
+} from "../catalog-publication";
 import {
   parseYoutubeVideoInput,
   YOUTUBE_VIDEO_ID_PATTERN,
@@ -906,16 +909,41 @@ export async function readCatalogProduct(
 }
 
 /**
+ * Whole-catalogue product total: a head-count read (no rows are
+ * transferred) through the staff client (RLS) — the same client
+ * listCatalogProducts reads products with, so no new grants and no
+ * migration are needed. Never throws: null on any failure, so a
+ * failed count degrades to "Could not be checked" on the unpublished
+ * row instead of failing the whole feed card.
+ */
+async function readCatalogueTotal(
+  client: StaffSession["client"],
+): Promise<number | null> {
+  try {
+    const total = await client
+      .from("products")
+      .select("id", { count: "exact", head: true });
+    return total.error || total.count === null ? null : total.count;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Storefront feed health for the admin-only diagnostics indicator
  * (staff-gated: project refs are not secrets, but the indicator is an
  * operator surface, not a public one). Returns null when the feed
  * read itself fails unexpectedly; per-source failures are reported
- * inside the health object, never thrown.
+ * inside the health object, never thrown. The catalogue total rides
+ * along so the card can show the unpublished count (total − published).
  */
-export async function readStorefrontFeedHealth(): Promise<StorefrontFeedHealth | null> {
-  await requireStaff(areaRoles("catalogue"));
+export async function readStorefrontFeedHealth(): Promise<StorefrontFeedHealthWithCatalogueTotal | null> {
+  const session = await requireStaff(areaRoles("catalogue"));
   try {
-    const feed = await readPublishedFeed();
+    const [feed, catalogueTotal] = await Promise.all([
+      readPublishedFeed(),
+      readCatalogueTotal(session.client),
+    ]);
     return {
       configured: feed.configured,
       allowlistOk: feed.allowlistOk,
@@ -928,6 +956,7 @@ export async function readStorefrontFeedHealth(): Promise<StorefrontFeedHealth |
       expectedProjectRef: feed.expectedProjectRef,
       allowlistError: feed.allowlistError,
       publishedError: feed.publishedError,
+      catalogueTotal,
     };
   } catch {
     return null;

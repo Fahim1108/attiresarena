@@ -1,24 +1,32 @@
-import type { StorefrontFeedHealth } from "@/lib/catalog-publication";
+import type { StorefrontFeedHealthWithCatalogueTotal } from "@/lib/catalog-publication";
 import styles from "./catalogue-v2.module.css";
 
 /**
- * Admin-only storefront publication counts (products page). Shows the
- * published-products count from the storefront feed read — nothing
- * technical: no project refs, no per-source diagnostics, no footnotes.
+ * Admin-only storefront publication counts (products page). Shows two
+ * real numbers and nothing technical: no project refs, no per-source
+ * diagnostics, no footnotes.
  *
- * NOTE: an unpublished-products count is deliberately NOT shown: it
- * cannot be derived from the data this page loads (the product list
- * is filtered + paginated, and the feed read carries no catalogue
- * total), and an estimate would be a fake number. A follow-up read
- * can add it; see ADMIN_REDESIGN_V2_CLIENT_FIXES_REPORT.md.
+ * DEFINITION (decided 2026-11-18): unpublished = catalogue total
+ * MINUS the published-feed count, i.e. every product NOT in the
+ * published-feed result set — archived, never published, or missing
+ * the media/variants/category the feed requires. Published +
+ * unpublished = the whole catalogue. The two reads happen at
+ * slightly different times, so a transient race can make the total
+ * momentarily smaller than the published count; the difference is
+ * clamped at zero rather than showing a negative count.
  */
 export function FeedHealthIndicator({
   health,
 }: {
-  health: StorefrontFeedHealth | null;
+  health: StorefrontFeedHealthWithCatalogueTotal | null;
 }) {
   const publishedCount =
     health !== null && health.publishedOk ? health.publishedCount : null;
+  const catalogueTotal = health?.catalogueTotal ?? null;
+  const unpublishedCount =
+    publishedCount !== null && catalogueTotal !== null
+      ? Math.max(0, catalogueTotal - publishedCount)
+      : null;
 
   return (
     <section className={styles.feedHealth} aria-label="Storefront feed">
@@ -35,6 +43,18 @@ export function FeedHealthIndicator({
             ) : (
               <>
                 {publishedCount} product{publishedCount === 1 ? "" : "s"}
+              </>
+            )}
+          </dd>
+        </div>
+        <div className={styles.feedHealthRow}>
+          <dt className={styles.feedHealthLabel}>Unpublished products</dt>
+          <dd className={styles.feedHealthValue}>
+            {unpublishedCount === null ? (
+              "Could not be checked"
+            ) : (
+              <>
+                {unpublishedCount} product{unpublishedCount === 1 ? "" : "s"}
               </>
             )}
           </dd>

@@ -28,7 +28,7 @@ const catalogueModule = read("../src/components/admin/catalog/catalogue-v2.modul
 const adminPanel = read("../src/app/admin/admin-panel.css");
 const adminCss = read("../src/app/admin/admin.css");
 
-it("feed card shows only the published-products count", () => {
+it("feed card shows the published-products count", () => {
   expect(feedCard).toContain("Published products");
   expect(feedCard).toContain("Could not be checked");
 });

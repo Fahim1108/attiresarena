@@ -546,6 +546,19 @@ export interface StorefrontFeedHealth {
 
 export type FeedHealthStatus = "ok" | "partial" | "unavailable";
 
+/**
+ * Staff-only extension of the feed health read: the whole-catalogue
+ * product total, from a head-count read in readStorefrontFeedHealth
+ * (catalog-products.ts). Null when the count read fails — the
+ * published row still renders. Unpublished = catalogueTotal −
+ * publishedCount, i.e. every product NOT in the published-feed
+ * result set, so published + unpublished = the whole catalogue.
+ */
+export interface StorefrontFeedHealthWithCatalogueTotal
+  extends StorefrontFeedHealth {
+  catalogueTotal: number | null;
+}
+
 export function feedHealthStatus(health: StorefrontFeedHealth): FeedHealthStatus {
   if (!health.configured) return "unavailable";
   if (health.allowlistOk && health.publishedOk) return "ok";
