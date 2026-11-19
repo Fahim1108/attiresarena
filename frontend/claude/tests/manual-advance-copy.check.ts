@@ -26,40 +26,54 @@ it('shows working instructions when collection is available', () => {
   expect(out).toContain('পেমেন্ট Submit করুন');
   expect(out).not.toContain('Submit Payment');
   expect(out).not.toContain('Live collection is disabled');
+  expect(out).not.toContain('Live payment submission is disabled');
+  expect(out).not.toContain('Payment collection is unavailable');
   expect(out).not.toContain('Submissions are unavailable');
+  expect(out).not.toContain('নেওয়া যাচ্ছে না');
+  expect(out).not.toContain('জমা দেওয়া যাচ্ছে না');
   expect(out).not.toContain('প্রিভিউতে পেমেন্ট নেওয়া যাচ্ছে না');
 });
 
-it('names the preview limitation when collection is off in a preview', () => {
+it('states the preview-only wording when collection is off in a preview', () => {
   const out = html(false, false);
-  expect(out).toContain('এই প্রিভিউতে পেমেন্ট নেওয়া যাচ্ছে না। টাকা পাঠাবেন না।');
-  expect(out).toContain('এই প্রিভিউতে পেমেন্টের তথ্য জমা দেওয়া যাচ্ছে না।');
+  expect(out).toContain('এই প্রিভিউতে শুধু দেখা যাবে। টাকা পাঠাবেন না।');
+  expect(out).toContain('এই প্রিভিউতে পেমেন্টের তথ্য জমা দেবেন না।');
   expect(out).toContain('পেমেন্ট Submit করুন');
   expect(out).not.toContain('Submit Payment');
   expect(out).not.toContain('ডেলিভারি চার্জসহ পুরো অর্ডারের টাকা');
   expect(out).not.toContain('Live collection is disabled');
+  expect(out).not.toContain('Live payment submission is disabled');
+  expect(out).not.toContain('Payment collection is unavailable');
   expect(out).not.toContain('Submissions are unavailable');
+  expect(out).not.toContain('নেওয়া যাচ্ছে না');
+  expect(out).not.toContain('জমা দেওয়া যাচ্ছে না');
 });
 
 it('does not name a preview on production when collection is off', () => {
   const out = html(false, true);
-  expect(out).toContain('এই মুহূর্তে পেমেন্ট নেওয়া যাচ্ছে না। টাকা পাঠাবেন না।');
-  expect(out).toContain('এই মুহূর্তে পেমেন্টের তথ্য জমা দেওয়া যাচ্ছে না।');
+  expect(out).toContain('পেমেন্টের তথ্য এখানে জমা দেবেন না। টাকা পাঠাবেন না।');
+  expect(out).toContain('আপনার PIN বা OTP কাউকে দেবেন না। পেমেন্টের তথ্য এখানে জমা দেবেন না।');
   expect(out).not.toContain('প্রিভিউ');
   expect(out).not.toContain('Live collection is disabled');
+  expect(out).not.toContain('Live payment submission is disabled');
+  expect(out).not.toContain('Payment collection is unavailable');
   expect(out).not.toContain('Submissions are unavailable');
+  expect(out).not.toContain('নেওয়া যাচ্ছে না');
+  expect(out).not.toContain('জমা দেওয়া যাচ্ছে না');
 });
 
 it('shows the selector description in Bangla for every collection state', () => {
   expect(selectorHtml(true, true, true)).toContain('পুরো অর্ডারের টাকা পে করুন।');
   const preview = selectorHtml(false, true, false);
-  expect(preview).toContain('শুধু প্রিভিউ। পেমেন্ট নেওয়া যাচ্ছে না।');
+  expect(preview).toContain('শুধু প্রিভিউ। টাকা পাঠাবেন না।');
   const production = selectorHtml(false, true, true);
-  expect(production).toContain('এই মুহূর্তে পেমেন্ট নেওয়া যাচ্ছে না।');
+  expect(production).toContain('bKash বা Nagad দিয়ে পেমেন্ট।');
   expect(production).not.toContain('প্রিভিউ');
   for (const out of [selectorHtml(true, true, true), preview, production]) {
     expect(out).not.toContain('Collection is disabled');
     expect(out).not.toContain('Pay the full order total.');
     expect(out).not.toContain('Currently unavailable.');
+    expect(out).not.toContain('নেওয়া যাচ্ছে না');
+    expect(out).not.toContain('জমা দেওয়া যাচ্ছে না');
   }
 });

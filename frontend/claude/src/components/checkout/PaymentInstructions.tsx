@@ -4,7 +4,7 @@ import type { PaymentDestination } from '@/types/manual-payment';
 export function PaymentInstructions({destination,available}:{destination?:PaymentDestination;available:boolean}) {
   return <div className="space-y-3">
     <h4 lang="bn" className="font-semibold">যেভাবে পেমেন্ট করবেন</h4>
-    {!available && <p className="text-sm font-medium leading-relaxed text-primary">Payment collection is unavailable. Do not send money. These instructions describe the flow after collection is enabled.</p>}
+    {!available && <p lang="bn" className="text-sm font-medium leading-relaxed text-primary">টাকা পাঠাবেন না। নিচের ধাপগুলোতে পেমেন্টের প্রক্রিয়াটি দেখানো হয়েছে।</p>}
     {destination?.accountType === 'personal' ? <ol lang="bn" className="space-y-2 text-sm leading-relaxed text-ink-muted">
       <li>১. bKash অথবা Nagad নির্বাচন করুন।</li>
       <li>২. আপনার bKash/Nagad অ্যাপ খুলে Send Money অপশনে যান।</li>

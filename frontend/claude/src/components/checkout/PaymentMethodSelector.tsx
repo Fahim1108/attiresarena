@@ -3,15 +3,16 @@ import { cn } from "@/lib/cn";
 import type { PaymentMethod } from "@/types";
 
 export function PaymentMethodSelector({ value, onChange, onlineEnabled, previewEnabled = false, isProduction = false }: { value: PaymentMethod; onChange: (m: PaymentMethod) => void; onlineEnabled: boolean; previewEnabled?: boolean; isProduction?: boolean }) {
-  // The payment step is Bangla: the online description must say, in Bangla,
-  // whether the full amount can be paid here — never a hardcoded "disabled" line.
+  // The payment step is Bangla: the online description must never claim
+  // full payment is disabled. Off states stay neutral: the preview names
+  // itself as preview-only, and no state shows send-money instructions.
   const onlineDescription = onlineEnabled
     ? "পুরো অর্ডারের টাকা পে করুন।"
     : isProduction
-      ? "এই মুহূর্তে পেমেন্ট নেওয়া যাচ্ছে না।"
+      ? "bKash বা Nagad দিয়ে পেমেন্ট।"
       : previewEnabled
-        ? "bKash বা Nagad · শুধু প্রিভিউ। পেমেন্ট নেওয়া যাচ্ছে না।"
-        : "এই মুহূর্তে পেমেন্ট নেওয়া যাচ্ছে না।";
+        ? "bKash বা Nagad · শুধু প্রিভিউ। টাকা পাঠাবেন না।"
+        : "bKash বা Nagad দিয়ে পেমেন্ট।";
   const options = [
     { id: "cod" as const, title: "Cash on Delivery", description: "Location-based advance, then the remaining balance on delivery. Advance must be verified before confirmation.", Icon: Banknote, disabled: false },
     { id: "online" as const, title: "Full Online Payment", description: onlineDescription, Icon: CreditCard, disabled: !onlineEnabled && !previewEnabled },
