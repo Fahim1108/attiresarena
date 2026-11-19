@@ -232,6 +232,12 @@ describe("category image alt (SEO-15: intentional alt=\"\")", () => {
     expect(browse).toContain("alt=\"\" is intentional");
     expect(browse).toContain("{category.name}");
   });
+
+  it("feature tiles (/categories page) use the same thumbnail photo as the homepage, not the vector illustration", () => {
+    const card = read("../src/components/category/CategoryCard.tsx");
+    expect(card).toContain("category.thumbnail ?? category.image");
+    expect(card).toContain('variant === "feature" ? featureImage : category.image');
+  });
 });
 
 describe("JSON-LD wiring (SEO-4)", () => {
