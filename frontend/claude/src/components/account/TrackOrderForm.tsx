@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Field";
+import { isValidBdPhone } from "@/lib/validation";
 import { getOrderByNumberAction } from "@/services/actions";
 import type { Order } from "@/types";
 import { OrderStatusBadge } from "./OrderStatusBadge";
@@ -13,7 +14,8 @@ import { OrderTimeline } from "./OrderTimeline";
 export function TrackOrderForm() {
   const [orderNumber, setOrderNumber] = useState("");
   const [phone, setPhone] = useState("");
-  const [error, setError] = useState<string>();
+  const [orderError, setOrderError] = useState<string>();
+  const [phoneError, setPhoneError] = useState<string>();
   const [order, setOrder] = useState<Order | null | undefined>(undefined);
   const [pending, start] = useTransition();
   const focusFirstError = (id: string) => requestAnimationFrame(() => document.getElementById(id)?.focus());
@@ -26,27 +28,36 @@ export function TrackOrderForm() {
           e.preventDefault();
           if (pending) return;
           if (!orderNumber.trim()) {
-            setError("Enter your order number");
+            setOrderError("Enter your order number");
             return focusFirstError("track-orderNumber");
           }
-          setError(undefined);
+          if (!phone.trim()) {
+            setPhoneError("Enter the phone number from your order");
+            return focusFirstError("track-phone");
+          }
+          if (!isValidBdPhone(phone)) {
+            setPhoneError("Enter a valid phone number, e.g. 01XXXXXXXXX");
+            return focusFirstError("track-phone");
+          }
+          setOrderError(undefined);
+          setPhoneError(undefined);
+          setOrder(undefined);
           start(async () => {
             try { setOrder(await getOrderByNumberAction(orderNumber, phone)); }
             catch {
-              setError("Tracking is unavailable. Please try again.");
+              setOrderError("Tracking is unavailable. Please try again.");
               focusFirstError("track-orderNumber");
             }
           });
         }}
       >
-        <Input id="track-orderNumber" name="order-number" label="Order Number" autoComplete="off" spellCheck={false} value={orderNumber} onChange={(e) => setOrderNumber(e.target.value)} error={error} />
-        <Input id="track-phone" name="tel" label="Phone Number (optional)" type="tel" autoComplete="tel" placeholder="01XXXXXXXXX" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        <Button type="submit" size="lg" loading={pending} disabled>
+        <Input id="track-orderNumber" name="order-number" label="Order Number" autoComplete="off" spellCheck={false} placeholder="AA-10004" value={orderNumber} onChange={(e) => { setOrderNumber(e.target.value); setOrderError(undefined); }} error={orderError} />
+        <Input id="track-phone" name="tel" label="Phone Number" type="tel" autoComplete="tel" placeholder="01XXXXXXXXX" value={phone} onChange={(e) => { setPhone(e.target.value); setPhoneError(undefined); }} error={phoneError} required />
+        <Button type="submit" size="lg" loading={pending}>
           Track
         </Button>
       </form>
-      <p role="status" className="text-sm text-ink-muted">Order tracking is currently unavailable. Contact us on WhatsApp for assistance with an existing order.</p>
-      {order === null && <EmptyState icon={<PackageSearch className="h-7 w-7" />} title="Order not found" description="Check the order number from your confirmation SMS and try again." />}
+      {order === null && <EmptyState icon={<PackageSearch className="h-7 w-7" />} title="Order not found" description="Check the order number and phone number from your confirmation SMS and try again." />}
       {order && (
         <section className="rounded-card border border-line p-5 sm:p-6" aria-live="polite">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
