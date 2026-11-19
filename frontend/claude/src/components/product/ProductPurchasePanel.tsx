@@ -40,6 +40,13 @@ export function ProductPurchasePanel({ product, brandName, colorId, sizeGuide, c
   const variant = size ? findVariant(product, colorId, size) : undefined;
   const stock = variant?.stock ?? 0;
   const colorHasStock = stock > 0;
+  // Stock in ANY size of this color: no size selected yet is "undecided",
+  // not "out of stock". The purchase buttons and status line must say so
+  // instead of showing Sold Out / Out of stock before the shopper chooses.
+  const anySizeInStock = product.sizes.some((s) =>
+    isSizeAvailable(product, colorId, s),
+  );
+  const purchaseDisabled = !anySizeInStock || (variant !== undefined && stock < 1);
 
   const add = (buyNow: boolean) => {
     if (!size || !variant) {
@@ -98,19 +105,24 @@ export function ProductPurchasePanel({ product, brandName, colorId, sizeGuide, c
           <span className="text-sm text-ink">Quantity</span>
           <QuantitySelector value={qty} onChange={setQty} max={Math.max(1, stock || 10)} />
         </div>
-        <StockStatus inStock={colorHasStock} stock={variant ? stock : undefined} />
+        <StockStatus
+          sizeSelected={size !== undefined}
+          anyInStock={anySizeInStock}
+          inStock={colorHasStock}
+          stock={variant ? stock : undefined}
+        />
       </div>
 
       {guide && <button type="button" onClick={()=>setGuideOpen(true)} aria-haspopup="dialog" className="!mt-2 inline-flex min-h-11 items-center text-sm font-medium text-primary underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">Size Guide</button>}
 
       <div className="space-y-2.5">
         <div className="flex gap-2.5">
-          <Button size="lg" variant="outline" className="border-primary bg-white text-primary hover:bg-selected hover:text-primary" fullWidth onClick={() => add(false)} disabled={!colorHasStock || (variant && stock < 1)} leftIcon={<ShoppingBag className="h-4 w-4" aria-hidden />}>
-            {colorHasStock ? "Add to Cart" : "Sold Out"}
+          <Button size="lg" variant="outline" className="border-primary bg-white text-primary hover:bg-selected hover:text-primary" fullWidth onClick={() => add(false)} disabled={purchaseDisabled} leftIcon={<ShoppingBag className="h-4 w-4" aria-hidden />}>
+            {!size && anySizeInStock ? "Select a Size" : colorHasStock ? "Add to Cart" : "Sold Out"}
           </Button>
           {!compact && <WishlistButton productId={product.id} productName={product.name} variant="inline" className="h-12 w-12 shrink-0" />}
         </div>
-        <Button size="lg" variant="burgundy" fullWidth onClick={() => add(true)} disabled={!colorHasStock || (variant && stock < 1)} leftIcon={<Zap className="h-4 w-4" aria-hidden />}>
+        <Button size="lg" variant="burgundy" fullWidth onClick={() => add(true)} disabled={purchaseDisabled} leftIcon={<Zap className="h-4 w-4" aria-hidden />}>
           Buy Now
         </Button>
         {compact && (
@@ -141,7 +153,30 @@ export function ProductPurchasePanel({ product, brandName, colorId, sizeGuide, c
   );
 }
 
-function StockStatus({ inStock, stock }: { inStock: boolean; stock?: number }) {
+function StockStatus({
+  sizeSelected,
+  anyInStock,
+  inStock,
+  stock,
+}: {
+  sizeSelected: boolean;
+  anyInStock: boolean;
+  inStock: boolean;
+  stock?: number;
+}) {
+  if (!sizeSelected) {
+    if (!anyInStock)
+      return (
+        <span className="flex items-center gap-1.5 text-xs text-danger">
+          <CircleAlert className="h-4 w-4" aria-hidden /> Out of stock
+        </span>
+      );
+    return (
+      <span className="flex items-center gap-1.5 text-xs text-ink-muted">
+        Select a size to see availability
+      </span>
+    );
+  }
   if (!inStock || stock === 0)
     return (
       <span className="flex items-center gap-1.5 text-xs text-danger">

@@ -33,6 +33,24 @@ export function eligibleCandidates(candidates: MerchandisingCandidate[], now = D
   });
 }
 
+/**
+ * Trusted candidates from the browsable storefront feed. Only real
+ * publications qualify: design-review fixtures (reviewOnly) carry no
+ * publication metadata and are excluded. publishedAt is the product's
+ * createdAt, which the publication projector sets to the row's
+ * published_at (set by the publish RPC) and falls back to created_at —
+ * both real database timestamps, never invented.
+ */
+export function toMerchandisingCandidates(products: Product[]): MerchandisingCandidate[] {
+  return products
+    .filter((product) => !product.reviewOnly)
+    .map((product) => ({
+      product,
+      status: "published" as const,
+      publishedAt: product.createdAt,
+    }));
+}
+
 /** Rank first, apply a soft category cap, then redistribute unused slots. No randomness. */
 export function selectMixedProducts(candidates: MerchandisingCandidate[], options: MerchandisingRules & {
   kind: CollectionKind;

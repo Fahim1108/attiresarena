@@ -10,6 +10,7 @@ import {campaignHero} from '@/config/campaign-banners';
 import {reviewShirts} from './review-thrift';
 import {publishedShirts,approvedReviews,readPublishedFeed,readThriftFeed,readAdminFeed} from './published-thrift';
 import {mergeStorefrontFeed} from '@/lib/catalog-publication';
+import {toMerchandisingCandidates} from '@/lib/merchandising';
 
 import {storeCategories} from '@/config/catalogue';
 import {defaultStorefrontSettings} from '@/config';
@@ -38,16 +39,31 @@ export async function browsableShirts(options:{liveReview?:boolean}={}){
 }
 const categories=storeCategories.map(c=>({...c,available:c.slug==='shirts',description:c.slug==='shirts'?'Individual thrift shirts, carefully selected.':'Coming soon.',...(c.slug==='shirts'?{image:{src:'/inventory/thrift-shirts/AA-SHIRT-001-front.jpg',alt:'Attires Arena thrift shirts'},thumbnail:{src:'/inventory/thrift-shirts/AA-SHIRT-001-front.jpg',alt:'Attires Arena thrift shirts'}}:{})}));
 
-/** Explicit owner inventory curation. Source order is not represented as a publication timestamp. */
+/** Explicit owner inventory curation. Source order is not represented as a publication timestamp. Real publications sort newest-first by createdAt (the projector's published_at); design-review fixtures keep slug order after them. Featured prefers products badged "Featured Product" in admin; the fixture preview slice remains only when nothing is flagged. */
 export function curatedInventoryCollection(products:Product[],kind:'new-arrivals'|'featured'|'best-sellers',limit=8){
  if(kind==='best-sellers')return [];
- const inventory=products.filter(p=>/^aa-shirt-\d{3}$/.test(p.slug)).sort((a,b)=>a.slug.localeCompare(b.slug));
- return (kind==='new-arrivals'?inventory:inventory.slice(8)).slice(0,Math.max(0,Math.min(limit,8)));
+ const capped=Math.max(0,Math.min(limit,8));
+ const fixtures=products.filter(p=>/^aa-shirt-\d{3}$/.test(p.slug)).sort((a,b)=>a.slug.localeCompare(b.slug));
+ const real=products.filter(p=>!p.reviewOnly);
+ const byRecency=(a:Product,b:Product)=>{
+  const pa=Date.parse(a.createdAt); const pb=Date.parse(b.createdAt);
+  if(Number.isFinite(pa)&&Number.isFinite(pb)&&pa!==pb)return pb-pa;
+  if(Number.isFinite(pa))return -1;
+  if(Number.isFinite(pb))return 1;
+  return a.slug.localeCompare(b.slug);
+ };
+ if(kind==='new-arrivals'){
+  const ranked=[...real].sort(byRecency);
+  const seen=new Set(ranked.map(p=>p.slug));
+  return [...ranked,...fixtures.filter(p=>!seen.has(p.slug))].slice(0,capped);
+ }
+ const flagged=real.filter(p=>p.isFeatured).sort(byRecency);
+ return (flagged.length?flagged:fixtures.slice(8)).slice(0,capped);
 }
 export const ownerCatalogue:StorefrontDataSource={...unavailableServices,...customerServices,
  // Real orders only when the checkout gate opens (staging or production path); otherwise this reports "not connected".
  async placeOrder(payload){return placeCheckoutOrder(payload);},
- async getHomepageProducts(){return []; /* Publication dates must come from trusted publication metadata. */},
+ async getHomepageProducts(){return toMerchandisingCandidates((await browsableShirtsWithStatus()).products);},
  async getProducts(query={}){
   const {products,feedUnavailable}=await browsableShirtsWithStatus();
   // Provisional preview sizes and visually proposed metadata never satisfy verified facets.
