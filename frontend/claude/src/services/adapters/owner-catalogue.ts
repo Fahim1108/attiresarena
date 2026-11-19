@@ -8,7 +8,7 @@ import { unavailableServices } from "./unavailable";
 import { customerServices } from "./customer";
 import {campaignHero} from '@/config/campaign-banners';
 import {reviewShirts} from './review-thrift';
-import {publishedShirts,approvedReviews,readPublishedFeed,readThriftFeed,readAdminFeed} from './published-thrift';
+import {publishedShirts,approvedReviews,readPublishedFeed} from './published-thrift';
 import {mergeStorefrontFeed} from '@/lib/catalog-publication';
 import {toMerchandisingCandidates} from '@/lib/merchandising';
 
@@ -37,7 +37,7 @@ export async function browsableShirtsWithStatus(options:{liveReview?:boolean}={}
 export async function browsableShirts(options:{liveReview?:boolean}={}){
  return (await browsableShirtsWithStatus(options)).products;
 }
-const categories=storeCategories.map(c=>({...c,available:c.slug==='shirts',description:c.slug==='shirts'?'Individual thrift shirts, carefully selected.':'Coming soon.',...(c.slug==='shirts'?{image:{src:'/inventory/thrift-shirts/AA-SHIRT-001-front.jpg',alt:'Attires Arena thrift shirts'},thumbnail:{src:'/inventory/thrift-shirts/AA-SHIRT-001-front.jpg',alt:'Attires Arena thrift shirts'}}:{})}));
+const categories=storeCategories.map(c=>({...c,available:c.slug==='shirts',description:c.slug==='shirts'?'Individual thrift shirts, carefully selected.':'Coming soon.',...(c.slug==='shirts'?{image:{src:'/images/mockup/category-shirts-check.svg',alt:'Check shirts in white and maroon'},thumbnail:{src:'/images/mockup/category-shirts-check.svg',alt:'Check shirts in white and maroon'}}:{})}));
 
 /** Explicit owner inventory curation. Source order is not represented as a publication timestamp. Real publications sort newest-first by createdAt (the projector's published_at); design-review fixtures keep slug order after them. Featured prefers products badged "Featured Product" in admin; the fixture preview slice remains only when nothing is flagged. */
 export function curatedInventoryCollection(products:Product[],kind:'new-arrivals'|'featured'|'best-sellers',limit=8){
@@ -89,16 +89,16 @@ export const ownerCatalogue:StorefrontDataSource={...unavailableServices,...cust
  },async getInitialCart(){return [];},
  async getCategories(){
   if(reviewInventoryEnabled())return categories;
-  const thrift=await readThriftFeed();
-  // The admin source is read only when the allowlist read fails: a
-  // working allowlist already proves the feed is reachable. Shirts
-  // availability still reflects the allowlist feed only (admin
-  // products do not list on /category/* pages — see
-  // catalog-publication.ts, shirts-only design intent).
-  let catalogueUnavailable=false;
-  if(!thrift.ok)catalogueUnavailable=!(await readAdminFeed()).ok;
-  const hasPublished=thrift.products.length>0;
-  return categories.map(c=>({...c,available:c.slug==='shirts'&&hasPublished,catalogueUnavailable}));
+  // Shirts availability reflects the whole browsable catalogue
+  // (allowlist UNION admin-published), the same list /shop and the
+  // homepage render — not the allowlist alone. The allowlist is empty
+  // on production while admin-published shirts are live, which left
+  // /category/shirts on "Coming Soon" while /shop showed 22 products.
+  // feedUnavailable is true only when BOTH feed sources fail, exactly
+  // as browsableShirtsWithStatus reports it.
+  const {products,feedUnavailable}=await browsableShirtsWithStatus();
+  const hasPublished=products.length>0;
+  return categories.map(c=>({...c,available:c.slug==='shirts'&&hasPublished,catalogueUnavailable:feedUnavailable}));
  },async getCategoryBySlug(slug){return (await this.getCategories()).find(c=>c.slug===slug)??null;},
  async getSizeGuide(id){return id==='tops'?officialShirtSizeGuide:null;},
  async getManualPaymentConfiguration(){

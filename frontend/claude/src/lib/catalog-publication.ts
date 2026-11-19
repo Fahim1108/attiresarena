@@ -109,11 +109,13 @@
  * surfaces (/shop, homepage listings, search, product pages — the
  * Shirts display behavior) and NEVER make a non-shirt category page
  * list products. Admin products keep their database category UUID as
- * categoryId, which matches no static storefront category, so
- * /category/* pages (including /category/shirts) keep their existing
- * static-taxonomy behavior; whether /category/shirts should one day
- * include published admin products is an open owner decision, not
- * something this change assumes.
+ * categoryId, which matches no static storefront category; the
+ * listing filter (catalog-query.ts) and the category availability
+ * check (owner-catalogue.ts getCategories) treat such a product as a
+ * shirt, so /category/shirts lists the merged browsable catalogue
+ * (allowlist UNION admin-published) — the owner decision of
+ * 2026-11-19, after /category/shirts showed "Coming Soon" while
+ * /shop listed 22 admin-published shirts.
  */
 
 import { isCatalogStoragePath } from "@/lib/admin/catalog-variants";
