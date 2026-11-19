@@ -22,11 +22,13 @@ import {
 } from "./seo";
 import type {
   Banner,
+  Category,
   FooterSettings,
   HeaderSettings,
   HeroSettings,
 } from "@/types";
 import { publicSupabaseConfiguration } from "./supabase-public";
+import { isCatalogStoragePath } from "./admin/catalog-variants";
 import {
   DEFAULT_ERROR_404,
   activeWidgets,
@@ -243,6 +245,245 @@ export function settingText(
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+// ---------------------------------------------------------------------------
+// Published categories (Admin Panel v2, categories wiring)
+// ---------------------------------------------------------------------------
+
+/**
+ * One row of public.categories as the storefront reads it: same
+ * public-safe pattern as getStorefrontContent (publishable REST client,
+ * `cache: "no-store"`, empty on any failure). The anon RLS policy
+ * `category_public` returns published rows only, so an unpublished row
+ * is indistinguishable from a missing one over this read — the merge
+ * below therefore never hides a static category on unpublish alone.
+ */
+export interface CategoryRow {
+  id: string;
+  parent_id: string | null;
+  name: string;
+  slug: string;
+  published: boolean;
+  description: string;
+  image_storage_path: string | null;
+  banner_storage_path: string | null;
+  seo_title: string | null;
+  seo_description: string | null;
+  sort_position: number;
+}
+
+const CATEGORY_SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+function nonBlankText(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+/** Validate one categories row; null when malformed (never throws). */
+export function parseCategoryRow(value: unknown): CategoryRow | null {
+  if (!isRecord(value)) return null;
+  const id = typeof value.id === "string" ? value.id : null;
+  const slug = typeof value.slug === "string" ? value.slug : null;
+  const name = nonBlankText(value.name);
+  if (!id || !slug || !CATEGORY_SLUG_PATTERN.test(slug) || !name) return null;
+  const parentId = value.parent_id ?? null;
+  if (parentId !== null && typeof parentId !== "string") return null;
+  if (typeof value.published !== "boolean") return null;
+  if (typeof value.description !== "string") return null;
+  if (
+    typeof value.sort_position !== "number" ||
+    !Number.isInteger(value.sort_position)
+  )
+    return null;
+  const image = value.image_storage_path ?? null;
+  const banner = value.banner_storage_path ?? null;
+  if (image !== null && typeof image !== "string") return null;
+  if (banner !== null && typeof banner !== "string") return null;
+  const seoTitle = value.seo_title ?? null;
+  const seoDescription = value.seo_description ?? null;
+  if (seoTitle !== null && typeof seoTitle !== "string") return null;
+  if (seoDescription !== null && typeof seoDescription !== "string") return null;
+  return {
+    id,
+    parent_id: parentId,
+    name,
+    slug,
+    published: value.published,
+    description: value.description,
+    image_storage_path: image,
+    banner_storage_path: banner,
+    seo_title: seoTitle,
+    seo_description: seoDescription,
+    sort_position: value.sort_position,
+  };
+}
+
+export function parseCategoryRows(rows: unknown[]): CategoryRow[] {
+  const parsed: CategoryRow[] = [];
+  for (const row of rows) {
+    const category = parseCategoryRow(row);
+    if (category) parsed.push(category);
+  }
+  return parsed;
+}
+
+/**
+ * Published categories for the storefront. Empty on any failure, so the
+ * caller falls back to the static config unchanged.
+ */
+export async function getPublishedCategories(): Promise<CategoryRow[]> {
+  const rows = await readRows(
+    "/rest/v1/categories?select=id,parent_id,name,slug,published,description,image_storage_path,banner_storage_path,seo_title,seo_description,sort_position&published=eq.true&order=sort_position.asc,created_at.asc",
+  );
+  return parseCategoryRows(rows).filter((row) => row.published);
+}
+
+/**
+ * Display URL for a stored category image/banner, or null when the path
+ * is not a valid catalog storage path. Served by /api/product-media,
+ * which only releases objects the published-category media policy
+ * allows — migration 20261119001000 (authored, NOT applied). Promoting
+ * this wiring without applying that migration breaks category photos
+ * for rows that have a stored image (the URL 404s); the static photo
+ * is kept only for rows with no stored image.
+ */
+export function categoryMediaUrl(
+  storagePath: string | null | undefined,
+): string | null {
+  if (!storagePath || !isCatalogStoragePath(storagePath)) return null;
+  return `/api/product-media/${storagePath}`;
+}
+
+/**
+ * Merge published DB categories over the static config.
+ *
+ * - Returns the static list unchanged (same reference) when no
+ *   published row is given, so a failed or empty read renders exactly
+ *   as before.
+ * - A DB row matching a static slug overrides name, description, SEO
+ *   and photo/banner — but NEVER the static `id`: product filtering
+ *   and the size guide key off the static ids, and admin products keep
+ *   their DB category UUID as categoryId, so swapping ids would break
+ *   /category/* matching (see catalog-publication.ts).
+ * - A DB row with a new slug is appended as a real category with the
+ *   DB uuid as id, so products assigned to it can match it in filters.
+ *   With no stored photo it uses the generic category illustration
+ *   until a photo is added in admin.
+ * - Description: the stored text wins when non-blank; otherwise the
+ *   previous storefront wording is kept ("Individual thrift shirts…"
+ *   for Shirts, "Coming soon." for everything else).
+ * - Order is depth-first by parent (top-level rows by sort_position,
+ *   each followed by its children); a row whose parent is not among
+ *   the published rows is treated as top-level. Static categories
+ *   with no DB row keep their relative order after the DB-driven
+ *   ones. sortOrder is reassigned sequentially in final order.
+ * - Unpublished rows are ignored here (and invisible to the anon
+ *   read anyway): unpublishing a category that also exists in the
+ *   static config does NOT remove it from the shop — that needs a
+ *   follow-up read that can see unpublished rows.
+ */
+export function mergeDbCategories(
+  staticCategories: Category[],
+  dbRows: CategoryRow[],
+): Category[] {
+  // Re-validate: the merge must never trust an unparsed row (bad slugs,
+  // missing names) even when called outside getPublishedCategories.
+  const rows = dbRows.flatMap((value) => {
+    const parsed = parseCategoryRow(value);
+    return parsed && parsed.published ? [parsed] : [];
+  });
+  if (rows.length === 0) return staticCategories;
+  const bySlug = new Map<string, CategoryRow>();
+  const byId = new Map<string, CategoryRow>();
+  for (const row of rows) {
+    if (!bySlug.has(row.slug)) bySlug.set(row.slug, row);
+    if (!byId.has(row.id)) byId.set(row.id, row);
+  }
+  const children = new Map<string, CategoryRow[]>();
+  const roots: CategoryRow[] = [];
+  for (const row of rows) {
+    const parent =
+      row.parent_id !== null ? byId.get(row.parent_id) : undefined;
+    if (parent) {
+      const list = children.get(parent.id) ?? [];
+      list.push(row);
+      children.set(parent.id, list);
+    } else {
+      roots.push(row);
+    }
+  }
+  const byPosition = (a: CategoryRow, b: CategoryRow) =>
+    a.sort_position - b.sort_position || a.name.localeCompare(b.name);
+  roots.sort(byPosition);
+  for (const list of children.values()) list.sort(byPosition);
+  const ordered: CategoryRow[] = [];
+  const visit = (row: CategoryRow) => {
+    ordered.push(row);
+    for (const child of children.get(row.id) ?? []) visit(child);
+  };
+  for (const root of roots) visit(root);
+
+  const merged: Category[] = [];
+  const usedSlugs = new Set<string>();
+  for (const row of ordered) {
+    if (usedSlugs.has(row.slug)) continue;
+    usedSlugs.add(row.slug);
+    const base = staticCategories.find((c) => c.slug === row.slug);
+    const description =
+      nonBlankText(row.description) ??
+      (row.slug === "shirts"
+        ? "Individual thrift shirts, carefully selected."
+        : "Coming soon.");
+    const imageUrl = categoryMediaUrl(row.image_storage_path);
+    const bannerUrl = categoryMediaUrl(row.banner_storage_path);
+    const seoTitle = nonBlankText(row.seo_title);
+    const seoDescription = nonBlankText(row.seo_description);
+    if (base) {
+      merged.push({
+        ...base,
+        name: row.name,
+        description,
+        ...(seoTitle ? { seoTitle } : { seoTitle: undefined }),
+        ...(seoDescription ? { seoDescription } : { seoDescription: undefined }),
+        ...(imageUrl
+          ? {
+              image: { src: imageUrl, alt: row.name },
+              thumbnail: { src: imageUrl, alt: row.name },
+            }
+          : {}),
+        ...(bannerUrl
+          ? { banner: { src: bannerUrl, alt: row.name } }
+          : { banner: undefined }),
+        sortOrder: 0,
+      });
+    } else {
+      merged.push({
+        id: row.id,
+        slug: row.slug,
+        name: row.name,
+        description,
+        ...(seoTitle ? { seoTitle } : {}),
+        ...(seoDescription ? { seoDescription } : {}),
+        image: imageUrl
+          ? { src: imageUrl, alt: row.name }
+          : { src: "/images/categories/shirts.svg", alt: row.name },
+        thumbnail: imageUrl
+          ? { src: imageUrl, alt: row.name }
+          : { src: "/images/categories/shirts.svg", alt: row.name },
+        ...(bannerUrl ? { banner: { src: bannerUrl, alt: row.name } } : {}),
+        sortOrder: 0,
+      });
+    }
+  }
+  for (const base of staticCategories) {
+    if (!usedSlugs.has(base.slug)) merged.push({ ...base, sortOrder: 0 });
+  }
+  return merged.map((category, index) => ({
+    ...category,
+    sortOrder: index + 1,
+  }));
 }
 
 /**

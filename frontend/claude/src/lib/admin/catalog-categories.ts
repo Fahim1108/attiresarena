@@ -12,8 +12,12 @@
  * Category images/banners reuse the private 'attires-product-drafts'
  * bucket: the client uploads bytes via catalog-media.ts, the storage path
  * is stored in the new categories columns, and display uses signed URLs.
- * Note: storefront category display follows existing publication
- * behaviour; saving a category here does not change the storefront feed.
+ * Published categories drive the storefront (name, description, photo,
+ * banner, SEO, order) through the public read in lib/store-settings.ts;
+ * photos/banners additionally need the published-category media policy
+ * (migration 20261119001000). Unpublishing a category that also exists
+ * in the static config does not remove it from the shop yet — the anon
+ * storefront read cannot see unpublished rows.
  *
  * LEVELS (Admin Panel v2): Primary = depth 1, Secondary = depth 2,
  * Sub-category = depth 3 (legacy rows only; the UI never creates new

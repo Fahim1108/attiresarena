@@ -81,8 +81,10 @@ export default async function CatalogCategoriesPage() {
         ) : null}
 
         <Notice kind="info">
-          Storefront category display follows existing publication behaviour;
-          saving a category here does not change the public storefront feed.
+          Published categories drive the storefront: name, description,
+          SEO and order apply on the next page load. Category photos and
+          banners show once the published-category media policy is
+          applied (see migration 20261119001000).
         </Notice>
         {!isSample && malformedRows > 0 ? (
           <Notice kind="warning">
