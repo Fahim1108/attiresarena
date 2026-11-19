@@ -4,7 +4,7 @@ import { logo, site } from "@/config";
 import { InfoHeader } from "@/components/info/InfoPage";
 import { ButtonLink, SmartImage } from "@/components/ui";
 import { buildPageMetadata, parsePageSeoOverride, resolveDefaultOgImage, resolveTwitterCard } from "@/lib/seo";
-import { getStorefrontContent } from "@/lib/store-settings";
+import { getStorefrontContent, resolveAboutContent } from "@/lib/store-settings";
 
 export async function generateMetadata(): Promise<Metadata> {
   const content = await getStorefrontContent();
@@ -27,7 +27,11 @@ const values = [
   { Icon: Banknote, title: "Pay on delivery", text: "Check your parcel first, then pay the rider. Simple and safe." },
 ];
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  // A saved "about" content block replaces the story heading and
+  // paragraphs; with nothing saved the built-in story text stays.
+  const content = await getStorefrontContent();
+  const about = resolveAboutContent(content?.blocks ?? null);
   return (
     <>
       <InfoHeader title="About Attires Arena" eyebrow="Our Story" intro="Timeless menswear and accessories for the modern Bangladeshi man — curated for everyday confidence." />
@@ -37,9 +41,17 @@ export default function AboutPage() {
             <SmartImage src="/images/banners/promo-tonal.svg" alt="Folded shirts in neutral tones" fill sizes="(min-width:1024px) 50vw, 100vw" className="object-cover" />
           </div>
           <div className="prose-policy">
-            <h2 className="!mt-0">Style, elevated.</h2>
-            <p>Attires Arena began with a simple idea: dressing well in Bangladesh shouldn&apos;t mean choosing between quality, comfort and price. We curate shirts, trousers, sneakers and accessories that work together — pieces you reach for again and again.</p>
-            <p>Every item is selected for fit, fabric and finish, and photographed honestly so what arrives at your door matches what you saw on screen.</p>
+            <h2 className="!mt-0">{about?.title ?? "Style, elevated."}</h2>
+            {about ? (
+              about.paragraphs.map((paragraph, i) => (
+                <p key={i}>{paragraph}</p>
+              ))
+            ) : (
+              <>
+                <p>Attires Arena began with a simple idea: dressing well in Bangladesh shouldn&apos;t mean choosing between quality, comfort and price. We curate shirts, trousers, sneakers and accessories that work together — pieces you reach for again and again.</p>
+                <p>Every item is selected for fit, fabric and finish, and photographed honestly so what arrives at your door matches what you saw on screen.</p>
+              </>
+            )}
           </div>
         </section>
         <section>

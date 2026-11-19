@@ -163,7 +163,7 @@ describe("content block slugs", () => {
     expect(wired.get("terms")).toBe(true);
     expect(wired.get("return-policy")).toBe(true);
     expect(wired.get("shipping-policy")).toBe(true);
-    expect(wired.get("about")).toBe(false);
+    expect(wired.get("about")).toBe(true);
   });
 });
 
