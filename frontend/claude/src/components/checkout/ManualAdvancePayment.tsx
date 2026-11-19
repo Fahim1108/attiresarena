@@ -7,19 +7,25 @@ import { useId, useRef, useState, useTransition } from "react";
 import { Button, Input } from "@/components/ui";
 import { manualPaymentBreakdown, formatPaymentAmount, validatePaymentDetails } from "@/lib/manual-payment";
 import { submitManualPaymentAction } from "@/services/manual-payment-actions";
-import type { AdvanceProvider, ManualPaymentConfiguration, PaymentSubmissionReceipt } from "@/types/manual-payment";
+import type { AdvanceProvider, ManualPaymentConfiguration, PaymentSubmissionInput, PaymentSubmissionReceipt } from "@/types/manual-payment";
 
 import { paymentBrands } from "@/config/payment-brands";
 import type { PaymentMethod } from "@/types";
 const names = { bkash: paymentBrands.bkash.name, nagad: paymentBrands.nagad.name };
 
-export function ManualAdvancePayment({ configuration, totalMinor, division, district, orderReference = null, mode = "cod" }: {
+export function ManualAdvancePayment({ configuration, totalMinor, division, district, orderReference = null, mode = "cod", onDetailsChange, onSubmitPayment, submitting = false }: {
   mode?: PaymentMethod;
   configuration: ManualPaymentConfiguration;
   totalMinor: number;
   division: string;
   district: string;
   orderReference?: string | null;
+  /** Checkout mode: report every edit so the parent can require the details before placing the order. */
+  onDetailsChange?: (details: { provider: AdvanceProvider; transactionId: string; senderNumber: string }) => void;
+  /** Checkout mode (no order yet): the validated details go to the parent, which places the order with them. */
+  onSubmitPayment?: (data: PaymentSubmissionInput) => void;
+  /** Parent is placing the order; keep the button from double-submitting. */
+  submitting?: boolean;
 }) {
   const id = useId();
   const [provider, setProvider] = useState<AdvanceProvider>("bkash");
@@ -34,7 +40,10 @@ export function ManualAdvancePayment({ configuration, totalMinor, division, dist
   const submissionKey = useRef<{ fingerprint: string; key: string } | null>(null);
   const destination = configuration.destinations.find(d => d.provider === provider);
   const breakdown = manualPaymentBreakdown(mode, totalMinor, division, district, configuration.policy);
-  const canSubmit = configuration.available && !!destination && !!orderReference && !!breakdown;
+  // Standalone mode (order already exists): the live submission needs the
+  // collection gate + an order reference. Checkout mode (no order yet): the
+  // details go to the parent with the order, and the server is the real gate.
+  const canSubmit = orderReference ? configuration.available && !!destination && !!breakdown : !!destination && !!breakdown;
 
   async function copy(value: string, label: string) {
     try { await navigator.clipboard.writeText(value); setCopyMessage(`${label} copied.`); }
@@ -58,6 +67,13 @@ export function ManualAdvancePayment({ configuration, totalMinor, division, dist
       return;
     }
     setErrors({}); setMessage(""); setTransactionId(parsed.data.transactionId); setSenderNumber(parsed.data.senderNumber);
+    // Checkout mode: no order exists yet, so hand the validated details to
+    // the parent, which places the order with them attached.
+    if (!orderReference) {
+      if (onSubmitPayment) onSubmitPayment(parsed.data);
+      else setMessage("Live payment submission is disabled. Do not send money.");
+      return;
+    }
     inFlight.current = true;
     start(async () => {
       try {
@@ -87,11 +103,11 @@ export function ManualAdvancePayment({ configuration, totalMinor, division, dist
         {(["bkash", "nagad"] as const).map((method, index) => (
           <button key={method} id={`${id}-${method}`} type="button" role="tab" aria-label={`Personal ${names[method]}`} aria-selected={provider === method}
             aria-controls={`${id}-panel`} tabIndex={provider === method ? 0 : -1} disabled={pending || !!receipt}
-            onClick={() => { setProvider(method); setCopyMessage(""); }}
+            onClick={() => { setProvider(method); setCopyMessage(""); onDetailsChange?.({ provider: method, transactionId, senderNumber }); }}
             onKeyDown={event => {
               const next = event.key === "Home" ? 0 : event.key === "End" ? 1 : ["ArrowLeft", "ArrowRight"].includes(event.key) ? 1 - index : null;
               if (next === null) return;
-              event.preventDefault(); setProvider(next ? "nagad" : "bkash"); setCopyMessage("");
+              event.preventDefault(); setProvider(next ? "nagad" : "bkash"); setCopyMessage(""); onDetailsChange?.({ provider: next ? "nagad" : "bkash", transactionId, senderNumber });
               event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("button")[next]?.focus();
             }}
             className={`aa-press flex min-h-14 items-center justify-center gap-2 rounded-lg border bg-white px-4 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${provider === method ? "border-primary text-primary" : "border-line text-ink-muted"}`}>
@@ -119,10 +135,10 @@ export function ManualAdvancePayment({ configuration, totalMinor, division, dist
       </div> : <form noValidate onSubmit={submit} className="space-y-4 [&_label]:text-sm" aria-label="Submit payment details" data-payment-form>
         <p className="text-sm text-ink-muted">Never share your PIN or OTP. Submissions are unavailable; payment details will not be saved.</p>
         <fieldset disabled={pending} className="space-y-4">
-          <Input id={`${id}-transactionId`} label="Transaction ID / Last 4 digits of number" hint="Last 4 digits of your sending number. A review hint only; payment must be verified separately." placeholder="Transaction ID or last 4 digits" required maxLength={128} autoComplete="off" autoCapitalize="characters" spellCheck={false} value={transactionId} onChange={e => { setTransactionId(e.target.value); setErrors(current => ({ ...current, transactionId: undefined })); }} onBlur={() => setTransactionId(s => s.trim())} error={errors.transactionId} />
-          <Input id={`${id}-senderNumber`} label={`Your ${names[provider]} Number`} required type="tel" inputMode="tel" autoComplete="tel" value={senderNumber} onChange={e => { setSenderNumber(e.target.value); setErrors(current => ({ ...current, senderNumber: undefined })); }} error={errors.senderNumber} />
+          <Input id={`${id}-transactionId`} label="Transaction ID / Last 4 digits of number" hint="Last 4 digits of your sending number. A review hint only; payment must be verified separately." placeholder="Transaction ID or last 4 digits" required maxLength={128} autoComplete="off" autoCapitalize="characters" spellCheck={false} value={transactionId} onChange={e => { setTransactionId(e.target.value); setErrors(current => ({ ...current, transactionId: undefined })); onDetailsChange?.({ provider, transactionId: e.target.value, senderNumber }); }} onBlur={() => setTransactionId(s => s.trim())} error={errors.transactionId} />
+          <Input id={`${id}-senderNumber`} label={`Your ${names[provider]} Number`} required type="tel" inputMode="tel" autoComplete="tel" value={senderNumber} onChange={e => { setSenderNumber(e.target.value); setErrors(current => ({ ...current, senderNumber: undefined })); onDetailsChange?.({ provider, transactionId, senderNumber: e.target.value }); }} error={errors.senderNumber} />
           {(message || errors.form) && <p role="alert" className="text-sm leading-relaxed text-primary">{message || errors.form}</p>}
-          <Button type="submit" variant="burgundy" fullWidth size="lg" loading={pending} disabled={!canSubmit}>Submit Payment</Button>
+          <Button type="submit" variant="burgundy" fullWidth size="lg" loading={pending || submitting} disabled={!canSubmit || submitting}>Submit Payment</Button>
         </fieldset>
       </form>}
     </section>

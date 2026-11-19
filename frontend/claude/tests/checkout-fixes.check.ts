@@ -16,6 +16,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const read = (rel: string) => readFileSync(join(here, rel), "utf8");
 const checkoutForm = read("../src/components/checkout/CheckoutForm.tsx");
 const manualPayment = read("../src/components/checkout/ManualAdvancePayment.tsx");
+const placeOrderActionSource = read("../src/services/actions.ts");
+const ownerCatalogueSource = read("../src/services/adapters/owner-catalogue.ts");
+const courierSource = read("../src/lib/admin/courier.ts");
 const couponFieldSource = read("../src/components/cart/CouponField.tsx");
 
 describe("upazila dataset", () => {
@@ -421,5 +424,54 @@ describe("coupon migration (authored only, never applied here)", () => {
     expect(body).toContain("grant execute on function public.validate_coupon(text, uuid, text, bigint) to service_role;");
     expect(sql.trimStart().startsWith("begin;")).toBe(true);
     expect(sql.trimEnd().endsWith("commit;")).toBe(true);
+  });
+});
+
+describe("advance payment required before order", () => {
+  it("keeps the payment details in checkout state and validates them before placing", () => {
+    expect(checkoutForm).toContain("const [paymentDetails, setPaymentDetails] = useState<{ provider: AdvanceProvider; transactionId: string; senderNumber: string } | null>(null);");
+    expect(checkoutForm).toContain("const details = paymentData ?? validatePaymentState();");
+    expect(checkoutForm).toContain("payment: { provider: details.provider, transactionId: details.transactionId, senderNumber: details.senderNumber, idempotencyKey: details.idempotencyKey },");
+  });
+
+  it("refuses to place or review without payment details, and sends the customer back to the payment step", () => {
+    expect(checkoutForm).toContain("if (step === 1 && !validatePaymentState()) {");
+    expect(checkoutForm).toContain("if (!details) {");
+    expect(checkoutForm).toContain("setStep(1);");
+    expect(checkoutForm).toContain("অগ্রিম পেমেন্টের তথ্য দিন");
+  });
+
+  it("places the order from Submit Payment with the validated details, and shows them on Review", () => {
+    expect(checkoutForm).toContain("onDetailsChange={handlePaymentDetailsChange}");
+    expect(checkoutForm).toContain("onSubmitPayment={(data) => placeOrder(data)}");
+    expect(checkoutForm).toContain("TxID {paymentDetails.transactionId}");
+  });
+
+  it("shows the Bangla received message with Continue Shopping after placing", () => {
+    expect(checkoutForm).toContain('title="আপনার অর্ডারটি গ্রহণ করা হয়েছে"');
+    expect(checkoutForm).toContain("পেমেন্ট ভেরিফিকেশনের পর");
+    expect(checkoutForm).toContain("ফোনে কনফার্ম করা হবে");
+    expect(checkoutForm).toContain(">Continue Shopping</ButtonLink>");
+  });
+
+  it("hands validated checkout details to the parent instead of the standalone submission", () => {
+    expect(manualPayment).toContain("onSubmitPayment?: (data: PaymentSubmissionInput) => void");
+    expect(manualPayment).toContain("const canSubmit = orderReference ? configuration.available && !!destination && !!breakdown : !!destination && !!breakdown;");
+    expect(manualPayment).toContain("if (onSubmitPayment) onSubmitPayment(parsed.data);");
+  });
+
+  it("fails the order closed on the server: collection gate first, then payment validation, then the note", () => {
+    expect(placeOrderActionSource).toContain("if (!configuration.available) {");
+    expect(placeOrderActionSource).toContain('validatePaymentDetails({ ...(payload.payment ?? {}), note: "", orderReference: null })');
+    expect(placeOrderActionSource).toContain("return dataSource.placeOrder({ ...payload, note: buildOrderNote(parsed.data, payload.note) });");
+  });
+
+  it("collects advance payment on production only from owner-set numbers, never the preview number", () => {
+    expect(ownerCatalogueSource).toContain("if(isProductionStorefront())return productionPaymentConfiguration(configuration.policy);");
+    expect(ownerCatalogueSource).toContain("return reviewInventoryEnabled()?configuration:{...configuration,destinations:[],available:false};");
+  });
+
+  it("never sends the payment line to the courier", () => {
+    expect(courierSource).toContain('stripPaymentNoteLine(order.note?.trim() ?? "")');
   });
 });

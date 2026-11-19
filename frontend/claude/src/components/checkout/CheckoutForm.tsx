@@ -2,7 +2,7 @@
 
 import { ArrowLeft, ArrowRight, Lock, PackageCheck, ShoppingBag } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { CouponField } from "@/components/cart/CouponField";
 import { OrderSummary } from "@/components/cart/OrderSummary";
 import { Button, ButtonLink, Checkbox, DemoNotice, EmptyState, Input, Modal, Select, CheckoutSkeleton, SmartImage, Textarea } from "@/components/ui";
@@ -18,8 +18,8 @@ import type { CheckoutPayload, PaymentMethod } from "@/types";
 import { CheckoutSteps } from "./CheckoutSteps";
 import { PaymentMethodSelector } from "./PaymentMethodSelector";
 import { ManualAdvancePayment } from "./ManualAdvancePayment";
-import { advanceBreakdown, formatPaymentAmount } from "@/lib/manual-payment";
-import type { ManualPaymentConfiguration } from "@/types/manual-payment";
+import { advanceBreakdown, formatPaymentAmount, validatePaymentDetails } from "@/lib/manual-payment";
+import type { AdvanceProvider, ManualPaymentConfiguration, PaymentSubmissionInput } from "@/types/manual-payment";
 
 type Field = "fullName" | "phone" | "email" | "division" | "district" | "area" | "addressLine";
 
@@ -32,6 +32,12 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
   const [note, setNote] = useState("");
   const [saveAddress, setSaveAddress] = useState(true);
   const [payment, setPayment] = useState<PaymentMethod>("cod");
+  // Advance payment details, lifted from the payment step. No order is
+  // placed without them (client convenience only; the server re-validates).
+  const [paymentDetails, setPaymentDetails] = useState<{ provider: AdvanceProvider; transactionId: string; senderNumber: string } | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const paymentKeyRef = useRef<string | null>(null);
+  if (paymentKeyRef.current == null) paymentKeyRef.current = crypto.randomUUID();
   const [errors, setErrors] = useState<FieldErrors<Field>>({});
   const [result, setResult] = useState<{ title: string; message: string; payload: CheckoutPayload } | null>(null);
   const [placed, setPlaced] = useState<{ orderNumber: string; total?: number; phone: string } | null>(null);
@@ -98,20 +104,48 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
     }).catch(() => undefined);
   };
 
+  const PAYMENT_REQUIRED = "অগ্রিম পেমেন্টের তথ্য দিন — bKash/Nagad Transaction ID আর আপনার নম্বর ছাড়া অর্ডার হবে না।";
+
+  const validatePaymentState = (): PaymentSubmissionInput | null => {
+    if (!paymentDetails) return null;
+    const validated = validatePaymentDetails({ ...paymentDetails, note: "", orderReference: null, idempotencyKey: paymentKeyRef.current ?? "" });
+    return validated.ok ? validated.data : null;
+  };
+
+  const handlePaymentDetailsChange = useCallback((details: { provider: AdvanceProvider; transactionId: string; senderNumber: string }) => {
+    setPaymentDetails(details);
+    setPaymentError(null);
+  }, []);
+
   const next = () => {
     if (step === 0 && !validate()) return;
     if (step === 0) captureContact();
+    // No review without payment details: the order cannot be placed anyway.
+    if (step === 1 && !validatePaymentState()) {
+      setPaymentError(PAYMENT_REQUIRED);
+      return;
+    }
+    if (step === 1) setPaymentError(null);
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
     window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
   };
 
-  const placeOrder = () => {
+  const placeOrder = (paymentData?: PaymentSubmissionInput) => {
     if (pending || !orderable) return;
     if (!validate()) return setStep(0);
+    // Advance payment is required: Submit Payment hands validated details
+    // in directly; Place Order re-validates what the payment step lifted.
+    const details = paymentData ?? validatePaymentState();
+    if (!details) {
+      setPaymentError(PAYMENT_REQUIRED);
+      setStep(1);
+      return;
+    }
     const payload: CheckoutPayload = {
       customer: { fullName: form.fullName.trim(), phone: normalizePhone(form.phone), email: form.email.trim() || undefined },
       address: { fullName: form.fullName.trim(), phone: normalizePhone(form.phone), division: form.division, district: form.district, area: form.area.trim(), addressLine: form.addressLine.trim() },
       paymentMethod: payment,
+      payment: { provider: details.provider, transactionId: details.transactionId, senderNumber: details.senderNumber, idempotencyKey: details.idempotencyKey },
       items: items.map((i) => ({ productId: i.productId, variantId: i.variantId, quantity: i.quantity })),
       couponCode: summary.coupon?.code,
       note: note.trim() || undefined,
@@ -136,11 +170,11 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
 
   if (placed)
     return (
-      <div data-order-placed>
+      <div data-order-placed lang="bn">
         <EmptyState
           icon={<PackageCheck className="h-7 w-7" aria-hidden />}
-          title={`Order #${placed.orderNumber} received`}
-          description={`Your order is pending${placed.total !== undefined ? ` · Total ${formatPrice(placed.total)}` : ""} · Cash on Delivery. No payment has been recorded. We will contact you on ${placed.phone} to confirm it. Please keep your order number.`}
+          title="আপনার অর্ডারটি গ্রহণ করা হয়েছে"
+          description={`অর্ডার #${placed.orderNumber}${placed.total !== undefined ? ` · মোট ${formatPrice(placed.total)}` : ""} · ক্যাশ অন ডেলিভারি। পেমেন্ট ভেরিফিকেশনের পর ${placed.phone} নম্বরে ফোনে কনফার্ম করা হবে। আপনার অর্ডার নম্বরটি সংরক্ষণ করুন।`}
           action={<ButtonLink href="/shop">Continue Shopping</ButtonLink>}
         />
       </div>
@@ -220,7 +254,8 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
             <div className="space-y-6">
               <h2 tabIndex={-1} className="font-serif text-2xl text-ink">Payment</h2>
               <PaymentMethodSelector value={payment} onChange={setPayment} onlineEnabled={commerce.onlinePaymentEnabled} previewEnabled />
-              <ManualAdvancePayment mode={payment} configuration={manualPaymentConfiguration} totalMinor={toMinorUnits(summary.total)} division={form.division} district={form.district} />
+              <ManualAdvancePayment mode={payment} configuration={manualPaymentConfiguration} totalMinor={toMinorUnits(summary.total)} division={form.division} district={form.district} onDetailsChange={handlePaymentDetailsChange} onSubmitPayment={(data) => placeOrder(data)} submitting={pending} />
+              {paymentError && <p role="alert" className="text-sm leading-relaxed text-primary">{paymentError}</p>}
               <div lang="bn">
                 <Textarea label="অর্ডার নোট (ঐচ্ছিক)" placeholder="কিছু জানানোর থাকলে লিখুন, যেমন: পছন্দের ডেলিভারি সময়" value={note} onChange={(e) => setNote(e.target.value)} className="min-h-[80px]" />
               </div>
@@ -262,6 +297,11 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
                     </button>
                   </dt>
                   <dd className="mt-2 text-ink">{payment === "cod" ? "Cash on Delivery" : "Online Payment"}</dd>
+                  {paymentDetails && (
+                    <dd className="mt-2 text-xs leading-relaxed text-ink">
+                      {paymentDetails.provider === "bkash" ? "bKash" : "Nagad"} · TxID {paymentDetails.transactionId} · {paymentDetails.senderNumber}
+                    </dd>
+                  )}
                   <dd lang="bn" className="mt-1 text-xs text-ink-muted">{deliveryLabel}</dd>
                 </div>
               </dl>
@@ -285,7 +325,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
                 <Button variant="ghost" onClick={() => setStep(1)} leftIcon={<ArrowLeft className="h-4 w-4" aria-hidden />}>
                   Back
                 </Button>
-                <Button variant="burgundy" size="lg" onClick={placeOrder} loading={pending} disabled={!orderable} leftIcon={<Lock className="h-4 w-4" aria-hidden />}>
+                <Button variant="burgundy" size="lg" onClick={() => placeOrder()} loading={pending} disabled={!orderable} leftIcon={<Lock className="h-4 w-4" aria-hidden />}>
                   Place Order ({payment === "cod" ? "COD" : "Online"}) · {formatPrice(summary.total)}
                 </Button>
               </div>

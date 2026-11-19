@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { advanceBreakdown, canDisplayConfirmedOrder, classifyAdvanceLocation, formatPaymentAmount, validatePaymentDetails } from "../src/lib/manual-payment";
+import { advanceBreakdown, buildOrderNote, canDisplayConfirmedOrder, classifyAdvanceLocation, formatPaymentAmount, formatPaymentNoteLine, stripPaymentNoteLine, validatePaymentDetails } from "../src/lib/manual-payment";
 import { submitManualPaymentAction } from "../src/services/manual-payment-actions";
 import { mockDataSource } from "../src/services/adapters/mock";
 
@@ -62,6 +62,29 @@ describe("manual payment validation and fail-closed action", () => {
     const results = await Promise.all([submitManualPaymentAction(input), submitManualPaymentAction(input)]);
     expect(results.every(result => !result.ok && result.reason === "not_connected")).toBe(true);
     expect((await mockDataSource.getManualPaymentConfiguration()).available).toBe(false);
+  });
+});
+
+describe("payment reference on the order note", () => {
+  it("labels the provider, TxID and sender number on one fixed-prefix line", () => {
+    expect(formatPaymentNoteLine("bkash", "ABC123", "01700000000")).toBe("[Advance payment] bKash TxID ABC123, sender 01700000000.");
+    expect(formatPaymentNoteLine("nagad", "X9", "01800000000")).toBe("[Advance payment] Nagad TxID X9, sender 01800000000.");
+  });
+
+  it("puts the payment line first and keeps the customer note within 500 chars", () => {
+    const note = buildOrderNote({ provider: "bkash", transactionId: "ABC123", senderNumber: "01700000000" }, "Please call before delivery");
+    expect(note.startsWith("[Advance payment] bKash TxID ABC123, sender 01700000000.")).toBe(true);
+    expect(note).toContain("Please call before delivery");
+    expect(buildOrderNote({ provider: "bkash", transactionId: "A".repeat(128), senderNumber: "01700000000" }, "x".repeat(600)).length).toBeLessThanOrEqual(500);
+    expect(buildOrderNote({ provider: "bkash", transactionId: "ABC123", senderNumber: "01700000000" })).toBe("[Advance payment] bKash TxID ABC123, sender 01700000000.");
+  });
+
+  it("strips only the payment line for external payloads", () => {
+    const note = buildOrderNote({ provider: "nagad", transactionId: "T1", senderNumber: "01700000000" }, "Leave at the gate");
+    expect(stripPaymentNoteLine(note)).toBe("Leave at the gate");
+    expect(stripPaymentNoteLine(note.split("\n")[0])).toBe("");
+    expect(stripPaymentNoteLine("Leave at the gate")).toBe("Leave at the gate");
+    expect(stripPaymentNoteLine(null)).toBe("");
   });
 });
 

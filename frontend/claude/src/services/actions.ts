@@ -8,6 +8,7 @@
  * mutations still return `{ ok: false, reason: "not_connected" }`.
  */
 import type { Address, CheckoutPayload, Customer, StorefrontSettings } from "@/types";
+import { buildOrderNote, validatePaymentDetails } from "@/lib/manual-payment";
 import { dataSource } from "./adapters";
 import { saveCheckoutProgress } from "./checkout";
 
@@ -29,7 +30,27 @@ export async function saveCheckoutProgressAction(input: unknown) {
 }
 
 export async function placeOrderAction(payload: CheckoutPayload) {
-  return dataSource.placeOrder(payload);
+  // Config gate FIRST, fail closed: without payment collection there is no
+  // order at all. This also preserves the disconnected-preview contract
+  // (no payment details on file there, and the action reports not_connected).
+  const configuration = await dataSource.getManualPaymentConfiguration();
+  if (!configuration.available) {
+    return { ok: false as const, reason: "not_connected" as const, message: "Payment submission is unavailable. No order was placed. Do not send money." };
+  }
+  // Advance payment details are required: no TxID + sender number, no order.
+  // The server re-validates everything the browser sent; the client check is
+  // convenience only and never the gate.
+  const parsed = validatePaymentDetails({ ...(payload.payment ?? {}), note: "", orderReference: null });
+  if (!parsed.ok) {
+    return { ok: false as const, reason: "validation" as const, message: "অগ্রিম পেমেন্টের তথ্য দিন — bKash/Nagad Transaction ID আর আপনার নম্বর ছাড়া অর্ডার হবে না।" };
+  }
+  if (!configuration.destinations.some((d) => d.provider === parsed.data.provider)) {
+    return { ok: false as const, reason: "not_connected" as const, message: "Payment submission is unavailable. No order was placed. Do not send money." };
+  }
+  // The TxID + sender number travel on the order note (no payment-submissions
+  // table exists yet); admin verifies them from the order detail, then
+  // confirms the order. The courier payload strips this line.
+  return dataSource.placeOrder({ ...payload, note: buildOrderNote(parsed.data, payload.note) });
 }
 
 export async function signInAction(input: { email: string; password: string }) {
