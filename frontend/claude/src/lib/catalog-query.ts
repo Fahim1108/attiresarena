@@ -73,6 +73,27 @@ function matchesSearch(p: Product, term: string, categories: Category[], brands:
 }
 
 /**
+ * Category matching for listing queries. The static taxonomy uses ids
+ * like "cat-shirts", but admin-published products keep their database
+ * category UUID, which matches no static id. The storefront is
+ * shirts-only by design, so a product whose category matches no static
+ * category at all is a published shirt: it belongs under "shirts" and
+ * never under a non-shirt slug.
+ */
+function matchesSingleCategory(p: Product, category: Category, categories: Category[]): boolean {
+  if (p.categoryId === category.id) return true;
+  return category.slug === "shirts" && !categories.some((c) => c.id === p.categoryId);
+}
+
+function matchesCategories(p: Product, catIds: readonly (string | undefined)[] | undefined, categories: Category[]): boolean {
+  if (!catIds?.length) return true;
+  return catIds.some((id) => {
+    const category = categories.find((c) => c.id === id);
+    return category !== undefined && matchesSingleCategory(p, category, categories);
+  });
+}
+
+/**
  * Pure in-memory implementation of catalogue filtering, used by the mock adapter.
  * A real backend should implement the same semantics in SQL.
  */
@@ -95,7 +116,7 @@ export function queryProducts(
 
   let items = base.filter(
     (p) =>
-      (!catIds?.length || catIds.includes(p.categoryId)) &&
+      matchesCategories(p, catIds, categories) &&
       (!brandIds?.length || brandIds.includes(p.brandId)) &&
       (!query.sizes?.length || p.variants.some(v => v.stock > 0 && query.sizes!.some(size => canonicalSize(size) ? p.apparelSizing && canonicalSize(v.size) === canonicalSize(size) : v.size === size))) &&
       (!query.inStock || publishedAvailable(p) || (p.reviewOnly && (p.physicalStock ?? 0) > 0)) &&
@@ -127,7 +148,7 @@ export function queryProducts(
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const page = Math.min(Math.max(1, query.page ?? 1), totalPages);
 
-  const facetProducts = base.filter(p => (!catIds?.length || catIds.includes(p.categoryId)) && (!brandIds?.length || brandIds.includes(p.brandId)));
+  const facetProducts = base.filter(p => matchesCategories(p, catIds, categories) && (!brandIds?.length || brandIds.includes(p.brandId)));
   const colorMap = new Map<string, Product["colors"][number]>();
   facetProducts.forEach((p) => p.colors.forEach((c) => colorMap.set(c.id, c)));
   const sizeOrder = ["S", "M", "L", "XL", "XXL"];
@@ -146,14 +167,14 @@ export function queryProducts(
     totalPages,
     facets: {
       categories: categories
-        .map((c) => ({ slug: c.slug, name: c.name, count: base.filter((p) => p.categoryId === c.id).length }))
+        .map((c) => ({ slug: c.slug, name: c.name, count: base.filter((p) => matchesSingleCategory(p, c, categories)).length }))
         .filter((c) => c.count > 0),
       brands: brands
         .map((b) => ({ slug: b.slug, name: b.name, count: base.filter((p) => p.brandId === b.id).length }))
         .filter((b) => b.count > 0),
       sizes,
       sizeLabels: Object.fromEntries(sizes.flatMap(size => {
-        const labels = new Set(base.filter(p => (!catIds?.length || catIds.includes(p.categoryId)) && p.sizes.some(s=>(canonicalSize(s)??s)===size)).map(p => p.sizeLabels?.[size] ?? (size === "2XL" ? p.sizeLabels?.XXL : undefined) ?? size));
+        const labels = new Set(base.filter(p => matchesCategories(p, catIds, categories) && p.sizes.some(s=>(canonicalSize(s)??s)===size)).map(p => p.sizeLabels?.[size] ?? (size === "2XL" ? p.sizeLabels?.XXL : undefined) ?? size));
         return labels.size === 1 ? [[size, [...labels][0] ?? size]] : [];
       })),
       colors: Array.from(colorMap.values()),
