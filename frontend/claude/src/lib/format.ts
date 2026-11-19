@@ -7,6 +7,22 @@ export function formatPrice(amount: number): string {
   return `${commerce.currencySymbol}${numberFormatter.format(Math.round(amount))}`;
 }
 
+const BANGLA_DIGITS = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"];
+
+/** Converts Latin digits 0-9 in a string to Bengali digits; other characters pass through untouched. */
+export function toBanglaDigits(value: string): string {
+  return value.replace(/[0-9]/g, (digit) => BANGLA_DIGITS[Number(digit)] ?? digit);
+}
+
+/**
+ * Formats whole-taka amounts for the Bangla success screen as "৳১,০৫৫":
+ * the taka sign plus Bengali digits, South Asian grouping. Unlike
+ * formatPrice it does not use the site-wide "BDT " currency symbol.
+ */
+export function formatPriceBangla(amount: number): string {
+  return `৳${toBanglaDigits(numberFormatter.format(Math.round(amount)))}`;
+}
+
 export function discountPercent(price: number, compareAt?: number): number {
   if (!compareAt || compareAt <= price) return 0;
   return Math.round(((compareAt - price) / compareAt) * 100);

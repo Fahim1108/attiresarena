@@ -11,7 +11,7 @@ import { areaLabel, areasOf, districtLabel, districtsOf, divisionLabel, division
 import { canPlaceOrder } from "@/lib/checkout/gate";
 import { toMinorUnits } from "@/lib/checkout/coupons";
 import { formatOrderNumber } from "@/lib/admin/format";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, formatPriceBangla } from "@/lib/format";
 import { isValidBdPhone, isValidEmail, normalizePhone, type FieldErrors } from "@/lib/validation";
 import { placeOrderAction, saveCheckoutProgressAction } from "@/services/actions";
 import type { CheckoutPayload, PaymentMethod } from "@/types";
@@ -170,13 +170,28 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
 
   if (placed)
     return (
-      <div data-order-placed lang="bn">
-        <EmptyState
-          icon={<PackageCheck className="h-7 w-7" aria-hidden />}
-          title="আপনার অর্ডারটি গ্রহণ করা হয়েছে"
-          description={`অর্ডার ${formatOrderNumber(placed.orderNumber)}${placed.total !== undefined ? ` · মোট ${formatPrice(placed.total)}` : ""} · ক্যাশ অন ডেলিভারি। পেমেন্ট ভেরিফিকেশনের পর ${placed.phone} নম্বরে ফোনে কনফার্ম করা হবে। আপনার অর্ডার নম্বরটি সংরক্ষণ করুন।`}
-          action={<ButtonLink href="/shop">Continue Shopping</ButtonLink>}
-        />
+      <div data-order-placed lang="bn" className="flex flex-col items-center px-6 py-16 text-center">
+        <span aria-hidden="true" className="flex h-24 w-24 items-center justify-center rounded-full bg-selected text-primary">
+          <PackageCheck className="h-10 w-10" aria-hidden />
+        </span>
+        <p className="mt-6 rounded-full border border-primary bg-selected px-6 py-2 text-lg font-bold text-primary">
+          অর্ডার আইডি: {formatOrderNumber(placed.orderNumber)}
+        </p>
+        <h2 className="mt-6 text-xl font-medium text-ink">আপনার অর্ডারটি গ্রহণ করা হয়েছে।</h2>
+        {placed.total !== undefined && (
+          <p className="mt-6 rounded-2xl bg-selected px-8 py-3 text-2xl font-bold text-primary">
+            মোট বিল: {formatPriceBangla(placed.total)}
+          </p>
+        )}
+        <p className="mt-6 max-w-md text-base leading-relaxed text-ink-muted">
+          পেমেন্ট কনফার্ম হওয়ার পর আপনাকে ফোন করে ডেলিভারি আপডেট জানানো হবে।
+        </p>
+        <p className="mt-3 max-w-md text-base leading-relaxed text-ink-muted">
+          অনুগ্রহ করে আপনার অর্ডার আইডিটি সংরক্ষণ করুন।
+        </p>
+        <div className="mt-8">
+          <ButtonLink href="/shop">Continue Shopping</ButtonLink>
+        </div>
       </div>
     );
 

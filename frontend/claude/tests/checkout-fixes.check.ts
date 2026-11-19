@@ -454,10 +454,20 @@ describe("advance payment required before order", () => {
   });
 
   it("shows the Bangla received message with Continue Shopping after placing", () => {
-    expect(checkoutForm).toContain('title="আপনার অর্ডারটি গ্রহণ করা হয়েছে"');
-    expect(checkoutForm).toContain("পেমেন্ট ভেরিফিকেশনের পর");
-    expect(checkoutForm).toContain("ফোনে কনফার্ম করা হবে");
+    // Owner's success screen (2026-11-19 mockup): order-ID pill, received
+    // message, total pill in Bengali digits, phone-update line, save-the-ID
+    // line, Continue Shopping — and no "রসিদ" title.
+    expect(checkoutForm).toContain("অর্ডার আইডি:");
+    expect(checkoutForm).toContain("আপনার অর্ডারটি গ্রহণ করা হয়েছে।");
+    expect(checkoutForm).toContain("মোট বিল:");
+    expect(checkoutForm).toContain("formatPriceBangla(placed.total)");
+    expect(checkoutForm).toContain("পেমেন্ট কনফার্ম হওয়ার পর আপনাকে ফোন করে ডেলিভারি আপডেট জানানো হবে।");
+    expect(checkoutForm).toContain("অনুগ্রহ করে আপনার অর্ডার আইডিটি সংরক্ষণ করুন।");
     expect(checkoutForm).toContain(">Continue Shopping</ButtonLink>");
+    expect(checkoutForm).not.toContain("রসিদ");
+    expect(checkoutForm).not.toContain("পেমেন্ট ভেরিফিকেশনের পর");
+    expect(checkoutForm).not.toContain("ফোনে কনফার্ম করা হবে");
+    expect(checkoutForm).not.toContain("ক্যাশ অন ডেলিভারি");
   });
 
   it("hands validated checkout details to the parent instead of the standalone submission", () => {
