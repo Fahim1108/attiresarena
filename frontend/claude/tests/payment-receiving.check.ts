@@ -1,7 +1,35 @@
-import { describe, expect, it } from "vitest";
-import { paymentReceiving, previewPaymentConfiguration } from "../src/config/payment-receiving";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { paymentReceiving, previewPaymentConfiguration, productionPaymentConfiguration } from "../src/config/payment-receiving";
 import { manualPaymentBreakdown } from "../src/lib/manual-payment";
 import { submitManualPaymentAction } from "../src/services/manual-payment-actions";
+
+afterEach(() => vi.unstubAllEnvs());
+
+describe("production collection from owner-set numbers only", () => {
+  const policy = previewPaymentConfiguration().policy;
+  it("stays off with no numbers set, so no order can be placed", () => {
+    expect(productionPaymentConfiguration(policy)).toEqual({ available: false, destinations: [], policy });
+  });
+  it("collects only the providers whose numbers are set and valid", () => {
+    vi.stubEnv("MANUAL_PAYMENT_BKASH_NUMBER", "01635706962");
+    expect(productionPaymentConfiguration(policy)).toEqual({
+      available: true,
+      destinations: [{ provider: "bkash", recipientNumber: "01635706962", accountType: "personal", transferInstructions: "" }],
+      policy,
+    });
+  });
+  it("ignores invalid numbers instead of collecting to them", () => {
+    vi.stubEnv("MANUAL_PAYMENT_BKASH_NUMBER", "123");
+    vi.stubEnv("MANUAL_PAYMENT_NAGAD_NUMBER", "01700000000");
+    const configuration = productionPaymentConfiguration(policy);
+    expect(configuration.available).toBe(true);
+    expect(configuration.destinations.map((d) => d.provider)).toEqual(["nagad"]);
+  });
+  it("never serves the hardcoded preview number as a live receiving account", () => {
+    vi.stubEnv("MANUAL_PAYMENT_BKASH_NUMBER", "");
+    expect(productionPaymentConfiguration(policy).destinations.map((d) => d.recipientNumber)).not.toContain(paymentReceiving.bkashNumber);
+  });
+});
 
 describe("central personal recipient configuration", () => {
   it("hides each unconfirmed receiving account", () => {

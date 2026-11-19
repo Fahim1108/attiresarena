@@ -1,6 +1,6 @@
 import { DIVISIONS } from "@/data/bangladesh";
 import { isValidBdPhone, normalizePhone } from "./validation";
-import type { AdvancePolicy, PaymentSubmissionInput, VerifiedAdvanceOrder } from "@/types/manual-payment";
+import type { AdvancePolicy, AdvanceProvider, PaymentSubmissionInput, VerifiedAdvanceOrder } from "@/types/manual-payment";
 
 export function classifyAdvanceLocation(division: string, district: string) {
   if (!DIVISIONS[division]?.includes(district)) return null;
@@ -90,4 +90,39 @@ export function canDisplayConfirmedOrder(order: unknown): order is VerifiedAdvan
   return typeof value.orderId === "string" && !!value.orderId.trim() && typeof value.orderReference === "string" && !!value.orderReference.trim() && typeof value.createdAt === "string" && !Number.isNaN(Date.parse(value.createdAt)) &&
     value.orderStatus === "confirmed" && value.advanceStatus === "advance_verified" && (value.provider === "bkash" || value.provider === "nagad") &&
     isMinor(value.totalMinor) && isMinor(value.advanceMinor) && isMinor(value.remainingMinor) && value.advanceMinor > 0 && value.advanceMinor + value.remainingMinor === value.totalMinor;
+}
+
+/**
+ * Payment reference carried on the order note. No payment-submissions table
+ * or submit RPC exists yet, so the TxID + sender number travel with the
+ * order itself (max 500 chars, enforced by the checkout RPC): the admin
+ * order detail shows the note, so staff can verify the advance against
+ * bKash/Nagad and then confirm the order. The line is a fixed prefix so
+ * external payloads (courier) can strip it before sending.
+ */
+export const PAYMENT_NOTE_PREFIX = "[Advance payment]";
+
+export function formatPaymentNoteLine(provider: AdvanceProvider, transactionId: string, senderNumber: string): string {
+  const name = provider === "bkash" ? "bKash" : "Nagad";
+  return `${PAYMENT_NOTE_PREFIX} ${name} TxID ${transactionId}, sender ${senderNumber}.`;
+}
+
+/** Order note with the payment line first; the customer note is trimmed to fit the 500-char order-note limit. */
+export function buildOrderNote(payment: { provider: AdvanceProvider; transactionId: string; senderNumber: string }, customerNote?: string, maxLength = 500): string {
+  const line = formatPaymentNoteLine(payment.provider, payment.transactionId, payment.senderNumber);
+  const note = (customerNote ?? "").trim();
+  if (!note) return line.slice(0, maxLength);
+  const combined = `${line}\n${note}`;
+  if (combined.length <= maxLength) return combined;
+  return `${line}\n${note.slice(0, Math.max(0, maxLength - line.length - 1))}`.trimEnd();
+}
+
+/** Removes the payment line so it never leaves the store (courier note, third-party payloads). */
+export function stripPaymentNoteLine(note: string | null | undefined): string {
+  if (!note) return "";
+  return note
+    .split("\n")
+    .filter((line) => !line.trim().startsWith(PAYMENT_NOTE_PREFIX))
+    .join("\n")
+    .trim();
 }

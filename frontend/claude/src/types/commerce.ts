@@ -51,6 +51,8 @@ export interface CheckoutPayload {
   customer: { fullName: string; phone: string; email?: string };
   address: Omit<Address, "id" | "isDefault" | "label">;
   paymentMethod: PaymentMethod;
+  /** Advance payment details. Required: no order is placed without them. */
+  payment?: { provider: "bkash" | "nagad"; transactionId: string; senderNumber: string; idempotencyKey: string };
   items: { productId: ID; variantId: ID; quantity: number }[];
   couponCode?: string;
   note?: string;

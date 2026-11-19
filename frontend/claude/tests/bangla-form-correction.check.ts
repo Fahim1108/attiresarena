@@ -175,9 +175,11 @@ describe("checkout form wiring", () => {
     for (const text of ["ঢাকার ভিতরে", "ঢাকার বাইরে", "ডেলিভারি চার্জ জানতে জেলা বেছে নিন", "অর্ডার নোট"]) {
       expect(checkoutForm).not.toContain(text);
     }
-    // The only lang="bn" left is the delivery form element itself: the
-    // review card and the order note no longer carry one.
-    expect(checkoutForm.match(/lang="bn"/g)).toHaveLength(1);
+    // lang="bn" appears twice: the delivery form element itself, and the
+    // order-placed screen, whose Bangla confirmation the owner requested
+    // 2026-11-19. The review card and the order note carry none.
+    expect(checkoutForm.match(/lang="bn"/g)).toHaveLength(2);
+    expect(checkoutForm).toContain("আপনার অর্ডারটি গ্রহণ করা হয়েছে");
   });
 
   it("does not touch the ordering gate or the checkout notice", () => {

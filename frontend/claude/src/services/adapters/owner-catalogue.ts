@@ -1,9 +1,9 @@
 import {readLiveReviewDrafts,projectSavedReview} from "./live-review-thrift";
 import "server-only";
 import { placeCheckoutOrder } from "../checkout";
-import { reviewInventoryEnabled } from "@/lib/storefront-policy";
+import { isProductionStorefront, reviewInventoryEnabled } from "@/lib/storefront-policy";
 import { officialShirtSizeGuide } from "@/config/shirt-size-guide";
-import { previewPaymentConfiguration } from "@/config/payment-receiving";
+import { previewPaymentConfiguration, productionPaymentConfiguration } from "@/config/payment-receiving";
 import { unavailableServices } from "./unavailable";
 import { customerServices } from "./customer";
 import {campaignHero} from '@/config/campaign-banners';
@@ -103,6 +103,13 @@ export const ownerCatalogue:StorefrontDataSource={...unavailableServices,...cust
  async getSizeGuide(id){return id==='tops'?officialShirtSizeGuide:null;},
  async getManualPaymentConfiguration(){
   const configuration=previewPaymentConfiguration();
+  // Owner decision 2026-11-19: advance payment (TxID + sender number) is
+  // required before any order can be placed. Production collects ONLY from
+  // owner-set env vars (MANUAL_PAYMENT_*_NUMBER); the hardcoded preview
+  // number is never a live receiving account. With no numbers set,
+  // collection stays off and no order can be placed. Preview stays
+  // fail-closed as before.
+  if(isProductionStorefront())return productionPaymentConfiguration(configuration.policy);
   return reviewInventoryEnabled()?configuration:{...configuration,destinations:[],available:false};
  },
  async getHomepageConfiguration(){const s=await this.getStorefrontSettings();return {sections:s.homepage,hero:s.hero,promoBanners:s.promoBanners,valueProps:s.valueProps};},

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireStaff, actionOk, actionError, toActionError, type AdminActionResult, type StaffSession } from "./authorization";
 import { ORDER_STATUS_LABELS, areaRoles, canBookCourier } from "./constants";
+import { stripPaymentNoteLine } from "@/lib/manual-payment";
 import { ORDER_COLUMNS, ORDER_ITEM_COLUMNS, orderItemRowSchema, orderRowSchema, type OrderItemRow, type OrderRow } from "./orders";
 
 /* ------------------------------------------------------------------ */
@@ -158,7 +159,9 @@ export function buildSteadfastPayload(
   order: OrderRow,
   items: readonly OrderItemRow[],
 ): SteadfastCreateOrderPayload {
-  const note = order.note?.trim() ? truncate(order.note.trim(), STEADFAST_LIMITS.note) : undefined;
+  // The advance-payment line is for staff verification, never the courier.
+  const courierNote = stripPaymentNoteLine(order.note?.trim() ?? "");
+  const note = courierNote ? truncate(courierNote, STEADFAST_LIMITS.note) : undefined;
   const itemDescription = buildSteadfastItemDescription(items);
   const totalLot = items.reduce((sum, item) => sum + item.quantity, 0);
   return {

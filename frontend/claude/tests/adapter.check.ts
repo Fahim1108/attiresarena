@@ -16,5 +16,9 @@ describe('isolated Claude preview adapter contracts — no live Supabase calls',
   const result=await placeOrderAction({customer:{fullName:'Fixture',phone:'01700000000'},address:{fullName:'Fixture',phone:'01700000000',division:'Dhaka',district:'Dhaka',area:'Test area',addressLine:'Test-only address'},paymentMethod:'cod',items:[],saveAddress:false});
   expect(result).toMatchObject({ok:false,reason:'not_connected'});
  });
+ it('creates no order even with payment details while collection is disabled',async()=>{
+  const result=await placeOrderAction({customer:{fullName:'Fixture',phone:'01700000000'},address:{fullName:'Fixture',phone:'01700000000',division:'Dhaka',district:'Dhaka',area:'Test area',addressLine:'Test-only address'},paymentMethod:'cod',payment:{provider:'bkash',transactionId:'ABC123',senderNumber:'01700000000',idempotencyKey:'11111111-1111-4111-8111-111111111111'},items:[{productId:'00000000-0000-4000-8000-000000000000',variantId:'00000000-0000-4000-8000-000000000000',quantity:1}],saveAddress:false});
+  expect(result).toMatchObject({ok:false,reason:'not_connected'});
+ });
  it('cannot publish appearance settings',async()=>{expect(await publishStorefrontSettingsAction(defaultStorefrontSettings)).toMatchObject({ok:false,reason:'not_connected'});});
 });
