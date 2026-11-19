@@ -20,21 +20,31 @@ import {
   SEO_OG_LOCALE,
   type SeoEnv,
 } from "./seo";
+import {
+  CUSTOMIZE_BUTTONS_SCHEMA,
+  CUSTOMIZE_TYPOGRAPHY_SCHEMA,
+  DEFAULT_ERROR_404,
+  FONT_STACKS,
+  FOOTER_LINKS_SCHEMA,
+  NAV_LINKS_SCHEMA,
+  activeWidgets,
+  parseLayoutSetting,
+  parseWidgetRow,
+  resolveErrorPage,
+  type ErrorPageConfig,
+  type LayoutSettingKey,
+  type Widget,
+} from "./admin/reference-adapt";
 import type {
   Banner,
   FooterSettings,
   HeaderSettings,
   HeroSettings,
+  LogoSettings,
+  ThemeSettings,
 } from "@/types";
 import { publicSupabaseConfiguration } from "./supabase-public";
-import {
-  DEFAULT_ERROR_404,
-  activeWidgets,
-  parseWidgetRow,
-  resolveErrorPage,
-  type ErrorPageConfig,
-  type Widget,
-} from "./admin/reference-adapt";
+import { brandMediaUrl } from "./brand-media-delivery";
 
 /**
  * Fallback-safe storefront settings reader.
@@ -49,10 +59,14 @@ import {
  *
  * Wiring status: the policy pages call this reader, and the root layout
  * calls it for marketing/metadata and applies the footer override below
- * to the storefront settings. The announcement bar and hero slides still
- * flow through the services adapter, which this module must not touch;
- * their pure merge functions are provided and tested here so the wiring
- * can land without changing this reader.
+ * to the storefront settings. The layout reader also returns the
+ * public-safe layout settings (navigation links, footer link groups,
+ * customize choices — see parseLayoutSettings; the anonymous policy
+ * must allowlist them, migration 20261119000900), and the root layout
+ * applies those overrides too. The announcement bar and hero slides
+ * still flow through the services adapter, which this module must not
+ * touch; their pure merge functions are provided and tested here so the
+ * wiring can land without changing this reader.
  */
 
 export interface ContentBlockRow {
@@ -80,6 +94,13 @@ export interface StorefrontContent {
   settings: Record<string, unknown>;
   blocks: ContentBlockRow[];
   banners: BannerRow[];
+  /**
+   * Parsed public-safe layout settings (navigation_links, footer_links,
+   * customize_typography, customize_buttons). Empty when the table is
+   * unreadable or the anonymous policy does not allowlist a key yet —
+   * every override below then keeps the static config.
+   */
+  layout: Partial<Record<LayoutSettingKey, unknown>>;
 }
 
 async function readRows(path: string): Promise<unknown[]> {
@@ -176,9 +197,38 @@ function parseSettings(rows: unknown[]): Record<string, unknown> {
   return settings;
 }
 
+/**
+ * Public-safe layout settings only. Rows for any other key (notably
+ * error_404, which getErrorPage404 reads separately, and the
+ * staff-only redirect_auto / featured_categories_count) are ignored
+ * here even if the policy ever returns them, so a policy change alone
+ * can never leak an operational setting into the storefront. Malformed
+ * rows are dropped by parseLayoutSetting, never trusted.
+ */
+function parseLayoutSettings(
+  rows: unknown[],
+): Partial<Record<LayoutSettingKey, unknown>> {
+  const layout: Partial<Record<LayoutSettingKey, unknown>> = {};
+  const keys: LayoutSettingKey[] = [
+    "navigation_links",
+    "footer_links",
+    "customize_typography",
+    "customize_buttons",
+  ];
+  for (const row of rows) {
+    if (!isRecord(row)) continue;
+    if (typeof row.key !== "string" || !("value" in row)) continue;
+    const key = row.key as LayoutSettingKey;
+    if (!keys.includes(key)) continue;
+    const parsed = parseLayoutSetting(key, row.value);
+    if (parsed !== null) layout[key] = parsed;
+  }
+  return layout;
+}
+
 export async function getStorefrontContent(): Promise<StorefrontContent | null> {
   if (!publicSupabaseConfiguration()) return null;
-  const [settingRows, blockRows, bannerRows] = await Promise.all([
+  const [settingRows, blockRows, bannerRows, layoutRows] = await Promise.all([
     readRows("/rest/v1/store_settings?select=key,value"),
     readRows(
       "/rest/v1/content_blocks?select=slug,title,body,image_storage_path,sort_position,visible,updated_at&visible=eq.true&order=sort_position.asc",
@@ -186,11 +236,13 @@ export async function getStorefrontContent(): Promise<StorefrontContent | null> 
     readRows(
       "/rest/v1/banners?select=id,title,subtitle,image_storage_path,link_url,sort_position,visible,placement&visible=eq.true&order=sort_position.asc",
     ),
+    readRows("/rest/v1/layout_settings?select=key,value"),
   ]);
   return {
     settings: parseSettings(settingRows),
     blocks: parseBlocks(blockRows),
     banners: parseBanners(bannerRows),
+    layout: parseLayoutSettings(layoutRows),
   };
 }
 
@@ -360,6 +412,159 @@ export function applyFooterOverride(
 }
 
 /**
+ * Store-name override (wired in the root layout). The saved store_name
+ * replaces the static site name; blank or absent keeps it. Returns the
+ * static name unchanged when nothing applies.
+ */
+export function applySiteNameOverride(
+  siteName: string,
+  settings: Record<string, unknown> | null | undefined,
+): string {
+  return settingText(settings, "store_name") ?? siteName;
+}
+
+/**
+ * Logo override (wired in the root layout). A saved logo_storage_path
+ * replaces the header logo with the brand-media route URL; the path is
+ * validated by brandMediaUrl, so a malformed or non-brand path keeps
+ * the static logo. The inverse (dark-background) logo is deliberately
+ * NOT replaced: one upload cannot serve both light and dark
+ * backgrounds, so the footer keeps the static white logo. The square
+ * badge is also untouched (it feeds the OG image). The alt text follows
+ * the resolved site name.
+ */
+export function applyBrandOverride(
+  logo: LogoSettings,
+  settings: Record<string, unknown> | null | undefined,
+  siteName: string,
+): LogoSettings {
+  const url = brandMediaUrl(settingText(settings, "logo_storage_path"));
+  if (!url) return logo;
+  return { ...logo, primary: url, alt: siteName };
+}
+
+/** Button corner radius from the stored shape + radius choice. */
+function customizeButtonRadius(buttons: {
+  shape: "square" | "rounded" | "pill";
+  radius_px: number;
+}): string {
+  if (buttons.shape === "square") return "0px";
+  if (buttons.shape === "pill") return "9999px";
+  return `${buttons.radius_px}px`;
+}
+
+/**
+ * Theme-customize override (wired in the root layout through
+ * ThemeStyle). Saved heading/body fonts replace the theme font stacks,
+ * and the saved button shape/radius replaces the control radius
+ * (--aa-radius-control, used by every rounded-control button). The
+ * card radius and all colors stay static. The button *style*
+ * (solid/outline) is deliberately NOT applied here: the storefront has
+ * no single primary-button style hook — primary buttons are ad-hoc
+ * `bg-primary` classes in many components plus the shared Button —
+ * so a global flip would restyle only some of them. Returns the static
+ * theme unchanged when nothing valid is stored.
+ */
+export function applyCustomizeOverride(
+  theme: ThemeSettings,
+  layout: Partial<Record<LayoutSettingKey, unknown>> | null | undefined,
+): ThemeSettings {
+  // Re-validated here (not just trusted from the reader) so the
+  // override is safe for any caller, including tests.
+  const typography = CUSTOMIZE_TYPOGRAPHY_SCHEMA.safeParse(
+    layout?.["customize_typography"],
+  );
+  const buttons = CUSTOMIZE_BUTTONS_SCHEMA.safeParse(
+    layout?.["customize_buttons"],
+  );
+  const serif = typography.success
+    ? FONT_STACKS[typography.data.heading_font]
+    : null;
+  const sans = typography.success
+    ? FONT_STACKS[typography.data.body_font]
+    : null;
+  const controlRadius = buttons.success
+    ? customizeButtonRadius(buttons.data)
+    : null;
+  if (serif === null && sans === null && controlRadius === null) return theme;
+  return {
+    ...theme,
+    typography: {
+      ...theme.typography,
+      serif: serif ?? theme.typography.serif,
+      sans: sans ?? theme.typography.sans,
+    },
+    radius: {
+      ...theme.radius,
+      control: controlRadius ?? theme.radius.control,
+    },
+  };
+}
+
+/**
+ * Navigation override (wired in the root layout). A saved, non-empty
+ * navigation_links list replaces the header navigation wholesale
+ * (label/href/children map 1:1 onto NavItem, already validated by
+ * parseLayoutSetting). An empty or malformed list keeps the static
+ * navigation — an empty nav would strand visitors. Note this replaces
+ * the services adapter's live Men→Shirts rewrite too: saving links is
+ * the owner's explicit choice of navigation.
+ */
+export function applyNavigationOverride(
+  header: HeaderSettings,
+  layout: Partial<Record<LayoutSettingKey, unknown>> | null | undefined,
+): HeaderSettings {
+  // Re-validated here (not just trusted from the reader) so the
+  // override is safe for any caller, including tests.
+  const parsed = NAV_LINKS_SCHEMA.safeParse(layout?.["navigation_links"]);
+  if (!parsed.success || parsed.data.length === 0) return header;
+  return {
+    ...header,
+    navigation: parsed.data.map((link) => ({
+      label: link.label,
+      href: link.href,
+      ...(link.children.length > 0
+        ? {
+            children: link.children.map((child) => ({
+              label: child.label,
+              href: child.href,
+            })),
+          }
+        : {}),
+    })),
+  };
+}
+
+/**
+ * Footer-links override (wired in the root layout). A saved, non-empty
+ * footer_links list replaces the footer link columns wholesale
+ * (title/links map 1:1 onto FooterColumn, already validated by
+ * parseLayoutSetting). An empty or malformed list keeps the static
+ * columns. Only the link columns change here — the tagline and contact
+ * block are owned by applyFooterOverride / the Footer component and
+ * are untouched.
+ */
+export function applyFooterLinksOverride(
+  footer: FooterSettings,
+  layout: Partial<Record<LayoutSettingKey, unknown>> | null | undefined,
+): FooterSettings {
+  // Re-validated here (not just trusted from the reader) so the
+  // override is safe for any caller, including tests.
+  const parsed = FOOTER_LINKS_SCHEMA.safeParse(layout?.["footer_links"]);
+  if (!parsed.success || parsed.data.length === 0) return footer;
+  return {
+    ...footer,
+    columns: parsed.data.map((group) => ({
+      title: group.title,
+      links: group.links.map((link) => ({
+        label: link.label,
+        href: link.href,
+      })),
+    })),
+  };
+}
+
+/**
  * Hero-slide override (NOT YET WIRED — see module header). Visible hero
  * banners, in stored order, replace the static slides. Banner images live
  * in a private Storage bucket, so the caller must supply a resolver that
@@ -447,6 +652,8 @@ export interface StaticSeoBase {
   siteUrl: string;
   description: string;
   logoBadge: string;
+  /** Same-origin brand-media URL for a saved favicon, when one is stored. */
+  faviconUrl?: string;
 }
 
 /**
@@ -523,7 +730,10 @@ export function resolveStorefrontMetadata(
     ...(googleVerification
       ? { verification: { google: googleVerification } }
       : {}),
-    icons: { icon: "/brand/icon.png", apple: "/brand/apple-icon.png" },
+    icons: {
+      icon: base.faviconUrl ?? "/brand/icon.png",
+      apple: "/brand/apple-icon.png",
+    },
     openGraph: {
       siteName: base.siteName,
       type: "website",
