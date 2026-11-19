@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Hourglass, Receipt, Tag, Users } from "lucide-react";
+import { LinkPendingHint } from "@/components/admin/LinkPendingHint";
 
 export type SalesSection = "orders" | "incomplete" | "customers" | "coupons";
 
@@ -27,6 +28,7 @@ export function SalesNav({ current }: { current: SalesSection }) {
         >
           <section.Icon size={16} strokeWidth={1.6} aria-hidden="true" />
           {section.label}
+          <LinkPendingHint />
         </Link>
       ))}
     </nav>

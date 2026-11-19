@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { FormMessage } from "@/components/admin/ui-client";
+import { FormMessage, SubmitButton } from "@/components/admin/ui-client";
 import type { AdminActionResult } from "@/lib/admin/authorization";
 
 /** Shape of the moderation Server Action used with useActionState. */
@@ -31,24 +31,24 @@ export function ReviewRowActions({
       <form action={formAction} method="post" style={{ display: "inline" }}>
         <input type="hidden" name="id" value={reviewId} />
         <input type="hidden" name="approved" value="true" />
-        <button
-          type="submit"
+        <SubmitButton
+          pendingLabel="Working…"
           className="aa-row-action"
-          aria-label={`Approve review by ${author}`}
+          ariaLabel={`Approve review by ${author}`}
         >
           Approve
-        </button>
+        </SubmitButton>
       </form>{" "}
       <form action={formAction} method="post" style={{ display: "inline" }}>
         <input type="hidden" name="id" value={reviewId} />
         <input type="hidden" name="approved" value="false" />
-        <button
-          type="submit"
+        <SubmitButton
+          pendingLabel="Working…"
           className="aa-row-action"
-          aria-label={`Reject review by ${author}`}
+          ariaLabel={`Reject review by ${author}`}
         >
           Reject
-        </button>
+        </SubmitButton>
       </form>
       {state && !state.ok ? <FormMessage state={state} /> : null}
     </div>

@@ -12,6 +12,7 @@ import {
   Notice,
   Pagination,
 } from "@/components/admin/ui";
+import { FilterForm } from "@/components/admin/FilterForm";
 import { SampleBadge } from "@/components/admin/SampleBadge";
 import { FeedHealthIndicator } from "@/components/admin/catalog/feed-health-indicator";
 import { ProductListTable } from "@/components/admin/catalog/product-list-table";
@@ -105,7 +106,7 @@ export default async function CatalogProductsPage({
         {!isSample ? (
           <Card>
             <CardContent>
-              <form className="aa-toolbar" action="/admin/catalog/products" method="get">
+              <FilterForm action="/admin/catalog/products" submitLabel="Apply filters" clearHref="/admin/catalog/products">
                 <div className="aa-field aa-field--grow">
                   <label htmlFor="catalog-q">Search</label>
                   <input
@@ -170,13 +171,7 @@ export default async function CatalogProductsPage({
                     <option value="stock">Most stock</option>
                   </select>
                 </div>
-                <button type="submit" className="aa-button">
-                  Apply filters
-                </button>
-                <Link href="/admin/catalog/products" className="aa-secondary">
-                  Clear
-                </Link>
-              </form>
+              </FilterForm>
             </CardContent>
           </Card>
         ) : null}

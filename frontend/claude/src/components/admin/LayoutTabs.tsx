@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LinkPendingHint } from "@/components/admin/LinkPendingHint";
 
 export type LayoutSection =
   | "homepage-sections"
@@ -36,6 +37,7 @@ export function LayoutTabs({ current }: { current: LayoutSection }) {
           aria-current={section.key === current ? "page" : undefined}
         >
           {section.label}
+          <LinkPendingHint />
         </Link>
       ))}
     </nav>

@@ -1,8 +1,8 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useRef, useSyncExternalStore } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useRef, useSyncExternalStore, useTransition } from "react";
 import {
   LayoutDashboard,
   BarChart3,
@@ -38,6 +38,7 @@ import {
   X,
 } from "lucide-react";
 import { signOutStaff } from "@/lib/admin/actions";
+import { LinkPendingHint } from "@/components/admin/LinkPendingHint";
 import { areaRoles } from "@/lib/admin/constants";
 
 /**
@@ -147,6 +148,25 @@ export function AdminShell({
   taxonomyTools?: boolean;
 }) {
   const path = usePathname();
+  const router = useRouter();
+  const [searchPending, startSearchTransition] = useTransition();
+  function onGlobalSearchSubmit(event: React.FormEvent<HTMLFormElement>) {
+    // The header search used to be a native GET form: Enter reloaded
+    // the whole page with no feedback. Navigate in a transition
+    // instead; the input disables while the results load. An empty
+    // query goes to the bare products page, which treats a missing q
+    // the same as an empty one.
+    event.preventDefault();
+    const query = String(
+      new FormData(event.currentTarget).get("q") ?? "",
+    ).trim();
+    const href = query
+      ? `/admin/catalog/products?q=${encodeURIComponent(query)}`
+      : "/admin/catalog/products";
+    startSearchTransition(() => {
+      router.push(href);
+    });
+  }
   const drawer = useRef<HTMLDialogElement>(null);
   const collapsed = useSyncExternalStore(
     subscribeSidebarPreference,
@@ -370,6 +390,7 @@ export function AdminShell({
               >
                 <Icon size={16} strokeWidth={1.6} aria-hidden="true" />
                 <span className="aa-nav-label">{label}</span>
+                <LinkPendingHint />
               </Link>
             ))}
           </details>
@@ -472,14 +493,16 @@ export function AdminShell({
             height={44}
           />
           {canRead && stagingTools ? (
-            <form className="aa-global-search" action="/admin/catalog/products">
+            <form className="aa-global-search" action="/admin/catalog/products" onSubmit={onGlobalSearchSubmit}>
               <Search size={16} strokeWidth={1.6} aria-hidden="true" />
               <input
                 name="q"
                 type="search"
                 aria-label="Search products"
-                placeholder="Search products…"
+                placeholder={searchPending ? "Searching…" : "Search products…"}
                 maxLength={120}
+                disabled={searchPending}
+                aria-busy={searchPending}
               />
             </form>
           ) : (
@@ -503,6 +526,7 @@ export function AdminShell({
             <Link href="/admin" aria-current={path === "/admin" ? "page" : undefined}>
               <LayoutDashboard size={20} aria-hidden="true" />
               Home
+              <LinkPendingHint />
             </Link>
             {canRead && taxonomyTools && (
               <Link
@@ -511,6 +535,7 @@ export function AdminShell({
               >
                 <Tags size={20} aria-hidden="true" />
                 Categories
+                <LinkPendingHint />
               </Link>
             )}
             <button type="button" onClick={() => drawer.current?.showModal()} aria-haspopup="dialog">

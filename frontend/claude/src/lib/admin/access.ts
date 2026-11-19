@@ -1,8 +1,23 @@
 import "server-only";
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { adminClient } from "./supabase";
 import { rolesSchema, snapshotSchema } from "./validation";
-export async function staffSession(requireMfa = true) {
+/**
+ * Staff session, deduplicated per server request with React cache():
+ * the workspace layout AND the page both resolve the session (three
+ * serial Supabase round trips each: getUser, roles, MFA assurance),
+ * so every admin page paid for the session twice before any data
+ * loaded. cache() keys on the argument, so staffSession() and
+ * staffSession(false) stay separate entries, and the memo lives only
+ * for one request — no cross-request sharing. A redirect still
+ * throws on every call in the request, exactly as re-running it
+ * would. The shared client is the same one the loaders already
+ * reuse across their parallel queries.
+ */
+export const staffSession = cache(async function staffSession(
+  requireMfa = true,
+) {
   const client = await adminClient();
   const {
     data: { user },
@@ -26,7 +41,7 @@ export async function staffSession(requireMfa = true) {
     roles: parsed.data.map((r) => r.role),
     aal: assurance.data.currentLevel,
   };
-}
+});
 export async function catalogueSnapshot() {
   const session = await staffSession();
   if (

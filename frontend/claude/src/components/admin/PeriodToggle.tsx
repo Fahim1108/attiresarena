@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LinkPendingHint } from "./LinkPendingHint";
 import { segmentedActiveIndex } from "./period-toggle";
 import styles from "./PeriodToggle.module.css";
 
@@ -8,7 +9,10 @@ import styles from "./PeriodToggle.module.css";
  * default when the query value is missing or unknown). Links keep the
  * behaviour the toolbar already had — every option is a deep link,
  * keyboard-operable, and preserves the other query params through
- * the hrefs the caller builds. No client JavaScript is involved.
+ * the hrefs the caller builds. Each option carries a LinkPendingHint:
+ * a fixed-size dot that appears the instant its navigation is pending,
+ * so a slow toggle no longer looks stuck. The toggle itself stays a
+ * server component; only the hint ships client JavaScript.
  */
 export interface PeriodToggleOption {
   /** Query value for this option (compared with `activeValue`). */
@@ -53,6 +57,7 @@ export function PeriodToggle({
             className={active ? styles.optionActive : styles.option}
           >
             {option.label}
+            <LinkPendingHint />
           </Link>
         );
       })}

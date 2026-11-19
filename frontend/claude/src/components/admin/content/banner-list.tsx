@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ConfirmSubmit } from "@/components/admin/ui-client";
+import { ConfirmSubmit, SubmitButton } from "@/components/admin/ui-client";
 import { EmptyState, StatusBadge } from "@/components/admin/ui";
 import {
   deleteBanner,
@@ -59,33 +59,37 @@ export function BannerList({
                 </Link>{" "}
                 <form action={toggleBannerVisibility} style={{ display: "inline" }}>
                   <input type="hidden" name="id" value={banner.id} />
-                  <button type="submit" className="aa-row-action" aria-label={`${banner.visible ? "Hide" : "Show"} banner ${banner.title}`}>
+                  <SubmitButton
+                    pendingLabel="Working…"
+                    className="aa-row-action"
+                    ariaLabel={`${banner.visible ? "Hide" : "Show"} banner ${banner.title}`}
+                  >
                     {banner.visible ? "Hide" : "Show"}
-                  </button>
+                  </SubmitButton>
                 </form>{" "}
                 <form action={moveBanner} style={{ display: "inline" }}>
                   <input type="hidden" name="id" value={banner.id} />
                   <input type="hidden" name="direction" value="up" />
-                  <button
-                    type="submit"
+                  <SubmitButton
+                    pendingLabel="Working…"
                     className="aa-row-action"
                     disabled={index === 0}
-                    aria-label={`Move ${banner.title} up`}
+                    ariaLabel={`Move ${banner.title} up`}
                   >
                     ↑ Up
-                  </button>
+                  </SubmitButton>
                 </form>{" "}
                 <form action={moveBanner} style={{ display: "inline" }}>
                   <input type="hidden" name="id" value={banner.id} />
                   <input type="hidden" name="direction" value="down" />
-                  <button
-                    type="submit"
+                  <SubmitButton
+                    pendingLabel="Working…"
                     className="aa-row-action"
                     disabled={index === banners.length - 1}
-                    aria-label={`Move ${banner.title} down`}
+                    ariaLabel={`Move ${banner.title} down`}
                   >
                     ↓ Down
-                  </button>
+                  </SubmitButton>
                 </form>{" "}
                 <ConfirmSubmit
                   action={deleteBanner}

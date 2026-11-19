@@ -238,190 +238,221 @@ export async function getAnalyticsReport(
     .sort((a, b) => b.revenueMinor - a.revenueMinor)
     .slice(0, 10);
 
-  // Sales by category: order_items -> products -> categories.
-  const salesByCategory: { category: string; revenueMinor: number }[] = [];
-  const productIds = [...new Set(items.map((item) => item.product_id))];
-  if (productIds.length > 0) {
-    const productResult = await session.client
-      .from("products")
-      .select("id, category_id")
-      .in("id", productIds.slice(0, 200));
-    if (!productResult.error) {
-      const categoryByProduct = new Map<string, string | null>();
-      const categoryIds = new Set<string>();
-      for (const product of productResult.data ?? []) {
-        categoryByProduct.set(String(product.id), product.category_id ? String(product.category_id) : null);
-        if (product.category_id) categoryIds.add(String(product.category_id));
+  // The five sections below read independent tables, so each runs
+  // as its own task and they are awaited together (Promise.all).
+  // The chains inside a section — products→categories,
+  // redemptions→coupons, delivered items→cost RPC — stay serial,
+  // and every query and fallback is unchanged; only the wait is
+  // shared instead of paid five times in a row.
+  const salesByCategoryTask: Promise<AnalyticsReport["salesByCategory"]> = (async () => {
+    // Sales by category: order_items -> products -> categories.
+    const salesByCategory: { category: string; revenueMinor: number }[] = [];
+    const productIds = [...new Set(items.map((item) => item.product_id))];
+    if (productIds.length > 0) {
+      const productResult = await session.client
+        .from("products")
+        .select("id, category_id")
+        .in("id", productIds.slice(0, 200));
+      if (!productResult.error) {
+        const categoryByProduct = new Map<string, string | null>();
+        const categoryIds = new Set<string>();
+        for (const product of productResult.data ?? []) {
+          categoryByProduct.set(String(product.id), product.category_id ? String(product.category_id) : null);
+          if (product.category_id) categoryIds.add(String(product.category_id));
+        }
+        const names = new Map<string, string>();
+        if (categoryIds.size > 0) {
+          const categoryResult = await session.client
+            .from("categories")
+            .select("id, name")
+            .in("id", [...categoryIds]);
+          if (!categoryResult.error) {
+            for (const category of categoryResult.data ?? []) {
+              names.set(String(category.id), String(category.name));
+            }
+          }
+        }
+        const byCategory = new Map<string, number>();
+        for (const item of items) {
+          const categoryId = categoryByProduct.get(item.product_id);
+          const label = categoryId ? (names.get(categoryId) ?? "Uncategorised") : "Uncategorised";
+          byCategory.set(label, (byCategory.get(label) ?? 0) + item.line_total_minor);
+        }
+        salesByCategory.push(
+          ...[...byCategory.entries()]
+            .map(([category, revenueMinor]) => ({ category, revenueMinor }))
+            .sort((a, b) => b.revenueMinor - a.revenueMinor),
+        );
       }
-      const names = new Map<string, string>();
-      if (categoryIds.size > 0) {
-        const categoryResult = await session.client
-          .from("categories")
-          .select("id, name")
-          .in("id", [...categoryIds]);
-        if (!categoryResult.error) {
-          for (const category of categoryResult.data ?? []) {
-            names.set(String(category.id), String(category.name));
+    }
+    return salesByCategory;
+  })();
+
+  const couponPerformanceTask: Promise<AnalyticsReport["couponPerformance"]> = (async () => {
+    // Coupon performance from coupon_redemptions (migration 004). The table
+    // records coupon_id + redeemed_at only — no per-redemption discount
+    // amount exists, so the report shows redemption counts by coupon code.
+    // Any error means unavailable. Note the RLS policy requires
+    // coupons.manage, so analytics-only roles see an empty list.
+    let couponPerformance: AnalyticsReport["couponPerformance"] = null;
+    const redemptionResult = await session.client
+      .from("coupon_redemptions")
+      .select("coupon_id, redeemed_at")
+      .gte("redeemed_at", fromIso)
+      .lt("redeemed_at", toIso)
+      .limit(1000);
+    if (!redemptionResult.error) {
+      const counts = new Map<string, number>();
+      for (const row of redemptionResult.data ?? []) {
+        const couponId = String(row.coupon_id ?? "");
+        if (!couponId) continue;
+        counts.set(couponId, (counts.get(couponId) ?? 0) + 1);
+      }
+      const codes = new Map<string, string>();
+      if (counts.size > 0) {
+        const couponResult = await session.client
+          .from("coupons")
+          .select("id, code")
+          .in("id", [...counts.keys()]);
+        if (!couponResult.error) {
+          for (const coupon of couponResult.data ?? []) {
+            codes.set(String(coupon.id), String(coupon.code));
           }
         }
       }
-      const byCategory = new Map<string, number>();
-      for (const item of items) {
-        const categoryId = categoryByProduct.get(item.product_id);
-        const label = categoryId ? (names.get(categoryId) ?? "Uncategorised") : "Uncategorised";
-        byCategory.set(label, (byCategory.get(label) ?? 0) + item.line_total_minor);
-      }
-      salesByCategory.push(
-        ...[...byCategory.entries()]
-          .map(([category, revenueMinor]) => ({ category, revenueMinor }))
-          .sort((a, b) => b.revenueMinor - a.revenueMinor),
-      );
+      couponPerformance = [...counts.entries()]
+        .map(([couponId, redemptions]) => ({
+          code: codes.get(couponId) ?? "Unknown coupon",
+          redemptions,
+        }))
+        .sort((a, b) => b.redemptions - a.redemptions);
     }
-  }
+    return couponPerformance;
+  })();
 
-  // Coupon performance from coupon_redemptions (migration 004). The table
-  // records coupon_id + redeemed_at only — no per-redemption discount
-  // amount exists, so the report shows redemption counts by coupon code.
-  // Any error means unavailable. Note the RLS policy requires
-  // coupons.manage, so analytics-only roles see an empty list.
-  let couponPerformance: AnalyticsReport["couponPerformance"] = null;
-  const redemptionResult = await session.client
-    .from("coupon_redemptions")
-    .select("coupon_id, redeemed_at")
-    .gte("redeemed_at", fromIso)
-    .lt("redeemed_at", toIso)
-    .limit(1000);
-  if (!redemptionResult.error) {
-    const counts = new Map<string, number>();
-    for (const row of redemptionResult.data ?? []) {
-      const couponId = String(row.coupon_id ?? "");
-      if (!couponId) continue;
-      counts.set(couponId, (counts.get(couponId) ?? 0) + 1);
-    }
-    const codes = new Map<string, string>();
-    if (counts.size > 0) {
-      const couponResult = await session.client
-        .from("coupons")
-        .select("id, code")
-        .in("id", [...counts.keys()]);
-      if (!couponResult.error) {
-        for (const coupon of couponResult.data ?? []) {
-          codes.set(String(coupon.id), String(coupon.code));
+  const inventoryTask: Promise<AnalyticsReport["inventory"]> = (async () => {
+    // Inventory aggregates (read-only; inventory writes belong to builder B).
+    let inventory: AnalyticsReport["inventory"] = null;
+    const inventoryResult = await session.client
+      .from("inventory")
+      .select("available, low_stock_threshold")
+      .limit(5000);
+    if (!inventoryResult.error) {
+      let inStock = 0;
+      let outOfStock = 0;
+      let lowStock = 0;
+      for (const row of inventoryResult.data ?? []) {
+        const available = num(row.available);
+        if (available <= 0) outOfStock += 1;
+        else {
+          inStock += 1;
+          if (available <= num(row.low_stock_threshold)) lowStock += 1;
         }
       }
-    }
-    couponPerformance = [...counts.entries()]
-      .map(([couponId, redemptions]) => ({
-        code: codes.get(couponId) ?? "Unknown coupon",
-        redemptions,
-      }))
-      .sort((a, b) => b.redemptions - a.redemptions);
-  }
-
-  // Inventory aggregates (read-only; inventory writes belong to builder B).
-  let inventory: AnalyticsReport["inventory"] = null;
-  const inventoryResult = await session.client
-    .from("inventory")
-    .select("available, low_stock_threshold")
-    .limit(5000);
-  if (!inventoryResult.error) {
-    let inStock = 0;
-    let outOfStock = 0;
-    let lowStock = 0;
-    for (const row of inventoryResult.data ?? []) {
-      const available = num(row.available);
-      if (available <= 0) outOfStock += 1;
-      else {
-        inStock += 1;
-        if (available <= num(row.low_stock_threshold)) lowStock += 1;
-      }
-    }
-    inventory = {
-      totalVariants: inventoryResult.data?.length ?? 0,
-      inStock,
-      outOfStock,
-      lowStock,
-    };
-  }
-
-  // Customer trends: a phone is "returning" when it ordered before the range.
-  let customerTrends: AnalyticsReport["customerTrends"] = null;
-  const phonesInRange = new Set(counted.map((order) => order.phone).filter(Boolean));
-  if (phonesInRange.size > 0) {
-    const priorResult = await session.client
-      .from("orders")
-      .select("phone")
-      .lt("placed_at", fromIso)
-      .limit(5000);
-    if (!priorResult.error) {
-      const priorPhones = new Set(
-        (priorResult.data ?? []).map((row) => String(row.phone ?? "")).filter(Boolean),
-      );
-      let returning = 0;
-      for (const phone of phonesInRange) {
-        if (priorPhones.has(phone)) returning += 1;
-      }
-      customerTrends = {
-        newCustomers: phonesInRange.size - returning,
-        returningCustomers: returning,
+      inventory = {
+        totalVariants: inventoryResult.data?.length ?? 0,
+        inStock,
+        outOfStock,
+        lowStock,
       };
     }
-  } else {
-    customerTrends = { newCustomers: 0, returningCustomers: 0 };
-  }
+    return inventory;
+  })();
 
-  // Profit: delivered orders only, cost prices only when recorded — and
-  // only when the viewer's roles may see costs. When hidden, the cost
-  // query never runs, so no cost price ever reaches this loader.
-  let profit: AnalyticsReport["profit"] = null;
-  let profitAvailable = false;
-  if (!costsHidden) {
-    const deliveredIds = new Set(
-      orders.filter((order) => order.status === "delivered").map((order) => order.id),
-    );
-    const deliveredItems = await fetchOrderItems(session.client, [...deliveredIds]);
-    if (deliveredItems.length > 0) {
-      const variantIds = [...new Set(deliveredItems.map((item) => item.variant_id))];
-      // Costs come ONLY from the gated admin_variant_costs RPC
-      // (costs.read + MFA, enforced server-side): the cost column is
-      // excluded from the anon/authenticated SELECT grant, so a
-      // direct select cannot serve it. On RPC error, profit stays
-      // unavailable exactly as when the direct read errored.
-      const costResult = await session.client.rpc("admin_variant_costs", {
-        p_variant_ids: variantIds.slice(0, 200),
-      });
-      if (!costResult.error) {
-        const costs = new Map<string, number>();
-        for (const variant of costResult.data ?? []) {
-          if (typeof variant.cost_price_minor === "number") {
-            costs.set(String(variant.variant_id), variant.cost_price_minor);
+  const customerTrendsTask: Promise<AnalyticsReport["customerTrends"]> = (async () => {
+    // Customer trends: a phone is "returning" when it ordered before the range.
+    let customerTrends: AnalyticsReport["customerTrends"] = null;
+    const phonesInRange = new Set(counted.map((order) => order.phone).filter(Boolean));
+    if (phonesInRange.size > 0) {
+      const priorResult = await session.client
+        .from("orders")
+        .select("phone")
+        .lt("placed_at", fromIso)
+        .limit(5000);
+      if (!priorResult.error) {
+        const priorPhones = new Set(
+          (priorResult.data ?? []).map((row) => String(row.phone ?? "")).filter(Boolean),
+        );
+        let returning = 0;
+        for (const phone of phonesInRange) {
+          if (priorPhones.has(phone)) returning += 1;
+        }
+        customerTrends = {
+          newCustomers: phonesInRange.size - returning,
+          returningCustomers: returning,
+        };
+      }
+    } else {
+      customerTrends = { newCustomers: 0, returningCustomers: 0 };
+    }
+    return customerTrends;
+  })();
+
+  const profitTask: Promise<{ profit: AnalyticsReport["profit"]; profitAvailable: boolean }> = (async () => {
+    // Profit: delivered orders only, cost prices only when recorded — and
+    // only when the viewer's roles may see costs. When hidden, the cost
+    // query never runs, so no cost price ever reaches this loader.
+    let profit: AnalyticsReport["profit"] = null;
+    let profitAvailable = false;
+    if (!costsHidden) {
+      const deliveredIds = new Set(
+        orders.filter((order) => order.status === "delivered").map((order) => order.id),
+      );
+      const deliveredItems = await fetchOrderItems(session.client, [...deliveredIds]);
+      if (deliveredItems.length > 0) {
+        const variantIds = [...new Set(deliveredItems.map((item) => item.variant_id))];
+        // Costs come ONLY from the gated admin_variant_costs RPC
+        // (costs.read + MFA, enforced server-side): the cost column is
+        // excluded from the anon/authenticated SELECT grant, so a
+        // direct select cannot serve it. On RPC error, profit stays
+        // unavailable exactly as when the direct read errored.
+        const costResult = await session.client.rpc("admin_variant_costs", {
+          p_variant_ids: variantIds.slice(0, 200),
+        });
+        if (!costResult.error) {
+          const costs = new Map<string, number>();
+          for (const variant of costResult.data ?? []) {
+            if (typeof variant.cost_price_minor === "number") {
+              costs.set(String(variant.variant_id), variant.cost_price_minor);
+            }
           }
-        }
-        let profitMinor = 0;
-        let revenueMinor = 0;
-        let costMinor = 0;
-        let itemsWithCost = 0;
-        for (const item of deliveredItems) {
-          const cost = costs.get(item.variant_id);
-          if (cost === undefined) continue;
-          itemsWithCost += 1;
-          revenueMinor += item.line_total_minor;
-          costMinor += cost * item.quantity;
-          profitMinor += (item.unit_price_minor - cost) * item.quantity;
-        }
-        if (itemsWithCost > 0) {
-          profitAvailable = true;
-          profit = {
-            profitMinor,
-            revenueMinor,
-            costMinor,
-            itemsWithCost,
-            deliveredItems: deliveredItems.length,
-          };
+          let profitMinor = 0;
+          let revenueMinor = 0;
+          let costMinor = 0;
+          let itemsWithCost = 0;
+          for (const item of deliveredItems) {
+            const cost = costs.get(item.variant_id);
+            if (cost === undefined) continue;
+            itemsWithCost += 1;
+            revenueMinor += item.line_total_minor;
+            costMinor += cost * item.quantity;
+            profitMinor += (item.unit_price_minor - cost) * item.quantity;
+          }
+          if (itemsWithCost > 0) {
+            profitAvailable = true;
+            profit = {
+              profitMinor,
+              revenueMinor,
+              costMinor,
+              itemsWithCost,
+              deliveredItems: deliveredItems.length,
+            };
+          }
         }
       }
     }
-  }
+    return { profit, profitAvailable };
+  })();
+
+  const [salesByCategory, couponPerformance, inventory, customerTrends, profitResult] =
+    await Promise.all([
+      salesByCategoryTask,
+      couponPerformanceTask,
+      inventoryTask,
+      customerTrendsTask,
+      profitTask,
+    ]);
+  const { profit, profitAvailable } = profitResult;
 
   return {
     range,

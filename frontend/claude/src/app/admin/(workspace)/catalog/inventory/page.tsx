@@ -17,6 +17,7 @@ import {
   Pagination,
   StatusBadge,
 } from "@/components/admin/ui";
+import { FilterForm } from "@/components/admin/FilterForm";
 import { SampleBadge } from "@/components/admin/SampleBadge";
 import { InventoryAdjustForm } from "@/components/admin/catalog/inventory-adjust-form";
 import {
@@ -191,7 +192,7 @@ export default async function CatalogInventoryPage({
         {!isSample ? (
           <Card>
             <CardContent>
-              <form className="aa-toolbar" action="/admin/catalog/inventory" method="get">
+              <FilterForm action="/admin/catalog/inventory" submitLabel="Apply filters" clearHref="/admin/catalog/inventory">
                 <div className="aa-field aa-field--grow">
                   <label htmlFor="inventory-q">Search variants</label>
                   <input
@@ -212,13 +213,7 @@ export default async function CatalogInventoryPage({
                     <option value="out-of-stock">Out of stock</option>
                   </select>
                 </div>
-                <button type="submit" className="aa-button">
-                  Apply filters
-                </button>
-                <Link href="/admin/catalog/inventory" className="aa-secondary">
-                  Clear
-                </Link>
-              </form>
+              </FilterForm>
             </CardContent>
           </Card>
         ) : null}

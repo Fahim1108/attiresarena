@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   ORDER_STATUSES,
   ORDER_STATUS_LABELS,
@@ -25,6 +24,7 @@ import {
 import { resolveDisplayData } from "@/lib/admin/sample-data";
 import { SAMPLE_ORDERS } from "@/lib/admin/sample-sales";
 import { Pagination, hrefWithParams, Notice } from "@/components/admin/ui";
+import { FilterForm } from "@/components/admin/FilterForm";
 import { SampleBadge } from "@/components/admin/SampleBadge";
 import { OrdersTable } from "@/components/admin/sales/OrdersTable";
 import { SalesNav } from "@/components/admin/sales/SalesNav";
@@ -102,7 +102,7 @@ export default async function OrdersPage({
         {!isSample ? (
           <Card>
             <CardContent>
-              <form className="aa-toolbar" action="/admin/sales/orders" method="get">
+              <FilterForm action="/admin/sales/orders" submitLabel="Apply filters" clearHref="/admin/sales/orders">
                 <div className="aa-field aa-field--grow">
                   <label htmlFor="orders-q">Search order number, name or phone</label>
                   <input id="orders-q" name="q" type="search" maxLength={120} defaultValue={filters.q} />
@@ -152,13 +152,7 @@ export default async function OrdersPage({
                     <option value="100">100</option>
                   </select>
                 </div>
-                <button type="submit" className="aa-button">
-                  Apply filters
-                </button>
-                <Link className="aa-secondary" href="/admin/sales/orders">
-                  Clear
-                </Link>
-              </form>
+              </FilterForm>
             </CardContent>
           </Card>
         ) : null}

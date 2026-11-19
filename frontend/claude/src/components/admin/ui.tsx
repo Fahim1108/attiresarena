@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { LinkPendingHint } from "@/components/admin/LinkPendingHint";
 
 /**
  * Shared server-safe admin UI primitives. Styles live in
@@ -128,6 +129,7 @@ export function Pagination({
       {page > 1 ? (
         <Link href={hrefFor(page - 1)} aria-label="Previous page">
           ← Previous
+          <LinkPendingHint />
         </Link>
       ) : (
         <span aria-hidden="true">← Previous</span>
@@ -140,12 +142,14 @@ export function Pagination({
         ) : (
           <Link key={p} href={hrefFor(p)}>
             {p}
+            <LinkPendingHint />
           </Link>
         ),
       )}
       {page < totalPages ? (
         <Link href={hrefFor(page + 1)} aria-label="Next page">
           Next →
+          <LinkPendingHint />
         </Link>
       ) : (
         <span aria-hidden="true">Next →</span>

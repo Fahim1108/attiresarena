@@ -7,6 +7,7 @@ import { CountUpValue } from "@/components/admin/charts/CountUpValue";
 import { DonutChart, DONUT_PALETTE } from "@/components/admin/charts/DonutChart";
 import { SeriesChart } from "@/components/admin/charts/SeriesChart";
 import { PeriodToggle } from "@/components/admin/PeriodToggle";
+import { DateRangeForm } from "@/components/admin/DateRangeForm";
 import { PageHeader } from "@/components/design-system/PageHeader";
 import { StatCard } from "@/components/design-system/StatCard";
 import {
@@ -125,7 +126,14 @@ export default async function AnalyticsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const report = await getAnalyticsReport(params);
+  // The DB report and the GA visitor read are independent: run them
+  // together instead of serially, so the two Google round trips
+  // (token exchange + runReport) no longer wait behind the whole
+  // report load before the page can render.
+  const [report, visitorReport] = await Promise.all([
+    getAnalyticsReport(params),
+    getVisitorReport(parseVisitorPeriod(params[VISITOR_PERIOD_PARAM])),
+  ]);
   const { range } = report;
 
   // Total Visitors period: URL state only (visitorsPeriod param), so
@@ -135,7 +143,6 @@ export default async function AnalyticsPage({
   // otherwise; only the period label, the selector's active option,
   // and the empty-state guidance change between periods.
   const visitorPeriod = parseVisitorPeriod(params[VISITOR_PERIOD_PARAM]);
-  const visitorReport = await getVisitorReport(visitorPeriod);
   const visitorPeriodLabel = VISITOR_PERIOD_LABELS[visitorPeriod];
   const visitorPeriodPhrase =
     visitorPeriod === "today" ? "today" : visitorPeriodLabel;
@@ -196,48 +203,14 @@ export default async function AnalyticsPage({
           />
         </div>
 
-        <form
-          method="get"
+        <DateRangeForm
           action="/admin/analytics"
-          className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end"
-        >
-          <div className="min-w-0">
-            <label
-              htmlFor="analytics-from"
-              className="mb-1 block text-xs font-medium text-admin-text-secondary"
-            >
-              From
-            </label>
-            <input
-              id="analytics-from"
-              type="date"
-              name="from"
-              defaultValue={range.from}
-              className="h-11 rounded-admin-control border border-admin-border bg-admin-card px-3 text-sm text-admin-text"
-            />
-          </div>
-          <div className="min-w-0">
-            <label
-              htmlFor="analytics-to"
-              className="mb-1 block text-xs font-medium text-admin-text-secondary"
-            >
-              To
-            </label>
-            <input
-              id="analytics-to"
-              type="date"
-              name="to"
-              defaultValue={range.to}
-              className="h-11 rounded-admin-control border border-admin-border bg-admin-card px-3 text-sm text-admin-text"
-            />
-          </div>
-          <button
-            type="submit"
-            className="inline-flex min-h-11 items-center justify-center rounded-admin-control bg-admin-primary px-4 text-sm font-medium text-white transition-colors hover:bg-admin-primary/90"
-          >
-            Apply range
-          </button>
-        </form>
+          from={range.from}
+          to={range.to}
+          fromId="analytics-from"
+          toId="analytics-to"
+          submitLabel="Apply range"
+        />
 
         {!report.ordersAvailable ? (
           <Notice kind="warning">

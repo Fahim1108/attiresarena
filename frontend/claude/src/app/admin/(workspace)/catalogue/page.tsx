@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { randomUUID } from "node:crypto";
+import { LinkPendingHint } from "@/components/admin/LinkPendingHint";
 import { librarySession } from "@/lib/admin/product-library";
 import {
   libraryFilters,
@@ -9,6 +10,7 @@ import {
 } from "@/lib/admin/library-validation";
 import { termKind, termRecord } from "@/lib/admin/taxonomy-validation";
 import { TaxonomyForm } from "@/components/admin/access/TaxonomyForms";
+import { FilterForm } from "@/components/admin/FilterForm";
 import { Card, CardContent } from "@/components/design-system/Card";
 import { PageHeader } from "@/components/design-system/PageHeader";
 
@@ -77,19 +79,24 @@ export default async function CategoriesAndCollections({
               aria-current={k === kind ? "page" : undefined}
             >
               {kindTitle(k)}
+              <LinkPendingHint />
             </Link>
           ))}
         </nav>
         <Card>
           <CardContent>
-            <form className="aa-search" action="/admin/catalogue">
+            <FilterForm
+              action="/admin/catalogue"
+              submitLabel="Search catalogue records"
+              pendingLabel="Searching…"
+              formClassName="aa-search"
+            >
               <input type="hidden" name="kind" value={kind} />
               <label>
                 Search names
                 <input name="q" maxLength={120} defaultValue={filters.q} />
               </label>
-              <button>Search catalogue records</button>
-            </form>
+            </FilterForm>
           </CardContent>
         </Card>
         {canManage && (
@@ -120,10 +127,16 @@ export default async function CategoriesAndCollections({
         )}
         <nav className="aa-editor-actions" aria-label="Catalogue record pages">
           {filters.page > 1 && (
-            <Link href={href(filters.page - 1)}>Previous</Link>
+            <Link href={href(filters.page - 1)}>
+              Previous
+              <LinkPendingHint />
+            </Link>
           )}
           {filters.page * 24 < (result.count || 0) && (
-            <Link href={href(filters.page + 1)}>Next</Link>
+            <Link href={href(filters.page + 1)}>
+              Next
+              <LinkPendingHint />
+            </Link>
           )}
         </nav>
       </div>

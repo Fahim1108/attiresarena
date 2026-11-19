@@ -468,6 +468,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.35rem;
   min-width: 40px;
   min-height: 40px;
   padding: 0.45rem 0.7rem;
@@ -587,7 +588,7 @@ a.aa-kpi:hover { border-color: rgb(var(--aa-primary) / 0.5); transform: translat
 /* Tabs */
 .aa-tabs { display: flex; flex-wrap: wrap; gap: 0.25rem; border-bottom: 1px solid rgb(var(--aa-border)); margin-bottom: 1rem; }
 .aa-tabs a { padding: 0.55rem 0.9rem; text-decoration: none; color: rgb(var(--aa-text-muted)); border-bottom: 2px solid transparent; margin-bottom: -1px; }
-.aa-admin .aa-tabs a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 500; }
+.aa-admin .aa-tabs a { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 44px; font-weight: 500; }
 .aa-admin .aa-tabs a:hover { background: rgb(var(--aa-selected) / 0.5); color: rgb(var(--aa-text)); }
 .aa-tabs a[aria-current="page"] { color: rgb(var(--aa-text)); font-weight: 600; border-bottom-color: rgb(var(--aa-primary)); }
 

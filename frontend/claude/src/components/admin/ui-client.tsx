@@ -41,6 +41,8 @@ export function SubmitButton({
   pendingLabel = "Saving…",
   className = "aa-button",
   danger = false,
+  ariaLabel,
+  disabled = false,
 }: {
   children: React.ReactNode;
   pendingLabel?: string;
@@ -50,14 +52,19 @@ export function SubmitButton({
    * <DangerSubmitButton> variant instead of this boolean.
    */
   danger?: boolean;
+  /** Accessible name when the visible label alone is not enough. */
+  ariaLabel?: string;
+  /** Extra disabled reason besides pending (e.g. first-row move-up). */
+  disabled?: boolean;
 }) {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
-      disabled={pending}
+      disabled={pending || disabled}
       className={className}
       data-danger={danger || undefined}
+      aria-label={ariaLabel}
     >
       {pending ? pendingLabel : children}
     </button>

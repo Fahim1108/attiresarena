@@ -6,6 +6,7 @@ import { incompleteFilters, incompleteStats, readIncompleteSessions } from "@/li
 import { resolveDisplayData } from "@/lib/admin/sample-data";
 import { SAMPLE_INCOMPLETE_SESSIONS } from "@/lib/admin/sample-sales";
 import { Pagination, Notice, StatusBadge, hrefWithParams, type BadgeTone } from "@/components/admin/ui";
+import { FilterForm } from "@/components/admin/FilterForm";
 import { SampleBadge } from "@/components/admin/SampleBadge";
 import { SalesNav } from "@/components/admin/sales/SalesNav";
 import { Card, CardContent } from "@/components/design-system/Card";
@@ -82,7 +83,7 @@ export default async function IncompletePage({
         {!isSample ? (
           <Card>
             <CardContent>
-              <form className="aa-toolbar" action="/admin/sales/incomplete" method="get">
+              <FilterForm action="/admin/sales/incomplete" submitLabel="Apply filters" clearHref="/admin/sales/incomplete">
                 <div className="aa-field aa-field--grow">
                   <label htmlFor="incomplete-q">Search name, phone or email</label>
                   <input id="incomplete-q" name="q" type="search" maxLength={120} defaultValue={filters.q} />
@@ -113,13 +114,7 @@ export default async function IncompletePage({
                     <option value="100">100</option>
                   </select>
                 </div>
-                <button type="submit" className="aa-button">
-                  Apply filters
-                </button>
-                <Link className="aa-secondary" href="/admin/sales/incomplete">
-                  Clear
-                </Link>
-              </form>
+              </FilterForm>
             </CardContent>
           </Card>
         ) : null}

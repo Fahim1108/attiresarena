@@ -4,6 +4,7 @@ import { customerFilters, exportCustomersCsv, readCustomers } from "@/lib/admin/
 import { resolveDisplayData } from "@/lib/admin/sample-data";
 import { SAMPLE_CUSTOMERS } from "@/lib/admin/sample-sales";
 import { Pagination, Notice, StatusBadge, hrefWithParams } from "@/components/admin/ui";
+import { FilterForm } from "@/components/admin/FilterForm";
 import { SampleBadge } from "@/components/admin/SampleBadge";
 import { CustomersExportButton } from "@/components/admin/sales/CustomersExportButton";
 import { SalesNav } from "@/components/admin/sales/SalesNav";
@@ -70,7 +71,7 @@ export default async function CustomersPage({
         {!isSample ? (
           <Card>
             <CardContent>
-              <form className="aa-toolbar" action="/admin/sales/customers" method="get">
+              <FilterForm action="/admin/sales/customers" submitLabel="Apply filters" clearHref="/admin/sales/customers">
                 <div className="aa-field aa-field--grow">
                   <label htmlFor="customers-q">Search name, phone or email</label>
                   <input id="customers-q" name="q" type="search" maxLength={120} defaultValue={filters.q} />
@@ -91,13 +92,7 @@ export default async function CustomersPage({
                     <option value="100">100</option>
                   </select>
                 </div>
-                <button type="submit" className="aa-button">
-                  Apply filters
-                </button>
-                <Link className="aa-secondary" href="/admin/sales/customers">
-                  Clear
-                </Link>
-              </form>
+              </FilterForm>
             </CardContent>
           </Card>
         ) : null}

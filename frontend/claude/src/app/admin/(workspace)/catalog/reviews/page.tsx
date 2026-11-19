@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LinkPendingHint } from "@/components/admin/LinkPendingHint";
 import { formatDateTime } from "@/lib/admin/format";
 import {
   moderateReview,
@@ -73,6 +74,7 @@ export default async function ReviewsPage({
                 aria-current={active ? "page" : undefined}
               >
                 {filter.label}
+                <LinkPendingHint />
               </Link>
             );
           })}

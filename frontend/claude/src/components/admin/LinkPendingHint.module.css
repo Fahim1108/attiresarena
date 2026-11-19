@@ -1,0 +1,42 @@
+/* Pending dot for admin navigation links (LinkPendingHint). Always
+   rendered at a fixed size so it never shifts layout; invisible until
+   its link's navigation is pending. Colours come from currentColor so
+   the dot reads on maroon pills and on plain links alike. The 100ms
+   fade-in delay keeps fast navigations from flashing it. */
+
+.hint {
+  display: inline-block;
+  flex: none;
+  width: 0.6em;
+  height: 0.6em;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.hintPending {
+  visibility: visible;
+  animation:
+    aa-link-hint-fade-in 200ms ease 100ms forwards,
+    aa-link-hint-pulse 1s ease-in-out 100ms infinite;
+}
+
+@keyframes aa-link-hint-fade-in {
+  to {
+    opacity: 0.5;
+  }
+}
+
+@keyframes aa-link-hint-pulse {
+  50% {
+    opacity: 0.2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hintPending {
+    animation: none;
+    opacity: 0.5;
+  }
+}

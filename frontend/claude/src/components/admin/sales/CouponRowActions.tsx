@@ -30,13 +30,13 @@ export function CouponRowActions({
       <form action={toggleFormAction} method="post" style={{ display: "inline" }}>
         <input type="hidden" name="id" value={couponId} />
         <input type="hidden" name="active" value={active ? "false" : "true"} />
-        <button
-          type="submit"
+        <SubmitButton
+          pendingLabel="Working…"
           className="aa-row-action"
-          aria-label={`${active ? "Deactivate" : "Activate"} coupon ${code}`}
+          ariaLabel={`${active ? "Deactivate" : "Activate"} coupon ${code}`}
         >
           {active ? "Deactivate" : "Activate"}
-        </button>
+        </SubmitButton>
       </form>{" "}
       {hasRedemptions ? (
         <button

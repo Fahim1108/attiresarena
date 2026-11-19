@@ -51,6 +51,8 @@ import {
 import { PieChart, PIE_PALETTE } from "@/components/admin/charts/PieChart";
 import { SeriesChart } from "@/components/admin/charts/SeriesChart";
 import { PeriodToggle } from "@/components/admin/PeriodToggle";
+import { LinkPendingHint } from "@/components/admin/LinkPendingHint";
+import { DateRangeForm } from "@/components/admin/DateRangeForm";
 import { PageHeader } from "@/components/design-system/PageHeader";
 import {
   StatCard,
@@ -130,7 +132,7 @@ function KpiCard({
   return (
     <Link
       href={href}
-      className="aa-ds-plain-link block h-full rounded-admin-card"
+      className="aa-ds-plain-link relative block h-full rounded-admin-card"
     >
       <StatCard
         label={label}
@@ -147,6 +149,11 @@ function KpiCard({
         description={trend === null ? deltaCaption : undefined}
         className="aa-kpi h-full transition-shadow hover:shadow-admin-lift"
       />
+      {/* Pending dot (bottom-right, clear of the icon tile): appears
+          the instant this card's navigation is pending. */}
+      <span className="pointer-events-none absolute bottom-3 right-3 text-admin-primary">
+        <LinkPendingHint />
+      </span>
     </Link>
   );
 }
@@ -172,7 +179,7 @@ function StatusCell({
     <Link
       href={href}
       aria-label={`${label}: ${countText}`}
-      className="aa-ds-plain-link block h-full rounded-admin-card border border-admin-border bg-admin-card p-4 transition-shadow hover:border-admin-primary/40 hover:shadow-admin-lift"
+      className="aa-ds-plain-link relative block h-full rounded-admin-card border border-admin-border bg-admin-card p-4 transition-shadow hover:border-admin-primary/40 hover:shadow-admin-lift"
     >
       <span className="flex items-center gap-2">
         <span
@@ -186,6 +193,11 @@ function StatusCell({
       </span>
       <span className="admin-ds-numeric mt-2 block min-w-0 text-[28px] font-semibold leading-8 text-admin-text [overflow-wrap:anywhere]">
         {countText}
+      </span>
+      {/* Pending dot (bottom-right): appears the instant this cell's
+          navigation is pending. */}
+      <span className="pointer-events-none absolute bottom-3 right-3 text-admin-primary">
+        <LinkPendingHint />
       </span>
     </Link>
   );
@@ -363,77 +375,43 @@ export default async function AdminDashboard({
           }
         />
 
-        <form
-          method="get"
+        <DateRangeForm
           action="/admin"
-          className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end"
+          from={range.from}
+          to={range.to}
+          fromId="dashboard-from"
+          toId="dashboard-to"
+          submitLabel="Apply"
+          required
+        />
+        <span
+          className="flex flex-wrap gap-2"
+          role="group"
+          aria-label="Preset periods"
         >
-          <div className="min-w-0">
-            <label
-              htmlFor="dashboard-from"
-              className="mb-1 block text-xs font-medium text-admin-text-secondary"
-            >
-              From
-            </label>
-            <input
-              id="dashboard-from"
-              type="date"
-              name="from"
-              defaultValue={range.from}
-              required
-              className="h-11 rounded-admin-control border border-admin-border bg-admin-card px-3 text-sm text-admin-text"
-            />
-          </div>
-          <div className="min-w-0">
-            <label
-              htmlFor="dashboard-to"
-              className="mb-1 block text-xs font-medium text-admin-text-secondary"
-            >
-              To
-            </label>
-            <input
-              id="dashboard-to"
-              type="date"
-              name="to"
-              defaultValue={range.to}
-              required
-              className="h-11 rounded-admin-control border border-admin-border bg-admin-card px-3 text-sm text-admin-text"
-            />
-          </div>
-          <button
-            className="inline-flex min-h-11 items-center justify-center rounded-admin-control bg-admin-primary px-4 text-sm font-medium text-white transition-colors hover:bg-admin-primary/90"
-            type="submit"
-          >
-            Apply
-          </button>
-          <span
-            className="flex flex-wrap gap-2"
-            role="group"
-            aria-label="Preset periods"
-          >
-            {presets.map((preset) => {
-              const active =
-                preset.from === range.from && preset.to === range.to;
-              return (
-                <Link
-                  key={preset.label}
-                  className={
-                    active
-                      ? "aa-ds-plain-link inline-flex min-h-11 items-center rounded-full bg-admin-primary px-3.5 text-[13px] font-medium text-white"
-                      : "aa-ds-plain-link inline-flex min-h-11 items-center rounded-full border border-admin-border bg-admin-card px-3.5 text-[13px] font-medium text-admin-text transition-colors hover:bg-admin-soft-bg"
-                  }
-                  href={hrefWithParams("/admin", params, {
-                    from: preset.from,
-                    to: preset.to,
-                  })}
-                  aria-current={active ? "true" : undefined}
-                >
-                  {preset.label}
-                </Link>
-              );
-            })}
-          </span>
-        </form>
+          {presets.map((preset) => {
+            const active =
+              preset.from === range.from && preset.to === range.to;
+            return (
+              <Link
+                key={preset.label}
+                className={
+                  active
+                    ? "aa-ds-plain-link inline-flex min-h-11 items-center gap-1.5 rounded-full bg-admin-primary px-3.5 text-[13px] font-medium text-white"
+                    : "aa-ds-plain-link inline-flex min-h-11 items-center gap-1.5 rounded-full border border-admin-border bg-admin-card px-3.5 text-[13px] font-medium text-admin-text transition-colors hover:bg-admin-soft-bg"
+                }
+                href={hrefWithParams("/admin", params, {
+                  from: preset.from,
+                  to: preset.to,
+                })}
+                aria-current={active ? "true" : undefined}
+              >
+                {preset.label}
+                <LinkPendingHint />
+              </Link>
+            );
+          })}
+        </span>
 
         <div>
           <PeriodToggle
