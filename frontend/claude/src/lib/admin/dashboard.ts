@@ -602,263 +602,473 @@ const ABANDONED_QUERY_LIMIT = 500;
 const ORDER_COLUMNS =
   "id,order_number,customer_name,phone,payment_method,payment_status,status,total_minor,placed_at";
 
+// --- Section loaders: the streaming dashboard ---------------------------
+//
+// The dashboard page renders its shell (header, date controls, presets)
+// immediately and streams each section behind its own Suspense boundary
+// as its data arrives. The loaders below are the single query path for
+// both the streamed page and loadDashboard: each query is issued exactly
+// once per render, and a failed query degrades only its own section
+// (recorded in that section's `failed` flag) instead of failing the
+// page. Aggregation stays in the pure helpers above, so the numbers the
+// sections show are exactly the numbers loadDashboard returned.
+
+/** One query, attempted once: the fallback on any failure, plus whether it failed. */
+async function attemptQuery<T>(
+  query: () => Promise<T>,
+  fallback: T,
+): Promise<{ value: T; failed: boolean }> {
+  try {
+    return { value: await query(), failed: false };
+  } catch {
+    return { value: fallback, failed: true };
+  }
+}
+
+export interface DashboardOrdersWindow {
+  current: DashboardOrderRow[];
+  previous: DashboardOrderRow[];
+  /** True when either orders query failed; the section degrades to zeroes. */
+  failed: boolean;
+  /** True when either window hit the 5,000-row query cap. */
+  truncated: boolean;
+}
+
+export interface DashboardProductCounts {
+  total: number;
+  createdCurrent: number;
+  createdPrevious: number;
+  failed: boolean;
+}
+
+export interface DashboardIncomplete {
+  count: number;
+  truncated: boolean;
+  failed: boolean;
+}
+
+export interface DashboardSellerItems {
+  best: BestSeller[];
+  least: BestSeller[];
+  failed: boolean;
+}
+
+export interface DashboardRecentOrders {
+  orders: DashboardOrderRow[];
+  failed: boolean;
+}
+
+export interface DashboardLowStockResult {
+  rows: LowStockRow[];
+  failed: boolean;
+}
+
+/**
+ * One promise per dashboard section. Created once by startDashboardLoad;
+ * every query starts immediately, each query is issued exactly once, and
+ * each section component awaits only the promises it renders.
+ */
+export interface DashboardLoad {
+  ordersWindow: Promise<DashboardOrdersWindow>;
+  productCounts: Promise<DashboardProductCounts>;
+  incomplete: Promise<DashboardIncomplete>;
+  sellers: Promise<DashboardSellerItems>;
+  recentOrders: Promise<DashboardRecentOrders>;
+  lowStock: Promise<DashboardLowStockResult>;
+}
+
+async function loadOrdersWindow(
+  client: DashboardClient,
+  range: DateRange,
+  previousRange: DateRange,
+): Promise<DashboardOrdersWindow> {
+  const currentBounds = rangeBounds(range);
+  const previousBounds = rangeBounds(previousRange);
+  const [current, previous] = await Promise.all([
+    attemptQuery(async () => {
+      const result = await client
+        .from("orders")
+        .select(ORDER_COLUMNS)
+        .gte("placed_at", currentBounds.startIso)
+        .lt("placed_at", currentBounds.endIsoExclusive)
+        .order("placed_at", { ascending: false })
+        .limit(ORDERS_QUERY_LIMIT);
+      if (result.error) throw result.error;
+      return parseRows(orderRowSchema, result.data);
+    }, [] as DashboardOrderRow[]),
+    attemptQuery(async () => {
+      const result = await client
+        .from("orders")
+        .select(ORDER_COLUMNS)
+        .gte("placed_at", previousBounds.startIso)
+        .lt("placed_at", previousBounds.endIsoExclusive)
+        .order("placed_at", { ascending: false })
+        .limit(ORDERS_QUERY_LIMIT);
+      if (result.error) throw result.error;
+      return parseRows(orderRowSchema, result.data);
+    }, [] as DashboardOrderRow[]),
+  ]);
+  return {
+    current: current.value,
+    previous: previous.value,
+    failed: current.failed || previous.failed,
+    truncated:
+      current.value.length >= ORDERS_QUERY_LIMIT ||
+      previous.value.length >= ORDERS_QUERY_LIMIT,
+  };
+}
+
+async function loadProductCounts(
+  client: DashboardClient,
+  range: DateRange,
+  previousRange: DateRange,
+): Promise<DashboardProductCounts> {
+  const currentBounds = rangeBounds(range);
+  const previousBounds = rangeBounds(previousRange);
+  const [total, createdCurrent, createdPrevious] = await Promise.all([
+    attemptQuery(async () => {
+      const result = await client
+        .from("products")
+        .select("id", { count: "exact", head: true });
+      if (result.error) throw result.error;
+      return result.count ?? 0;
+    }, 0),
+    attemptQuery(async () => {
+      const result = await client
+        .from("products")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", currentBounds.startIso)
+        .lt("created_at", currentBounds.endIsoExclusive);
+      if (result.error) throw result.error;
+      return result.count ?? 0;
+    }, 0),
+    attemptQuery(async () => {
+      const result = await client
+        .from("products")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", previousBounds.startIso)
+        .lt("created_at", previousBounds.endIsoExclusive);
+      if (result.error) throw result.error;
+      return result.count ?? 0;
+    }, 0),
+  ]);
+  return {
+    total: total.value,
+    createdCurrent: createdCurrent.value,
+    createdPrevious: createdPrevious.value,
+    failed: total.failed || createdCurrent.failed || createdPrevious.failed,
+  };
+}
+
+async function loadIncomplete(
+  client: DashboardClient,
+): Promise<DashboardIncomplete> {
+  const result = await attemptQuery(async () => {
+    const result = await client
+      .from("checkout_sessions")
+      .select("id,checkout_items(id)")
+      .eq("lifecycle_status", "abandoned")
+      .limit(ABANDONED_QUERY_LIMIT)
+      .limit(1, { referencedTable: "checkout_items" });
+    if (result.error) throw result.error;
+    const rows = parseRows(abandonedSessionRowSchema, result.data);
+    return {
+      count: rows.filter((row) => row.checkout_items.length > 0).length,
+      truncated: rows.length >= ABANDONED_QUERY_LIMIT,
+    };
+  }, { count: 0, truncated: false });
+  return { ...result.value, failed: result.failed };
+}
+
+async function loadSellers(
+  client: DashboardClient,
+  range: DateRange,
+): Promise<DashboardSellerItems> {
+  const currentBounds = rangeBounds(range);
+  const items = await attemptQuery(async () => {
+    const result = await client
+      .from("order_items")
+      .select(
+        "product_id,product_name,quantity,line_total_minor,orders!inner(placed_at,status)",
+      )
+      .order("created_at", { ascending: false })
+      .limit(ORDER_ITEMS_QUERY_LIMIT);
+    if (result.error) throw result.error;
+    const rows = parseRows(orderItemRowSchema, result.data);
+    const windowStart = Date.parse(currentBounds.startIso);
+    const windowEnd = Date.parse(currentBounds.endIsoExclusive);
+    return rows.filter((row) => {
+      const order = row.orders;
+      if (!order) return false;
+      if (REVENUE_EXCLUDED_SET.has(order.status)) {
+        return false;
+      }
+      // Compare instants, not strings: stored offsets vary.
+      const placed = Date.parse(order.placed_at);
+      return placed >= windowStart && placed < windowEnd;
+    });
+  }, [] as z.infer<typeof orderItemRowSchema>[]);
+  if (items.failed) return { best: [], least: [], failed: true };
+
+  const bestAggregates = aggregateBestSellers(items.value).slice(0, 5);
+  const leastAggregates = aggregateLeastSellers(items.value).slice(0, 5);
+  const coverProductIds = [
+    ...new Set(
+      [...bestAggregates, ...leastAggregates].map(
+        (aggregate) => aggregate.productId,
+      ),
+    ),
+  ];
+  // Cover images for best and least sellers: short-lived signed URLs
+  // from the private gallery bucket, exactly like the product
+  // library. One batched media query for both panels (ordered by
+  // position, so the first row per product is its cover), then signed
+  // URLs in parallel. A missing image stays missing — no placeholder
+  // artwork is ever invented. If the batched query fails, every
+  // product renders without an image rather than failing the section:
+  // the query either works for the whole table or not at all, so
+  // per-product retries would buy nothing.
+  let covers = new Map<string, CoverMediaRow>();
+  if (coverProductIds.length > 0) {
+    try {
+      const media = await client
+        .from("product_media")
+        .select("product_id,storage_path,alt_text")
+        .in("product_id", coverProductIds)
+        .order("position", { ascending: true })
+        .limit(200);
+      if (!media.error) {
+        covers = selectFirstMediaByProduct(
+          parseRows(mediaRowSchema, media.data),
+        );
+      }
+    } catch {
+      covers = new Map();
+    }
+  }
+  const attachCovers = (
+    aggregates: readonly BestSellerAggregate[],
+  ): Promise<BestSeller[]> =>
+    Promise.all(
+      aggregates.map(async (aggregate) => {
+        let imageUrl: string | null = null;
+        let imageAlt = aggregate.productName;
+        const cover = covers.get(aggregate.productId);
+        if (cover) {
+          imageAlt = cover.alt_text || aggregate.productName;
+          try {
+            const signed = await client.storage
+              .from(PRODUCT_MEDIA_BUCKET)
+              .createSignedUrl(cover.storage_path, 120);
+            if (!signed.error) imageUrl = signed.data.signedUrl;
+          } catch {
+            imageUrl = null;
+          }
+        }
+        return { ...aggregate, imageUrl, imageAlt };
+      }),
+    );
+  const [best, least] = await Promise.all([
+    attachCovers(bestAggregates),
+    attachCovers(leastAggregates),
+  ]);
+  return { best, least, failed: false };
+}
+
+async function loadRecentOrders(
+  client: DashboardClient,
+): Promise<DashboardRecentOrders> {
+  const result = await attemptQuery(async () => {
+    const result = await client
+      .from("orders")
+      .select(ORDER_COLUMNS)
+      .order("placed_at", { ascending: false })
+      .limit(8);
+    if (result.error) throw result.error;
+    return parseRows(orderRowSchema, result.data);
+  }, [] as DashboardOrderRow[]);
+  return { orders: result.value, failed: result.failed };
+}
+
+async function loadLowStock(
+  client: DashboardClient,
+): Promise<DashboardLowStockResult> {
+  const result = await attemptQuery(async () => {
+    const result = await client
+      .from("inventory")
+      .select(
+        "variant_id,available,low_stock_threshold,product_variants(size,color,product_id,products(name))",
+      )
+      .order("available", { ascending: true })
+      .limit(INVENTORY_QUERY_LIMIT);
+    if (result.error) throw result.error;
+    const rows = parseRows(inventoryRowSchema, result.data);
+    const mapped: LowStockRow[] = [];
+    for (const row of rows) {
+      const variant = row.product_variants;
+      if (!variant) continue;
+      mapped.push({
+        variantId: row.variant_id,
+        productId: variant.product_id,
+        productName: variant.products?.name ?? "Unnamed product",
+        size: variant.size,
+        color: variant.color,
+        available: row.available,
+        lowStockThreshold: row.low_stock_threshold,
+      });
+    }
+    return selectLowStock(mapped, 8);
+  }, [] as LowStockRow[]);
+  return { rows: result.value, failed: result.failed };
+}
+
+/**
+ * Start every dashboard query at once and hand back one promise per
+ * section. Call this in the page without awaiting: the queries run
+ * while the shell renders, and each section component awaits only the
+ * promises it renders, so sections stream in as their data arrives
+ * instead of waiting for the slowest query. Each query is issued
+ * exactly once per render — sections share the promises, they never
+ * re-fetch.
+ */
+export function startDashboardLoad(
+  client: DashboardClient,
+  range: DateRange,
+): DashboardLoad {
+  const previousRange = previousPeriodRange(range);
+  return {
+    ordersWindow: loadOrdersWindow(client, range, previousRange),
+    productCounts: loadProductCounts(client, range, previousRange),
+    incomplete: loadIncomplete(client),
+    sellers: loadSellers(client, range),
+    recentOrders: loadRecentOrders(client),
+    lowStock: loadLowStock(client),
+  };
+}
+
+/** Resolved section results, for shared aggregation (see below). */
+type DashboardSectionResults = {
+  ordersWindow: DashboardOrdersWindow;
+  productCounts: DashboardProductCounts;
+  incomplete: DashboardIncomplete;
+  sellers: DashboardSellerItems;
+  recentOrders: DashboardRecentOrders;
+  lowStock: DashboardLowStockResult;
+};
+
+/**
+ * Human labels of sections whose query failed, in the order the page
+ * warns about them. One label per section even when several of its
+ * queries failed.
+ */
+function collectFailedSections(results: DashboardSectionResults): string[] {
+  const failedSections: string[] = [];
+  if (results.productCounts.failed) failedSections.push("Products");
+  if (results.ordersWindow.failed) failedSections.push("Orders");
+  if (results.recentOrders.failed) failedSections.push("Recent orders");
+  if (results.sellers.failed) failedSections.push("Best sellers");
+  if (results.lowStock.failed) failedSections.push("Low stock");
+  if (results.incomplete.failed) failedSections.push("Incomplete orders");
+  return failedSections;
+}
+
+/**
+ * Failed-section labels + truncation flags for the warnings banner.
+ * Awaits the same shared promises the sections await, so no query
+ * runs twice.
+ */
+export async function dashboardLoadWarnings(load: DashboardLoad): Promise<{
+  failedSections: string[];
+  ordersTruncated: boolean;
+  incompleteTruncated: boolean;
+}> {
+  const [ordersWindow, productCounts, incomplete, sellers, recentOrders, lowStock] =
+    await Promise.all([
+      load.ordersWindow,
+      load.productCounts,
+      load.incomplete,
+      load.sellers,
+      load.recentOrders,
+      load.lowStock,
+    ]);
+  const results: DashboardSectionResults = {
+    ordersWindow,
+    productCounts,
+    incomplete,
+    sellers,
+    recentOrders,
+    lowStock,
+  };
+  return {
+    failedSections: collectFailedSections(results),
+    ordersTruncated: ordersWindow.truncated,
+    incompleteTruncated: incomplete.truncated,
+  };
+}
+
 /**
  * Load every dashboard section. Individual query failures degrade only
  * their own section (recorded in `failedSections`); an unexpected failure
- * returns the typed unavailable state instead of throwing.
+ * returns the typed unavailable state instead of throwing. Built on the
+ * same section loaders the streamed page uses, so the two paths can
+ * never disagree about the numbers.
  */
 export async function loadDashboard(
   client: DashboardClient,
   range: DateRange,
   granularity: RevenueGranularity,
 ): Promise<DashboardLoadResult> {
-  const failedSections: string[] = [];
   try {
     const previousRange = previousPeriodRange(range);
-    const currentBounds = rangeBounds(range);
-    const previousBounds = rangeBounds(previousRange);
-
-    async function attempt<T>(
-      label: string,
-      query: () => Promise<T>,
-      fallback: T,
-    ): Promise<T> {
-      try {
-        return await query();
-      } catch {
-        failedSections.push(label);
-        return fallback;
-      }
-    }
-
-    const [
-      totalProducts,
-      productsCreatedCurrent,
-      productsCreatedPrevious,
-      currentOrders,
-      previousOrders,
+    const load = startDashboardLoad(client, range);
+    const [ordersWindow, productCounts, incomplete, sellers, recentOrders, lowStock] =
+      await Promise.all([
+        load.ordersWindow,
+        load.productCounts,
+        load.incomplete,
+        load.sellers,
+        load.recentOrders,
+        load.lowStock,
+      ]);
+    const results: DashboardSectionResults = {
+      ordersWindow,
+      productCounts,
+      incomplete,
+      sellers,
       recentOrders,
-      orderItems,
-      inventoryRows,
-      abandonedSessions,
-    ] = await Promise.all([
-      attempt("Products", async () => {
-        const result = await client
-          .from("products")
-          .select("id", { count: "exact", head: true });
-        if (result.error) throw result.error;
-        return result.count ?? 0;
-      }, 0),
-      attempt("Products", async () => {
-        const result = await client
-          .from("products")
-          .select("id", { count: "exact", head: true })
-          .gte("created_at", currentBounds.startIso)
-          .lt("created_at", currentBounds.endIsoExclusive);
-        if (result.error) throw result.error;
-        return result.count ?? 0;
-      }, 0),
-      attempt("Products", async () => {
-        const result = await client
-          .from("products")
-          .select("id", { count: "exact", head: true })
-          .gte("created_at", previousBounds.startIso)
-          .lt("created_at", previousBounds.endIsoExclusive);
-        if (result.error) throw result.error;
-        return result.count ?? 0;
-      }, 0),
-      attempt("Orders", async () => {
-        const result = await client
-          .from("orders")
-          .select(ORDER_COLUMNS)
-          .gte("placed_at", currentBounds.startIso)
-          .lt("placed_at", currentBounds.endIsoExclusive)
-          .order("placed_at", { ascending: false })
-          .limit(ORDERS_QUERY_LIMIT);
-        if (result.error) throw result.error;
-        return parseRows(orderRowSchema, result.data);
-      }, [] as DashboardOrderRow[]),
-      attempt("Orders", async () => {
-        const result = await client
-          .from("orders")
-          .select(ORDER_COLUMNS)
-          .gte("placed_at", previousBounds.startIso)
-          .lt("placed_at", previousBounds.endIsoExclusive)
-          .order("placed_at", { ascending: false })
-          .limit(ORDERS_QUERY_LIMIT);
-        if (result.error) throw result.error;
-        return parseRows(orderRowSchema, result.data);
-      }, [] as DashboardOrderRow[]),
-      attempt("Recent orders", async () => {
-        const result = await client
-          .from("orders")
-          .select(ORDER_COLUMNS)
-          .order("placed_at", { ascending: false })
-          .limit(8);
-        if (result.error) throw result.error;
-        return parseRows(orderRowSchema, result.data);
-      }, [] as DashboardOrderRow[]),
-      attempt("Best sellers", async () => {
-        const result = await client
-          .from("order_items")
-          .select(
-            "product_id,product_name,quantity,line_total_minor,orders!inner(placed_at,status)",
-          )
-          .order("created_at", { ascending: false })
-          .limit(ORDER_ITEMS_QUERY_LIMIT);
-        if (result.error) throw result.error;
-        const rows = parseRows(orderItemRowSchema, result.data);
-        const windowStart = Date.parse(currentBounds.startIso);
-        const windowEnd = Date.parse(currentBounds.endIsoExclusive);
-        return rows.filter((row) => {
-          const order = row.orders;
-          if (!order) return false;
-          if (REVENUE_EXCLUDED_SET.has(order.status)) {
-            return false;
-          }
-          // Compare instants, not strings: stored offsets vary.
-          const placed = Date.parse(order.placed_at);
-          return placed >= windowStart && placed < windowEnd;
-        });
-      }, [] as z.infer<typeof orderItemRowSchema>[]),
-      attempt("Low stock", async () => {
-        const result = await client
-          .from("inventory")
-          .select(
-            "variant_id,available,low_stock_threshold,product_variants(size,color,product_id,products(name))",
-          )
-          .order("available", { ascending: true })
-          .limit(INVENTORY_QUERY_LIMIT);
-        if (result.error) throw result.error;
-        const rows = parseRows(inventoryRowSchema, result.data);
-        const mapped: LowStockRow[] = [];
-        for (const row of rows) {
-          const variant = row.product_variants;
-          if (!variant) continue;
-          mapped.push({
-            variantId: row.variant_id,
-            productId: variant.product_id,
-            productName: variant.products?.name ?? "Unnamed product",
-            size: variant.size,
-            color: variant.color,
-            available: row.available,
-            lowStockThreshold: row.low_stock_threshold,
-          });
-        }
-        return selectLowStock(mapped, 8);
-      }, [] as LowStockRow[]),
-      attempt("Incomplete orders", async () => {
-        const result = await client
-          .from("checkout_sessions")
-          .select("id,checkout_items(id)")
-          .eq("lifecycle_status", "abandoned")
-          .limit(ABANDONED_QUERY_LIMIT)
-          .limit(1, { referencedTable: "checkout_items" });
-        if (result.error) throw result.error;
-        const rows = parseRows(abandonedSessionRowSchema, result.data);
-        return {
-          count: rows.filter((row) => row.checkout_items.length > 0).length,
-          truncated: rows.length >= ABANDONED_QUERY_LIMIT,
-        };
-      }, { count: 0, truncated: false }),
-    ]);
-
-    // Cover images for best and least sellers: short-lived signed URLs
-    // from the private gallery bucket, exactly like the product
-    // library. One batched media query for both panels (ordered by
-    // position, so the first row per product is its cover), then signed
-    // URLs in parallel. A missing image stays missing — no placeholder
-    // artwork is ever invented. If the batched query fails, every
-    // product renders without an image rather than failing the section:
-    // the query either works for the whole table or not at all, so
-    // per-product retries would buy nothing.
-    const bestAggregates = aggregateBestSellers(orderItems).slice(0, 5);
-    const leastAggregates = aggregateLeastSellers(orderItems).slice(0, 5);
-    const coverProductIds = [
-      ...new Set(
-        [...bestAggregates, ...leastAggregates].map(
-          (aggregate) => aggregate.productId,
-        ),
-      ),
-    ];
-    let covers = new Map<string, CoverMediaRow>();
-    if (coverProductIds.length > 0) {
-      try {
-        const media = await client
-          .from("product_media")
-          .select("product_id,storage_path,alt_text")
-          .in("product_id", coverProductIds)
-          .order("position", { ascending: true })
-          .limit(200);
-        if (!media.error) {
-          covers = selectFirstMediaByProduct(
-            parseRows(mediaRowSchema, media.data),
-          );
-        }
-      } catch {
-        covers = new Map();
-      }
-    }
-    const attachCovers = (
-      aggregates: readonly BestSellerAggregate[],
-    ): Promise<BestSeller[]> =>
-      Promise.all(
-        aggregates.map(async (aggregate) => {
-          let imageUrl: string | null = null;
-          let imageAlt = aggregate.productName;
-          const cover = covers.get(aggregate.productId);
-          if (cover) {
-            imageAlt = cover.alt_text || aggregate.productName;
-            try {
-              const signed = await client.storage
-                .from(PRODUCT_MEDIA_BUCKET)
-                .createSignedUrl(cover.storage_path, 120);
-              if (!signed.error) imageUrl = signed.data.signedUrl;
-            } catch {
-              imageUrl = null;
-            }
-          }
-          return { ...aggregate, imageUrl, imageAlt };
-        }),
-      );
-    const [bestSellers, leastSellers] = await Promise.all([
-      attachCovers(bestAggregates),
-      attachCovers(leastAggregates),
-    ]);
-
+      lowStock,
+    };
     return {
       ok: true,
       data: {
         range,
         previousRange,
         granularity,
-        totalProducts,
-        productsCreatedCurrent,
-        productsCreatedPrevious,
-        orderCount: currentOrders.length,
-        orderCountPrevious: previousOrders.length,
-        revenueMinor: sumRevenue(currentOrders),
-        revenueMinorPrevious: sumRevenue(previousOrders),
-        customerCount: countDistinctPhones(currentOrders),
-        customerCountPrevious: countDistinctPhones(previousOrders),
-        statusCounts: countByStatus(currentOrders),
-        statusCountsPrevious: countByStatus(previousOrders),
-        revenueBuckets: bucketRevenue(currentOrders, granularity, range),
+        totalProducts: productCounts.total,
+        productsCreatedCurrent: productCounts.createdCurrent,
+        productsCreatedPrevious: productCounts.createdPrevious,
+        orderCount: ordersWindow.current.length,
+        orderCountPrevious: ordersWindow.previous.length,
+        revenueMinor: sumRevenue(ordersWindow.current),
+        revenueMinorPrevious: sumRevenue(ordersWindow.previous),
+        customerCount: countDistinctPhones(ordersWindow.current),
+        customerCountPrevious: countDistinctPhones(ordersWindow.previous),
+        statusCounts: countByStatus(ordersWindow.current),
+        statusCountsPrevious: countByStatus(ordersWindow.previous),
+        revenueBuckets: bucketRevenue(ordersWindow.current, granularity, range),
         revenueBucketsPrevious: bucketRevenue(
-          previousOrders,
+          ordersWindow.previous,
           granularity,
           previousRange,
         ),
-        bestSellers,
-        leastSellers,
-        recentOrders,
-        lowStock: inventoryRows,
-        incompleteCount: abandonedSessions.count,
-        incompleteTruncated: abandonedSessions.truncated,
-        ordersTruncated:
-          currentOrders.length >= ORDERS_QUERY_LIMIT ||
-          previousOrders.length >= ORDERS_QUERY_LIMIT,
-        failedSections: [...new Set(failedSections)],
+        bestSellers: sellers.best,
+        leastSellers: sellers.least,
+        recentOrders: recentOrders.orders,
+        lowStock: lowStock.rows,
+        incompleteCount: incomplete.count,
+        incompleteTruncated: incomplete.truncated,
+        ordersTruncated: ordersWindow.truncated,
+        failedSections: collectFailedSections(results),
       },
     };
   } catch {

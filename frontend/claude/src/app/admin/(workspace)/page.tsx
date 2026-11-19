@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import type { ReactNode } from "react";
 import {
   Boxes,
@@ -13,13 +14,20 @@ import type { LucideIcon } from "lucide-react";
 import { requireStaff } from "@/lib/admin/authorization";
 import { adminConfiguration } from "@/lib/admin/supabase";
 import {
-  loadDashboard,
+  bucketRevenue,
+  countByStatus,
+  countDistinctPhones,
+  dashboardLoadWarnings,
   periodDelta,
+  previousPeriodRange,
   resolveGranularity,
   revenueGranularitySchema,
+  startDashboardLoad,
+  sumRevenue,
   summarizeRevenue,
   withComparisonSeries,
   addDaysToKey,
+  type DashboardLoad,
   type RevenueGranularity,
 } from "@/lib/admin/dashboard";
 import {
@@ -37,6 +45,7 @@ import {
   formatMoneyShort,
   parseDateRange,
   toDhakaDateKey,
+  type DateRange,
 } from "@/lib/admin/format";
 import {
   EmptyState,
@@ -77,6 +86,15 @@ import { StatusBadge } from "@/components/design-system/StatusBadge";
  * with no comparison. Revenue is the sum of order totals excluding
  * cancelled and returned orders. "Processing" is not a database status and
  * is never shown.
+ *
+ * Streaming: the page starts every query at once (startDashboardLoad)
+ * and renders the shell — header, date controls, presets, granularity —
+ * immediately; each section streams in behind its own Suspense boundary
+ * as its data arrives, so a slow section (best sellers, with its cover
+ * images) never blocks a fast one (recent orders). No section re-fetches:
+ * all sections share the one set of promises. Skeletons mirror the
+ * section shapes (same aa-skeleton-row shimmer as the workspace loading
+ * state) so the swap does not jump.
  *
  * Presentation uses the admin design-system components (PageHeader,
  * StatCard, Card, ChartCard, StatusBadge); every metric, link, filter
@@ -285,6 +303,495 @@ function UnavailableDashboard({ message }: { message: string }) {
   );
 }
 
+// --- Section skeletons -------------------------------------------------
+//
+// Same aa-skeleton-row shimmer as the workspace loading state, sized to
+// the section they stand in for. All aria-hidden: the section headings
+// above them are static and already announced.
+
+function KpiSkeleton() {
+  return (
+    <div aria-hidden="true" className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      {[0, 1, 2, 3].map((index) => (
+        <div key={index} className="aa-skeleton-row" style={{ height: "6.5rem" }} />
+      ))}
+    </div>
+  );
+}
+
+function OverviewSkeleton() {
+  return (
+    <div aria-hidden="true" className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
+      {Array.from({ length: 9 }, (_, index) => (
+        <div key={index} className="aa-skeleton-row" style={{ height: "5.5rem" }} />
+      ))}
+    </div>
+  );
+}
+
+function RevenueSkeleton() {
+  return (
+    <div aria-hidden="true" className="grid gap-6 xl:grid-cols-3">
+      <div className="aa-skeleton-row xl:col-span-2" style={{ height: "19rem" }} />
+      <div className="aa-skeleton-row" style={{ height: "19rem" }} />
+    </div>
+  );
+}
+
+function SellersSkeleton() {
+  return (
+    <div aria-hidden="true" className="grid gap-6 xl:grid-cols-2">
+      <div className="aa-skeleton-row" style={{ height: "14rem" }} />
+      <div className="aa-skeleton-row" style={{ height: "14rem" }} />
+    </div>
+  );
+}
+
+function PanelSkeleton() {
+  return (
+    <div aria-hidden="true">
+      <div className="aa-skeleton-row" style={{ height: "14rem" }} />
+    </div>
+  );
+}
+
+// --- Streamed sections -------------------------------------------------
+//
+// Each awaits only the promises it renders. A failed section degrades
+// exactly as before (its numbers show zero, its panel shows the
+// could-not-be-loaded copy); the warnings banner below lists the
+// failed sections once every section has resolved.
+
+async function DashboardWarnings({ load }: { load: DashboardLoad }) {
+  const warnings = await dashboardLoadWarnings(load);
+  const messages: string[] = [];
+  if (warnings.failedSections.length > 0) {
+    messages.push(
+      `Some dashboard sections could not be loaded: ${warnings.failedSections.join(", ")}. The affected numbers are shown as zero until the data is reachable.`,
+    );
+  }
+  if (warnings.ordersTruncated) {
+    messages.push(
+      "Order totals cover the most recent 5,000 orders in each period.",
+    );
+  }
+  if (warnings.incompleteTruncated) {
+    messages.push("The incomplete-orders total covers the first 500 abandoned checkouts.");
+  }
+  if (messages.length === 0) return null;
+  return (
+    <>
+      {messages.map((message) => (
+        <Notice key={message} kind="warning">
+          {message}
+        </Notice>
+      ))}
+    </>
+  );
+}
+
+async function KpiSection({ load }: { load: DashboardLoad }) {
+  const [ordersWindow, productCounts] = await Promise.all([
+    load.ordersWindow,
+    load.productCounts,
+  ]);
+  const revenueMinor = sumRevenue(ordersWindow.current);
+  const revenueMinorPrevious = sumRevenue(ordersWindow.previous);
+  const customerCount = countDistinctPhones(ordersWindow.current);
+  const customerCountPrevious = countDistinctPhones(ordersWindow.previous);
+  return (
+    <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <KpiCard
+        href="/admin/sales/orders"
+        Icon={Banknote}
+        label="Total Revenue"
+        value={{ kind: "count-up", value: revenueMinor, format: "money" }}
+        delta={periodDelta(revenueMinor, revenueMinorPrevious)}
+        deltaCaption="vs previous period"
+      />
+      <KpiCard
+        href="/admin/sales/orders"
+        Icon={Receipt}
+        label="Total Orders"
+        value={{ kind: "count-up", value: ordersWindow.current.length, format: "count" }}
+        delta={periodDelta(ordersWindow.current.length, ordersWindow.previous.length)}
+        deltaCaption="vs previous period"
+      />
+      <KpiCard
+        href="/admin/sales/customers"
+        Icon={Users}
+        label="Total Customers"
+        value={{ kind: "count-up", value: customerCount, format: "count" }}
+        delta={periodDelta(customerCount, customerCountPrevious)}
+        deltaCaption="vs previous period"
+      />
+      <KpiCard
+        href="/admin/catalog/products"
+        Icon={Boxes}
+        label="Total Products"
+        value={{ kind: "count-up", value: productCounts.total, format: "count" }}
+        delta={periodDelta(productCounts.createdCurrent, productCounts.createdPrevious)}
+        deltaCaption="new products vs previous period"
+      />
+    </div>
+  );
+}
+
+async function OverviewSection({ load }: { load: DashboardLoad }) {
+  const [ordersWindow, incomplete] = await Promise.all([
+    load.ordersWindow,
+    load.incomplete,
+  ]);
+  const statusCounts = countByStatus(ordersWindow.current);
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
+      {ORDER_STATUSES.map((status, index) => (
+        <StatusCell
+          key={status}
+          href={`/admin/sales/orders?status=${status}`}
+          dotColor={PIE_PALETTE[index % PIE_PALETTE.length] ?? "#9A9494"}
+          label={ORDER_STATUS_LABELS[status]}
+          countText={formatCount(statusCounts[status])}
+        />
+      ))}
+      <StatusCell
+        href="/admin/sales/incomplete"
+        dotColor="rgb(var(--admin-text-secondary))"
+        label="Incomplete Orders"
+        countText={
+          incomplete.failed ? "—" : formatCount(incomplete.count)
+        }
+      />
+    </div>
+  );
+}
+
+async function RevenueSection({
+  load,
+  range,
+  previousRange,
+  granularity,
+}: {
+  load: DashboardLoad;
+  range: DateRange;
+  previousRange: DateRange;
+  granularity: RevenueGranularity;
+}) {
+  const ordersWindow = await load.ordersWindow;
+  const revenueBuckets = bucketRevenue(ordersWindow.current, granularity, range);
+  const revenueBucketsPrevious = bucketRevenue(
+    ordersWindow.previous,
+    granularity,
+    previousRange,
+  );
+  const revenueSeries = withComparisonSeries(
+    revenueBuckets,
+    revenueBucketsPrevious,
+  );
+  // The line chart takes the two series separately; positions stay
+  // paired exactly as withComparisonSeries paired them.
+  const revenuePoints = revenueSeries.map((bucket) => ({
+    label: bucket.label,
+    value: bucket.value,
+  }));
+  const revenueComparePoints = revenueSeries.map((bucket) => ({
+    label: bucket.label,
+    value: bucket.compareValue,
+  }));
+  const revenueSummary = summarizeRevenue(revenueBuckets);
+  const revenueMinor = sumRevenue(ordersWindow.current);
+  const revenueMinorPrevious = sumRevenue(ordersWindow.previous);
+  // Largest status slice for the summary under the pie; null when the
+  // period has no orders at all.
+  const statusCounts = countByStatus(ordersWindow.current);
+  let topStatus: { status: OrderStatus; count: number } | null = null;
+  for (const status of ORDER_STATUSES) {
+    const count = statusCounts[status];
+    if (count > 0 && (!topStatus || count > topStatus.count)) {
+      topStatus = { status, count };
+    }
+  }
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-3">
+      <ChartCard
+        title="Revenue"
+        description={`${GRANULARITY_LABELS[granularity]} totals in the selected period, with the previous period alongside. Revenue is the sum of order totals excluding cancelled and returned orders, including delivery charges.`}
+        headingLevel="h2"
+        className="xl:col-span-2"
+        footer={
+          <ChartSummary
+            items={[
+              {
+                term: "Revenue in period",
+                value: formatMoney(revenueMinor),
+              },
+              {
+                term: "Previous period",
+                value: formatMoney(revenueMinorPrevious),
+              },
+              ...(revenueSummary.peak && revenueSummary.totalMinor > 0
+                ? [
+                    {
+                      term: `Peak ${granularity === "day" ? "day" : granularity === "week" ? "week" : "month"}`,
+                      value: `${revenueSummary.peak.label} · ${formatMoney(revenueSummary.peak.revenueMinor)}`,
+                    },
+                  ]
+                : []),
+              {
+                term: `Average per ${granularity === "day" ? "day" : granularity === "week" ? "week" : "month"}`,
+                value: formatMoney(revenueSummary.averageMinor),
+              },
+            ]}
+          />
+        }
+      >
+        <SeriesChart
+          points={revenuePoints}
+          comparePoints={revenueComparePoints}
+          formatValue={formatMoneyShort}
+          ariaLabel={`Revenue by ${granularity === "day" ? "day" : granularity === "week" ? "week" : "month"}`}
+          emptyMessage="No revenue in this period."
+          emptyGuidance="Revenue appears here once orders are placed in the selected period."
+        />
+      </ChartCard>
+      <ChartCard
+        title="Orders by status"
+        description="Click a status to open the matching orders."
+        headingLevel="h2"
+        footer={
+          topStatus ? (
+            <ChartSummary
+              items={[
+                {
+                  term: "Most orders",
+                  value: `${ORDER_STATUS_LABELS[topStatus.status]} · ${formatCount(topStatus.count)} of ${formatCount(ordersWindow.current.length)}`,
+                },
+              ]}
+            />
+          ) : undefined
+        }
+      >
+        <PieChart
+          segments={ORDER_STATUSES.map((status, index) => ({
+            label: ORDER_STATUS_LABELS[status],
+            value: statusCounts[status],
+            href: `/admin/sales/orders?status=${status}`,
+            color: PIE_PALETTE[index % PIE_PALETTE.length],
+          }))}
+          totalLabel="orders"
+          formatValue={formatCount}
+          ariaLabel="Orders by status in the selected period"
+          emptyMessage="No orders in this period."
+          emptyGuidance="Orders placed in the selected period appear here by status."
+        />
+      </ChartCard>
+    </div>
+  );
+}
+
+async function SellersSection({ load }: { load: DashboardLoad }) {
+  const sellers = await load.sellers;
+  return (
+    <div className="grid gap-6 xl:grid-cols-2">
+      <ChartCard
+        title="Best-selling products"
+        description="By revenue in the selected period, excluding cancelled and returned orders."
+        headingLevel="h2"
+        actions={
+          <ViewAllLink href="/admin/catalog/products">
+            View all products
+          </ViewAllLink>
+        }
+      >
+        {sellers.failed ? (
+          <p className="aa-muted">Best sellers could not be loaded.</p>
+        ) : sellers.best.length === 0 ? (
+          <EmptyState
+            icon={<Package size={24} strokeWidth={1.4} aria-hidden="true" />}
+            title="No sales in this period"
+            description="Best sellers appear here once orders are placed."
+          />
+        ) : (
+          <HorizontalBarList
+            items={sellers.best}
+            valueKey="revenueMinor"
+            formatUnits={formatCount}
+            formatRevenue={formatMoney}
+            emptyMessage="No sales in this period."
+            emptyGuidance="Best sellers appear here once orders are placed."
+          />
+        )}
+      </ChartCard>
+      <ChartCard
+        title="Least-selling products"
+        description="Fewest units sold in the selected period, among products with at least one sale. Excludes cancelled and returned orders."
+        headingLevel="h2"
+        actions={
+          <ViewAllLink href="/admin/catalog/products">
+            View all products
+          </ViewAllLink>
+        }
+      >
+        {sellers.failed ? (
+          <p className="aa-muted">Least-selling products could not be loaded.</p>
+        ) : sellers.least.length === 0 ? (
+          <EmptyState
+            icon={<Package size={24} strokeWidth={1.4} aria-hidden="true" />}
+            title="No sales in this period"
+            description="Least-selling products appear here once orders are placed."
+          />
+        ) : (
+          <HorizontalBarList
+            items={sellers.least}
+            valueKey="units"
+            formatUnits={formatCount}
+            formatRevenue={formatMoney}
+            emptyMessage="No sales in this period."
+            emptyGuidance="Least-selling products appear here once orders are placed."
+          />
+        )}
+      </ChartCard>
+    </div>
+  );
+}
+
+async function RecentOrdersSection({ load }: { load: DashboardLoad }) {
+  const recent = await load.recentOrders;
+  return (
+    <DashboardPanel
+      title="Recent orders"
+      actions={
+        <ViewAllLink href="/admin/sales/orders">View all orders</ViewAllLink>
+      }
+    >
+      {recent.failed ? (
+        <p className="aa-muted">Recent orders could not be loaded.</p>
+      ) : recent.orders.length === 0 ? (
+        <EmptyState
+          icon={<Receipt size={24} strokeWidth={1.4} aria-hidden="true" />}
+          title="No orders yet"
+          description="Orders appear here as soon as customers place them."
+        />
+      ) : (
+        <div className="aa-table-scroll">
+          <table className="aa-table">
+            <thead>
+              <tr>
+                <th scope="col">Order</th>
+                <th scope="col">Customer</th>
+                <th scope="col">Date</th>
+                <th scope="col">Amount</th>
+                <th scope="col">Payment</th>
+                <th scope="col">Status</th>
+                <th scope="col">
+                  <span className="aa-sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {recent.orders.map((order) => (
+                <tr key={order.id}>
+                  <th scope="row">
+                    {order.order_number !== null
+                      ? `#${order.order_number}`
+                      : `Order ${order.id.slice(0, 8)}`}
+                  </th>
+                  <td data-label="Customer">
+                    <span className="aa-cell-main">{order.customer_name}</span>
+                    <span className="aa-cell-sub">{order.phone}</span>
+                  </td>
+                  <td data-label="Date">
+                    <time dateTime={order.placed_at}>
+                      {formatDateTime(order.placed_at)}
+                    </time>
+                  </td>
+                  <td data-label="Amount">{formatMoney(order.total_minor)}</td>
+                  <td data-label="Payment">
+                    {PAYMENT_METHOD_LABELS[order.payment_method] ?? order.payment_method}
+                    <span className="aa-cell-sub">
+                      {PAYMENT_STATUS_LABELS[order.payment_status] ?? order.payment_status}
+                    </span>
+                  </td>
+                  <td data-label="Status">
+                    {(ORDER_STATUSES as readonly string[]).includes(order.status) ? (
+                      <StatusBadge status={order.status as OrderStatus} />
+                    ) : (
+                      order.status
+                    )}
+                  </td>
+                  <td data-label="Actions" className="aa-cell-actions">
+                    <Link className="aa-row-action" href={`/admin/sales/orders/${order.id}`} aria-label={`View order ${order.order_number !== null ? `#${order.order_number}` : order.id.slice(0, 8)}`}>
+                      View
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </DashboardPanel>
+  );
+}
+
+async function LowStockSection({ load }: { load: DashboardLoad }) {
+  const lowStock = await load.lowStock;
+  return (
+    <DashboardPanel
+      title="Low-stock alerts"
+      description="Variants at or below their low-stock threshold, lowest stock first."
+      actions={
+        <ViewAllLink href="/admin/catalog/inventory">
+          View inventory
+        </ViewAllLink>
+      }
+    >
+      {lowStock.failed ? (
+        <p className="aa-muted">Low-stock alerts could not be loaded.</p>
+      ) : lowStock.rows.length === 0 ? (
+        <EmptyState
+          icon={<AlertTriangle size={24} strokeWidth={1.4} aria-hidden="true" />}
+          title="No low-stock items"
+          description="Every variant is above its low-stock threshold."
+        />
+      ) : (
+        <div className="aa-table-scroll">
+          <table className="aa-table">
+            <thead>
+              <tr>
+                <th scope="col">Product</th>
+                <th scope="col">Variant</th>
+                <th scope="col">Available</th>
+                <th scope="col">Threshold</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lowStock.rows.map((row) => (
+                <tr key={row.variantId}>
+                  <th scope="row">
+                    <Link
+                      href={`/admin/catalog/inventory?variant=${row.variantId}`}
+                      className="font-medium text-admin-primary"
+                    >
+                      {row.productName}
+                    </Link>
+                  </th>
+                  <td data-label="Variant">
+                    {row.size} · {row.color}
+                  </td>
+                  <td data-label="Available">{formatCount(row.available)}</td>
+                  <td data-label="Threshold">{formatCount(row.lowStockThreshold)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </DashboardPanel>
+  );
+}
+
 export default async function AdminDashboard({
   searchParams,
 }: {
@@ -307,12 +814,10 @@ export default async function AdminDashboard({
     );
   }
   const session = await requireStaff();
-  const loaded = await loadDashboard(session.client, range, granularity);
-  if (!loaded.ok) {
-    return <UnavailableDashboard message={loaded.message} />;
-  }
-  const data = loaded.data;
-  const failed = (label: string) => data.failedSections.includes(label);
+  // Start every query now; the shell below renders without waiting,
+  // and each section awaits only its own promises.
+  const load = startDashboardLoad(session.client, range);
+  const previousRange = previousPeriodRange(range);
 
   const today = toDhakaDateKey(new Date());
   const presets = [
@@ -322,52 +827,12 @@ export default async function AdminDashboard({
     { label: "This month", from: `${today.slice(0, 7)}-01`, to: today },
   ];
 
-  const warnings: string[] = [];
-  if (data.failedSections.length > 0) {
-    warnings.push(
-      `Some dashboard sections could not be loaded: ${data.failedSections.join(", ")}. The affected numbers are shown as zero until the data is reachable.`,
-    );
-  }
-  if (data.ordersTruncated) {
-    warnings.push(
-      "Order totals cover the most recent 5,000 orders in each period.",
-    );
-  }
-  if (data.incompleteTruncated) {
-    warnings.push("The incomplete-orders total covers the first 500 abandoned checkouts.");
-  }
-
-  const revenueSeries = withComparisonSeries(
-    data.revenueBuckets,
-    data.revenueBucketsPrevious,
-  );
-  // The line chart takes the two series separately; positions stay
-  // paired exactly as withComparisonSeries paired them.
-  const revenuePoints = revenueSeries.map((bucket) => ({
-    label: bucket.label,
-    value: bucket.value,
-  }));
-  const revenueComparePoints = revenueSeries.map((bucket) => ({
-    label: bucket.label,
-    value: bucket.compareValue,
-  }));
-  const revenueSummary = summarizeRevenue(data.revenueBuckets);
-  // Largest status slice for the summary under the pie; null when the
-  // period has no orders at all.
-  let topStatus: { status: OrderStatus; count: number } | null = null;
-  for (const status of ORDER_STATUSES) {
-    const count = data.statusCounts[status];
-    if (count > 0 && (!topStatus || count > topStatus.count)) {
-      topStatus = { status, count };
-    }
-  }
-
   return (
     <main id="main" tabIndex={-1} className="aa-main aa-main--ds aa-dashboard-v2">
       <div className="space-y-6">
         <PageHeader
           title="Dashboard"
-          description={`Selected period ${formatDate(range.from)} – ${formatDate(range.to)} · compared with ${formatDate(data.previousRange.from)} – ${formatDate(data.previousRange.to)} (Dhaka).`}
+          description={`Selected period ${formatDate(range.from)} – ${formatDate(range.to)} · compared with ${formatDate(previousRange.from)} – ${formatDate(previousRange.to)} (Dhaka).`}
           actions={
             <span className="admin-ds-numeric inline-flex min-h-11 items-center rounded-full border border-admin-border bg-admin-card px-3 text-xs text-admin-text-secondary">
               {formatDate(today)} · Dhaka
@@ -445,335 +910,43 @@ export default async function AdminDashboard({
           />
         </div>
 
-        {warnings.map((warning) => (
-          <Notice key={warning} kind="warning">
-            {warning}
-          </Notice>
-        ))}
+        <Suspense fallback={null}>
+          <DashboardWarnings load={load} />
+        </Suspense>
 
         <section aria-label="Totals">
-          <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-            <KpiCard
-              href="/admin/sales/orders"
-              Icon={Banknote}
-              label="Total Revenue"
-              value={{ kind: "count-up", value: data.revenueMinor, format: "money" }}
-              delta={periodDelta(data.revenueMinor, data.revenueMinorPrevious)}
-              deltaCaption="vs previous period"
-            />
-            <KpiCard
-              href="/admin/sales/orders"
-              Icon={Receipt}
-              label="Total Orders"
-              value={{ kind: "count-up", value: data.orderCount, format: "count" }}
-              delta={periodDelta(data.orderCount, data.orderCountPrevious)}
-              deltaCaption="vs previous period"
-            />
-            <KpiCard
-              href="/admin/sales/customers"
-              Icon={Users}
-              label="Total Customers"
-              value={{ kind: "count-up", value: data.customerCount, format: "count" }}
-              delta={periodDelta(data.customerCount, data.customerCountPrevious)}
-              deltaCaption="vs previous period"
-            />
-            <KpiCard
-              href="/admin/catalog/products"
-              Icon={Boxes}
-              label="Total Products"
-              value={{ kind: "count-up", value: data.totalProducts, format: "count" }}
-              delta={periodDelta(data.productsCreatedCurrent, data.productsCreatedPrevious)}
-              deltaCaption="new products vs previous period"
-            />
-          </div>
+          <Suspense fallback={<KpiSkeleton />}>
+            <KpiSection load={load} />
+          </Suspense>
         </section>
 
         <section aria-label="Operational overview">
           <h2 className="aa-dashboard-section-title">Operational overview</h2>
-          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
-            {ORDER_STATUSES.map((status, index) => (
-              <StatusCell
-                key={status}
-                href={`/admin/sales/orders?status=${status}`}
-                dotColor={PIE_PALETTE[index % PIE_PALETTE.length] ?? "#9A9494"}
-                label={ORDER_STATUS_LABELS[status]}
-                countText={formatCount(data.statusCounts[status])}
-              />
-            ))}
-            <StatusCell
-              href="/admin/sales/incomplete"
-              dotColor="rgb(var(--admin-text-secondary))"
-              label="Incomplete Orders"
-              countText={
-                failed("Incomplete orders")
-                  ? "—"
-                  : formatCount(data.incompleteCount)
-              }
-            />
-          </div>
+          <Suspense fallback={<OverviewSkeleton />}>
+            <OverviewSection load={load} />
+          </Suspense>
         </section>
 
-        <div className="grid gap-6 xl:grid-cols-3">
-          <ChartCard
-            title="Revenue"
-            description={`${GRANULARITY_LABELS[granularity]} totals in the selected period, with the previous period alongside. Revenue is the sum of order totals excluding cancelled and returned orders, including delivery charges.`}
-            headingLevel="h2"
-            className="xl:col-span-2"
-            footer={
-              <ChartSummary
-                items={[
-                  {
-                    term: "Revenue in period",
-                    value: formatMoney(data.revenueMinor),
-                  },
-                  {
-                    term: "Previous period",
-                    value: formatMoney(data.revenueMinorPrevious),
-                  },
-                  ...(revenueSummary.peak && revenueSummary.totalMinor > 0
-                    ? [
-                        {
-                          term: `Peak ${granularity === "day" ? "day" : granularity === "week" ? "week" : "month"}`,
-                          value: `${revenueSummary.peak.label} · ${formatMoney(revenueSummary.peak.revenueMinor)}`,
-                        },
-                      ]
-                    : []),
-                  {
-                    term: `Average per ${granularity === "day" ? "day" : granularity === "week" ? "week" : "month"}`,
-                    value: formatMoney(revenueSummary.averageMinor),
-                  },
-                ]}
-              />
-            }
-          >
-            <SeriesChart
-              points={revenuePoints}
-              comparePoints={revenueComparePoints}
-              formatValue={formatMoneyShort}
-              ariaLabel={`Revenue by ${granularity === "day" ? "day" : granularity === "week" ? "week" : "month"}`}
-              emptyMessage="No revenue in this period."
-              emptyGuidance="Revenue appears here once orders are placed in the selected period."
-            />
-          </ChartCard>
-          <ChartCard
-            title="Orders by status"
-            description="Click a status to open the matching orders."
-            headingLevel="h2"
-            footer={
-              topStatus ? (
-                <ChartSummary
-                  items={[
-                    {
-                      term: "Most orders",
-                      value: `${ORDER_STATUS_LABELS[topStatus.status]} · ${formatCount(topStatus.count)} of ${formatCount(data.orderCount)}`,
-                    },
-                  ]}
-                />
-              ) : undefined
-            }
-          >
-            <PieChart
-              segments={ORDER_STATUSES.map((status, index) => ({
-                label: ORDER_STATUS_LABELS[status],
-                value: data.statusCounts[status],
-                href: `/admin/sales/orders?status=${status}`,
-                color: PIE_PALETTE[index % PIE_PALETTE.length],
-              }))}
-              totalLabel="orders"
-              formatValue={formatCount}
-              ariaLabel="Orders by status in the selected period"
-              emptyMessage="No orders in this period."
-              emptyGuidance="Orders placed in the selected period appear here by status."
-            />
-          </ChartCard>
-        </div>
+        <Suspense fallback={<RevenueSkeleton />}>
+          <RevenueSection
+            load={load}
+            range={range}
+            previousRange={previousRange}
+            granularity={granularity}
+          />
+        </Suspense>
+
+        <Suspense fallback={<SellersSkeleton />}>
+          <SellersSection load={load} />
+        </Suspense>
 
         <div className="grid gap-6 xl:grid-cols-2">
-          <ChartCard
-            title="Best-selling products"
-            description="By revenue in the selected period, excluding cancelled and returned orders."
-            headingLevel="h2"
-            actions={
-              <ViewAllLink href="/admin/catalog/products">
-                View all products
-              </ViewAllLink>
-            }
-          >
-            {failed("Best sellers") ? (
-              <p className="aa-muted">Best sellers could not be loaded.</p>
-            ) : data.bestSellers.length === 0 ? (
-              <EmptyState
-                icon={<Package size={24} strokeWidth={1.4} aria-hidden="true" />}
-                title="No sales in this period"
-                description="Best sellers appear here once orders are placed."
-              />
-            ) : (
-              <HorizontalBarList
-                items={data.bestSellers}
-                valueKey="revenueMinor"
-                formatUnits={formatCount}
-                formatRevenue={formatMoney}
-                emptyMessage="No sales in this period."
-                emptyGuidance="Best sellers appear here once orders are placed."
-              />
-            )}
-          </ChartCard>
-          <ChartCard
-            title="Least-selling products"
-            description="Fewest units sold in the selected period, among products with at least one sale. Excludes cancelled and returned orders."
-            headingLevel="h2"
-            actions={
-              <ViewAllLink href="/admin/catalog/products">
-                View all products
-              </ViewAllLink>
-            }
-          >
-            {failed("Best sellers") ? (
-              <p className="aa-muted">Least-selling products could not be loaded.</p>
-            ) : data.leastSellers.length === 0 ? (
-              <EmptyState
-                icon={<Package size={24} strokeWidth={1.4} aria-hidden="true" />}
-                title="No sales in this period"
-                description="Least-selling products appear here once orders are placed."
-              />
-            ) : (
-              <HorizontalBarList
-                items={data.leastSellers}
-                valueKey="units"
-                formatUnits={formatCount}
-                formatRevenue={formatMoney}
-                emptyMessage="No sales in this period."
-                emptyGuidance="Least-selling products appear here once orders are placed."
-              />
-            )}
-          </ChartCard>
-        </div>
-
-        <div className="grid gap-6 xl:grid-cols-2">
-          <DashboardPanel
-            title="Recent orders"
-            actions={
-              <ViewAllLink href="/admin/sales/orders">View all orders</ViewAllLink>
-            }
-          >
-            {failed("Recent orders") ? (
-              <p className="aa-muted">Recent orders could not be loaded.</p>
-            ) : data.recentOrders.length === 0 ? (
-              <EmptyState
-                icon={<Receipt size={24} strokeWidth={1.4} aria-hidden="true" />}
-                title="No orders yet"
-                description="Orders appear here as soon as customers place them."
-              />
-            ) : (
-              <div className="aa-table-scroll">
-                <table className="aa-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Order</th>
-                      <th scope="col">Customer</th>
-                      <th scope="col">Date</th>
-                      <th scope="col">Amount</th>
-                      <th scope="col">Payment</th>
-                      <th scope="col">Status</th>
-                      <th scope="col">
-                        <span className="aa-sr-only">Actions</span>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.recentOrders.map((order) => (
-                      <tr key={order.id}>
-                        <th scope="row">
-                          {order.order_number !== null
-                            ? `#${order.order_number}`
-                            : `Order ${order.id.slice(0, 8)}`}
-                        </th>
-                        <td data-label="Customer">
-                          <span className="aa-cell-main">{order.customer_name}</span>
-                          <span className="aa-cell-sub">{order.phone}</span>
-                        </td>
-                        <td data-label="Date">
-                          <time dateTime={order.placed_at}>
-                            {formatDateTime(order.placed_at)}
-                          </time>
-                        </td>
-                        <td data-label="Amount">{formatMoney(order.total_minor)}</td>
-                        <td data-label="Payment">
-                          {PAYMENT_METHOD_LABELS[order.payment_method] ?? order.payment_method}
-                          <span className="aa-cell-sub">
-                            {PAYMENT_STATUS_LABELS[order.payment_status] ?? order.payment_status}
-                          </span>
-                        </td>
-                        <td data-label="Status">
-                          {(ORDER_STATUSES as readonly string[]).includes(order.status) ? (
-                            <StatusBadge status={order.status as OrderStatus} />
-                          ) : (
-                            order.status
-                          )}
-                        </td>
-                        <td data-label="Actions" className="aa-cell-actions">
-                          <Link className="aa-row-action" href={`/admin/sales/orders/${order.id}`} aria-label={`View order ${order.order_number !== null ? `#${order.order_number}` : order.id.slice(0, 8)}`}>
-                            View
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </DashboardPanel>
-          <DashboardPanel
-            title="Low-stock alerts"
-            description="Variants at or below their low-stock threshold, lowest stock first."
-            actions={
-              <ViewAllLink href="/admin/catalog/inventory">
-                View inventory
-              </ViewAllLink>
-            }
-          >
-            {failed("Low stock") ? (
-              <p className="aa-muted">Low-stock alerts could not be loaded.</p>
-            ) : data.lowStock.length === 0 ? (
-              <EmptyState
-                icon={<AlertTriangle size={24} strokeWidth={1.4} aria-hidden="true" />}
-                title="No low-stock items"
-                description="Every variant is above its low-stock threshold."
-              />
-            ) : (
-              <div className="aa-table-scroll">
-                <table className="aa-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Product</th>
-                      <th scope="col">Variant</th>
-                      <th scope="col">Available</th>
-                      <th scope="col">Threshold</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.lowStock.map((row) => (
-                      <tr key={row.variantId}>
-                        <th scope="row">
-                          <Link
-                            href={`/admin/catalog/inventory?variant=${row.variantId}`}
-                            className="font-medium text-admin-primary"
-                          >
-                            {row.productName}
-                          </Link>
-                        </th>
-                        <td data-label="Variant">
-                          {row.size} · {row.color}
-                        </td>
-                        <td data-label="Available">{formatCount(row.available)}</td>
-                        <td data-label="Threshold">{formatCount(row.lowStockThreshold)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </DashboardPanel>
+          <Suspense fallback={<PanelSkeleton />}>
+            <RecentOrdersSection load={load} />
+          </Suspense>
+          <Suspense fallback={<PanelSkeleton />}>
+            <LowStockSection load={load} />
+          </Suspense>
         </div>
 
         <DashboardPanel
