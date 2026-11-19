@@ -44,7 +44,7 @@ export async function getRedirectAuto(): Promise<boolean> {
   return settings?.redirect_auto === true;
 }
 
-/** Create or update a redirect (migration 013 RPC). Stored, not enforced. */
+/** Create or update a redirect (migration 013 RPC). Enforced on the storefront by src/proxy.ts while redirect_auto is on. */
 export async function saveRedirect(
   _prev: AdminActionResult | null,
   form: FormData,

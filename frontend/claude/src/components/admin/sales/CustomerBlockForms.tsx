@@ -6,9 +6,10 @@ import { FormMessage, SubmitButton } from "@/components/admin/ui-client";
 import type { SalesAction } from "./types";
 
 /**
- * Block / unblock forms for a customer profile. Blocking is an admin record
- * only: checkout does not consult it, and the UI says so wherever the
- * block state is shown.
+ * Block / unblock forms for a customer profile. Blocking is enforced at
+ * checkout: a blocked phone cannot place a new order (refused at
+ * place-order time, and by the database trigger even for direct order
+ * calls). It does not cancel orders already placed.
  */
 export function CustomerBlockForms({
   phone,
@@ -45,8 +46,7 @@ export function CustomerBlockForms({
         <p className="aa-notice aa-notice--warning">
           This customer is blocked.
           {blockedReason ? ` Reason: ${blockedReason}.` : ""}
-          {blockedAt ? ` Blocked ${formatDateTime(blockedAt)}.` : ""} Blocking is an admin
-          record only — checkout does not check it, so this phone can still place orders.
+          {blockedAt ? ` Blocked ${formatDateTime(blockedAt)}.` : ""} Blocked numbers cannot place new orders — checkout refuses them.
         </p>
         <form action={unblockFormAction} method="post">
           <input type="hidden" name="phone" value={phone} />
@@ -82,8 +82,7 @@ export function CustomerBlockForms({
           placeholder="Why is this customer blocked? For example: repeated fake orders."
         />
         <p className="aa-hint">
-          Blocking only records the decision here. It does not stop checkout — wiring
-          enforcement into checkout is a separate future step.
+          Blocking stops this number from placing new orders. It does not cancel orders already placed.
         </p>
       </div>
       <FormMessage state={blockState} />
