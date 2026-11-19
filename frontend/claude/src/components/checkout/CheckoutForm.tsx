@@ -104,7 +104,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
     }).catch(() => undefined);
   };
 
-  const PAYMENT_REQUIRED = "অগ্রিম পেমেন্টের তথ্য দিন — bKash/Nagad Transaction ID আর আপনার নম্বর ছাড়া অর্ডার হবে না।";
+  const PAYMENT_REQUIRED = "Enter your advance payment details — no order can be placed without a bKash/Nagad Transaction ID and your number.";
 
   const validatePaymentState = (): PaymentSubmissionInput | null => {
     if (!paymentDetails) return null;

@@ -438,7 +438,7 @@ describe("advance payment required before order", () => {
     expect(checkoutForm).toContain("if (step === 1 && !validatePaymentState()) {");
     expect(checkoutForm).toContain("if (!details) {");
     expect(checkoutForm).toContain("setStep(1);");
-    expect(checkoutForm).toContain("অগ্রিম পেমেন্টের তথ্য দিন");
+    expect(checkoutForm).toContain("Enter your advance payment details");
   });
 
   it("places the order from Submit Payment with the validated details, and shows them on Review", () => {

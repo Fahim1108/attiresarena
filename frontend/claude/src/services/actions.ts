@@ -42,7 +42,7 @@ export async function placeOrderAction(payload: CheckoutPayload) {
   // convenience only and never the gate.
   const parsed = validatePaymentDetails({ ...(payload.payment ?? {}), note: "", orderReference: null });
   if (!parsed.ok) {
-    return { ok: false as const, reason: "validation" as const, message: "অগ্রিম পেমেন্টের তথ্য দিন — bKash/Nagad Transaction ID আর আপনার নম্বর ছাড়া অর্ডার হবে না।" };
+    return { ok: false as const, reason: "validation" as const, message: "Enter your advance payment details — no order can be placed without a bKash/Nagad Transaction ID and your number." };
   }
   if (!configuration.destinations.some((d) => d.provider === parsed.data.provider)) {
     return { ok: false as const, reason: "not_connected" as const, message: "Payment submission is unavailable. No order was placed. Do not send money." };
