@@ -6,7 +6,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { CouponField } from "@/components/cart/CouponField";
 import { OrderSummary } from "@/components/cart/OrderSummary";
 import { Button, ButtonLink, Checkbox, DemoNotice, EmptyState, Input, Modal, Select, CheckoutSkeleton, SmartImage, Textarea } from "@/components/ui";
-import { commerce } from "@/config";
 import { useCart } from "@/context/CartContext";
 import { areaLabel, areasOf, districtLabel, districtsOf, divisionLabel, divisionNames, isInsideDhaka } from "@/data/bangladesh";
 import { canPlaceOrder } from "@/lib/checkout/gate";
@@ -254,8 +253,8 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
           {step === 1 && (
             <div className="space-y-6">
               <h2 tabIndex={-1} className="font-serif text-2xl text-ink">Payment</h2>
-              <PaymentMethodSelector value={payment} onChange={setPayment} onlineEnabled={commerce.onlinePaymentEnabled} previewEnabled />
-              <ManualAdvancePayment mode={payment} configuration={manualPaymentConfiguration} totalMinor={toMinorUnits(summary.total)} division={form.division} district={form.district} onDetailsChange={handlePaymentDetailsChange} onSubmitPayment={(data) => placeOrder(data)} submitting={pending} />
+              <PaymentMethodSelector value={payment} onChange={setPayment} onlineEnabled={manualPaymentConfiguration.available} previewEnabled isProduction={isProduction} />
+              <ManualAdvancePayment mode={payment} configuration={manualPaymentConfiguration} totalMinor={toMinorUnits(summary.total)} division={form.division} district={form.district} onDetailsChange={handlePaymentDetailsChange} onSubmitPayment={(data) => placeOrder(data)} submitting={pending} isProduction={isProduction} />
               {paymentError && <p role="alert" className="text-sm leading-relaxed text-primary">{paymentError}</p>}
               <Textarea label="Order note (optional)" placeholder="Anything we should know? e.g. preferred delivery time" value={note} onChange={(e) => setNote(e.target.value)} className="min-h-[80px]" />
               <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">

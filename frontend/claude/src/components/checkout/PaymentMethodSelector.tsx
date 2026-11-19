@@ -2,10 +2,19 @@ import { Banknote, CreditCard } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { PaymentMethod } from "@/types";
 
-export function PaymentMethodSelector({ value, onChange, onlineEnabled, previewEnabled = false }: { value: PaymentMethod; onChange: (m: PaymentMethod) => void; onlineEnabled: boolean; previewEnabled?: boolean }) {
+export function PaymentMethodSelector({ value, onChange, onlineEnabled, previewEnabled = false, isProduction = false }: { value: PaymentMethod; onChange: (m: PaymentMethod) => void; onlineEnabled: boolean; previewEnabled?: boolean; isProduction?: boolean }) {
+  // The payment step is Bangla: the online description must say, in Bangla,
+  // whether the full amount can be paid here — never a hardcoded "disabled" line.
+  const onlineDescription = onlineEnabled
+    ? "পুরো অর্ডারের টাকা পে করুন।"
+    : isProduction
+      ? "এই মুহূর্তে পেমেন্ট নেওয়া যাচ্ছে না।"
+      : previewEnabled
+        ? "bKash বা Nagad · শুধু প্রিভিউ। পেমেন্ট নেওয়া যাচ্ছে না।"
+        : "এই মুহূর্তে পেমেন্ট নেওয়া যাচ্ছে না।";
   const options = [
     { id: "cod" as const, title: "Cash on Delivery", description: "Location-based advance, then the remaining balance on delivery. Advance must be verified before confirmation.", Icon: Banknote, disabled: false },
-    { id: "online" as const, title: "Full Online Payment", description: onlineEnabled ? "Pay the full order total." : previewEnabled ? "bKash or Nagad · UI preview only. Collection is disabled." : "Currently unavailable.", Icon: CreditCard, disabled: !onlineEnabled && !previewEnabled },
+    { id: "online" as const, title: "Full Online Payment", description: onlineDescription, Icon: CreditCard, disabled: !onlineEnabled && !previewEnabled },
   ];
   return (
     <fieldset>
@@ -26,7 +35,7 @@ export function PaymentMethodSelector({ value, onChange, onlineEnabled, previewE
               <Icon className={cn("h-5 w-5", active ? "text-primary" : "text-ink-muted")} strokeWidth={1.6} aria-hidden />
               <span className="flex-1">
                 <span className="block text-sm font-medium text-ink">{title}</span>
-                <span className={cn("block text-xs", disabled ? "text-primary" : "text-ink-muted")}>{description}</span>
+                <span lang={id === "online" ? "bn" : undefined} className={cn("block text-xs", disabled ? "text-primary" : "text-ink-muted")}>{description}</span>
                 {id === "cod" && <span lang="bn" className="mt-1 block text-sm font-medium leading-relaxed text-primary">অর্ডার কনফার্ম করতে ডেলিভারি চার্জ পে করুন।</span>}
               </span>
             </label>

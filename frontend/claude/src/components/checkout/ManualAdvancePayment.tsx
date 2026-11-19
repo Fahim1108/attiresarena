@@ -13,7 +13,7 @@ import { paymentBrands } from "@/config/payment-brands";
 import type { PaymentMethod } from "@/types";
 const names = { bkash: paymentBrands.bkash.name, nagad: paymentBrands.nagad.name };
 
-export function ManualAdvancePayment({ configuration, totalMinor, division, district, orderReference = null, mode = "cod", onDetailsChange, onSubmitPayment, submitting = false }: {
+export function ManualAdvancePayment({ configuration, totalMinor, division, district, orderReference = null, mode = "cod", onDetailsChange, onSubmitPayment, submitting = false, isProduction = false }: {
   mode?: PaymentMethod;
   configuration: ManualPaymentConfiguration;
   totalMinor: number;
@@ -26,6 +26,8 @@ export function ManualAdvancePayment({ configuration, totalMinor, division, dist
   onSubmitPayment?: (data: PaymentSubmissionInput) => void;
   /** Parent is placing the order; keep the button from double-submitting. */
   submitting?: boolean;
+  /** Production storefront: the collection-unavailable wording must not name a preview. */
+  isProduction?: boolean;
 }) {
   const id = useId();
   const [provider, setProvider] = useState<AdvanceProvider>("bkash");
@@ -90,7 +92,7 @@ export function ManualAdvancePayment({ configuration, totalMinor, division, dist
     <section aria-labelledby={`${id}-heading`} className="space-y-5 border-t border-line pt-5" data-advance-payment data-payment-mode={mode}>
       <div>
         <h3 id={`${id}-heading`} className="font-serif text-2xl">{mode === "cod" ? "COD advance payment" : "Full online payment"}</h3>
-        <p lang={mode === "cod" ? "bn" : undefined} className="mt-2 text-sm leading-relaxed text-ink-muted">{mode === "cod" ? "ডেলিভারি চার্জ বাদে বাকি টাকা প্রোডাক্ট হাতে পেয়ে পরিশোধ করুন।" : "Review payment of the complete order total, including delivery. Live collection is disabled."}</p>
+        <p lang="bn" className="mt-2 text-sm leading-relaxed text-ink-muted">{mode === "cod" ? "ডেলিভারি চার্জ বাদে বাকি টাকা প্রোডাক্ট হাতে পেয়ে পরিশোধ করুন।" : configuration.available ? "ডেলিভারি চার্জসহ পুরো অর্ডারের টাকা নিচের নম্বরে পাঠান। তারপর Transaction ID (TrxID) এবং আপনার পেমেন্ট নম্বর লিখে Submit করুন।" : isProduction ? "এই মুহূর্তে পেমেন্ট নেওয়া যাচ্ছে না। টাকা পাঠাবেন না।" : "এই প্রিভিউতে পেমেন্ট নেওয়া যাচ্ছে না। টাকা পাঠাবেন না।"}</p>
       </div>
       <dl className="space-y-2 rounded-lg border border-line bg-white p-4 text-sm" data-advance-breakdown>
         <div className="flex justify-between gap-4"><dt>Order reference</dt><dd className="break-all text-right">{orderReference ?? "Not created yet"}</dd></div>
@@ -133,12 +135,12 @@ export function ManualAdvancePayment({ configuration, totalMinor, division, dist
         <h4 className="font-serif text-2xl">Payment Details Submitted</h4>
         <p>Your payment is awaiting verification.</p><p className="text-sm">Order reference: {receipt.orderReference}</p>
       </div> : <form noValidate onSubmit={submit} className="space-y-4 [&_label]:text-sm" aria-label="Submit payment details" data-payment-form>
-        <p className="text-sm text-ink-muted">Never share your PIN or OTP. Submissions are unavailable; payment details will not be saved.</p>
+        <p className="text-sm text-ink-muted">{configuration.available ? "আপনার PIN বা OTP কাউকে দেবেন না।" : isProduction ? "আপনার PIN বা OTP কাউকে দেবেন না। এই মুহূর্তে পেমেন্টের তথ্য জমা দেওয়া যাচ্ছে না।" : "আপনার PIN বা OTP কাউকে দেবেন না। এই প্রিভিউতে পেমেন্টের তথ্য জমা দেওয়া যাচ্ছে না।"}</p>
         <fieldset disabled={pending} className="space-y-4">
           <Input id={`${id}-transactionId`} label="Transaction ID / Last 4 digits of number" hint="Last 4 digits of your sending number. A review hint only; payment must be verified separately." placeholder="Transaction ID or last 4 digits" required maxLength={128} autoComplete="off" autoCapitalize="characters" spellCheck={false} value={transactionId} onChange={e => { setTransactionId(e.target.value); setErrors(current => ({ ...current, transactionId: undefined })); onDetailsChange?.({ provider, transactionId: e.target.value, senderNumber }); }} onBlur={() => setTransactionId(s => s.trim())} error={errors.transactionId} />
           <Input id={`${id}-senderNumber`} label={`Your ${names[provider]} Number`} required type="tel" inputMode="tel" autoComplete="tel" value={senderNumber} onChange={e => { setSenderNumber(e.target.value); setErrors(current => ({ ...current, senderNumber: undefined })); onDetailsChange?.({ provider, transactionId, senderNumber: e.target.value }); }} error={errors.senderNumber} />
           {(message || errors.form) && <p role="alert" className="text-sm leading-relaxed text-primary">{message || errors.form}</p>}
-          <Button type="submit" variant="burgundy" fullWidth size="lg" loading={pending || submitting} disabled={!canSubmit || submitting}>Submit Payment</Button>
+          <Button type="submit" variant="burgundy" fullWidth size="lg" loading={pending || submitting} disabled={!canSubmit || submitting}>পেমেন্ট Submit করুন</Button>
         </fieldset>
       </form>}
     </section>
