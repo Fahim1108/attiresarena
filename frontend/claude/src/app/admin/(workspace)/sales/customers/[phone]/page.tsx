@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { formatDateTime, formatMoney } from "@/lib/admin/format";
+import { formatDateTime, formatMoney, formatOrderNumber } from "@/lib/admin/format";
 import { blockCustomer, readCustomerProfile, unblockCustomer } from "@/lib/admin/customers";
 import { resolveDisplayRecord } from "@/lib/admin/sample-data";
 import { SAMPLE_CUSTOMER_PROFILE } from "@/lib/admin/sample-sales";
@@ -175,11 +175,11 @@ export default async function CustomerProfilePage({
                       <th scope="row">
                         {isSample ? (
                           <span className="aa-cell-main">
-                            {order.order_number ? `#${order.order_number}` : "Order"}
+                            {formatOrderNumber(order.order_number)}
                           </span>
                         ) : (
                           <Link href={`/admin/sales/orders/${order.id}`} className="aa-cell-main">
-                            {order.order_number ? `#${order.order_number}` : "Order"}
+                            {formatOrderNumber(order.order_number)}
                           </Link>
                         )}
                       </th>
@@ -192,7 +192,7 @@ export default async function CustomerProfilePage({
                         {isSample ? (
                           "—"
                         ) : (
-                          <Link className="aa-row-action" href={`/admin/sales/orders/${order.id}`} aria-label={`View order ${order.order_number ? `#${order.order_number}` : order.id}`}>
+                          <Link className="aa-row-action" href={`/admin/sales/orders/${order.id}`} aria-label={`View order ${order.order_number ? formatOrderNumber(order.order_number) : order.id}`}>
                             View
                           </Link>
                         )}

@@ -260,3 +260,62 @@ describe('checkout button gate', () => {
     expect(canPlaceOrder(false, false)).toBe(false);
   });
 });
+
+describe('order-placed notification hook', () => {
+  it('calls onOrderPlaced once, with the fresh order, after a successful placement', async () => {
+    const db = fakeDatabase();
+    const notified: { orderNumber: string; total: number }[] = [];
+    const result = await createCheckoutService(db.rpc, jar(), {
+      clientKey: CLIENT,
+      onOrderPlaced: (placed) => {
+        notified.push(placed);
+      },
+    }).placeOrder(order());
+    expect(result).toEqual({ ok: true, data: { orderNumber: '10001', total: 2530 } });
+    expect(notified).toEqual([{ orderNumber: '10001', total: 2530 }]);
+  });
+
+  it('does not call onOrderPlaced for an idempotent replay of an already-placed order', async () => {
+    const db = fakeDatabase();
+    const first = jar();
+    const service = createCheckoutService(db.rpc, first, { clientKey: CLIENT });
+    await service.saveProgress({ customer: { fullName: 'Nasrin Akter', phone: '01712345678' }, items: [{ variantId: V1, quantity: 1 }] });
+    const token = first.value()!;
+    const notified: unknown[] = [];
+    const withHook = (cookies: ReturnType<typeof jar>) =>
+      createCheckoutService(db.rpc, cookies, {
+        clientKey: CLIENT,
+        onOrderPlaced: (placed) => {
+          notified.push(placed);
+        },
+      });
+    await withHook(jar(token)).placeOrder(order());
+    await withHook(jar(token)).placeOrder(order());
+    expect(notified).toHaveLength(1);
+    expect(db.orderCount()).toBe(1);
+  });
+
+  it('a throwing hook never changes the order result', async () => {
+    const db = fakeDatabase();
+    const result = await createCheckoutService(db.rpc, jar(), {
+      clientKey: CLIENT,
+      onOrderPlaced: () => {
+        throw new Error('notification exploded');
+      },
+    }).placeOrder(order());
+    expect(result).toEqual({ ok: true, data: { orderNumber: '10001', total: 2530 } });
+  });
+
+  it('does not call onOrderPlaced when placement fails', async () => {
+    const db = fakeDatabase();
+    const notified: unknown[] = [];
+    const result = await createCheckoutService(db.rpc, jar(), {
+      clientKey: CLIENT,
+      onOrderPlaced: (placed) => {
+        notified.push(placed);
+      },
+    }).placeOrder(order({ items: [] }));
+    expect(result).toMatchObject({ ok: false });
+    expect(notified).toHaveLength(0);
+  });
+});

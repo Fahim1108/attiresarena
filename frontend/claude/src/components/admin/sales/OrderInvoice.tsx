@@ -1,5 +1,5 @@
 import { PAYMENT_METHOD_LABELS, PAYMENT_STATUS_LABELS } from "@/lib/admin/constants";
-import { formatDate, formatMoney } from "@/lib/admin/format";
+import { formatDate, formatMoney, formatOrderNumber } from "@/lib/admin/format";
 import type { OrderItemView, OrderRow } from "@/lib/admin/orders";
 import { InvoiceQrCode } from "./InvoiceQrCode";
 import { TrackingBarcode } from "./TrackingBarcode";
@@ -101,7 +101,7 @@ export function OrderInvoice({
           <dl className="aa-invoice-details">
             <div>
               <dt>Order No</dt>
-              <dd>{order.order_number ? `#${order.order_number}` : "—"}</dd>
+              <dd>{order.order_number ? formatOrderNumber(order.order_number) : "—"}</dd>
             </div>
             <div>
               <dt>Order Date</dt>

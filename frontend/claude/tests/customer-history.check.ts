@@ -249,7 +249,7 @@ describe("history panel wiring (source pins)", () => {
   it("the shared panel renders order ids as links to order detail pages", () => {
     const panel = read("src/components/admin/sales/CustomerOrderHistoryPanel.tsx");
     expect(panel).toContain("`/admin/sales/orders/${order.id}`");
-    expect(panel).toContain("order.order_number ? `#${order.order_number}`");
+    expect(panel).toContain("formatOrderNumber(order.order_number)");
     expect(panel).toContain("formatDateTime(order.placed_at)");
     expect(panel).toContain("formatMoney(order.total_minor)");
   });

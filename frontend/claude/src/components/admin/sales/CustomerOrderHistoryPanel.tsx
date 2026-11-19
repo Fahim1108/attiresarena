@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { formatDateTime, formatMoney } from "@/lib/admin/format";
+import { formatDateTime, formatMoney, formatOrderNumber } from "@/lib/admin/format";
 import type { OrderRow } from "@/lib/admin/orders";
 import { Notice } from "@/components/admin/ui";
 import { StatusBadge } from "@/components/design-system/StatusBadge";
@@ -52,7 +52,7 @@ export function CustomerOrderHistoryPanel({
               <tr key={order.id}>
                 <th scope="row">
                   <Link href={`/admin/sales/orders/${order.id}`} className="aa-cell-main">
-                    {order.order_number ? `#${order.order_number}` : "Order"}
+                    {formatOrderNumber(order.order_number)}
                   </Link>
                 </th>
                 <td data-label="Placed">{formatDateTime(order.placed_at)}</td>
@@ -64,7 +64,7 @@ export function CustomerOrderHistoryPanel({
                   <Link
                     className="aa-row-action"
                     href={`/admin/sales/orders/${order.id}`}
-                    aria-label={`View order ${order.order_number ? `#${order.order_number}` : order.id}`}
+                    aria-label={`View order ${order.order_number ? formatOrderNumber(order.order_number) : order.id}`}
                   >
                     View
                   </Link>

@@ -35,6 +35,7 @@ import {
   formatDateTime,
   formatMoney,
   formatMoneyShort,
+  formatOrderNumber,
   parseDateRange,
   toDhakaDateKey,
 } from "@/lib/admin/format";
@@ -707,7 +708,7 @@ export default async function AdminDashboard({
                       <tr key={order.id}>
                         <th scope="row">
                           {order.order_number !== null
-                            ? `#${order.order_number}`
+                            ? formatOrderNumber(order.order_number)
                             : `Order ${order.id.slice(0, 8)}`}
                         </th>
                         <td data-label="Customer">
@@ -734,7 +735,7 @@ export default async function AdminDashboard({
                           )}
                         </td>
                         <td data-label="Actions" className="aa-cell-actions">
-                          <Link className="aa-row-action" href={`/admin/sales/orders/${order.id}`} aria-label={`View order ${order.order_number !== null ? `#${order.order_number}` : order.id.slice(0, 8)}`}>
+                          <Link className="aa-row-action" href={`/admin/sales/orders/${order.id}`} aria-label={`View order ${order.order_number !== null ? formatOrderNumber(order.order_number) : order.id.slice(0, 8)}`}>
                             View
                           </Link>
                         </td>

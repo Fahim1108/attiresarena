@@ -103,18 +103,29 @@ describe("telegram message building", () => {
     expect(message).not.toContain(FAKE_CHAT_ID);
   });
 
-  it("builds an order notice without a phone number", () => {
+  it("builds an order notice in the owner's format, with an AA- number", () => {
     const message = buildOrderNoticeMessage({
       orderNumber: 10001,
       customerName: "Ayesha Rahman",
-      status: "pending",
-      totalMinor: 253000,
+      customerPhone: "01712345678",
+      customerEmail: "ayesha@example.com",
+      addressLines: ["House 3, Block B, Tongi", "Tongi, Gazipur, Dhaka"],
+      items: [
+        { name: "Casual shirt", size: "M", color: "Standard", quantity: 1, lineTotalMinor: 45000 },
+      ],
+      subtotalMinor: 45000,
+      deliveryMinor: 8000,
+      discountMinor: 0,
+      totalMinor: 53000,
+      paymentMethod: "cod",
+      paymentStatus: "unpaid",
     });
-    expect(message).toContain("#10001");
-    expect(message).toContain("Ayesha Rahman");
-    expect(message).toContain("৳2,530.00");
-    expect(message).toContain("Pending");
-    expect(message).not.toMatch(/01[3-9]\d{8}/);
+    expect(message).toContain("🛒 🛒 New Order! — AttiresArena");
+    expect(message).toContain("🆔 Order #: AA-10001");
+    expect(message).toContain("• Phone: 01712345678");
+    expect(message).toContain("• Total: ৳530");
+    expect(message).toContain("• Method: COD • Unpaid");
+    expect(message).not.toContain("#10001");
   });
 
   it("builds the Bot API send URL for the given token", () => {

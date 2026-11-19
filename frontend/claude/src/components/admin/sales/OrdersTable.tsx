@@ -10,7 +10,7 @@ import {
   type OrderStatus,
   type PaymentStatus,
 } from "@/lib/admin/constants";
-import { formatDateTime, formatMoney } from "@/lib/admin/format";
+import { formatDateTime, formatMoney, formatOrderNumber } from "@/lib/admin/format";
 import type { ShipmentSummary } from "@/lib/admin/courier";
 import { StatusBadge } from "@/components/design-system/StatusBadge";
 import { FormMessage, SubmitButton } from "@/components/admin/ui-client";
@@ -214,7 +214,7 @@ export function OrdersTable({
         <ul className={styles.cards}>
           {rows.map((row) => {
             const expanded = expandedId === row.id;
-            const label = row.order_number ? `#${row.order_number}` : "Order";
+            const label = formatOrderNumber(row.order_number);
             return (
               <li
                 key={row.id}
@@ -228,7 +228,7 @@ export function OrdersTable({
                   <span className={styles.cardSelect}>
                     <input
                       type="checkbox"
-                      aria-label={`Select order ${row.order_number ?? row.id}`}
+                      aria-label={`Select order ${row.order_number ? formatOrderNumber(row.order_number) : row.id}`}
                       checked={selected.includes(row.id)}
                       onChange={(event) => toggle(row.id, event.target.checked)}
                     />
@@ -324,7 +324,7 @@ export function OrdersTable({
                       <Link
                         className="aa-row-action"
                         href={`/admin/sales/orders/${row.id}`}
-                        aria-label={`View order ${row.order_number ? `#${row.order_number}` : row.id}`}
+                        aria-label={`View order ${row.order_number ? formatOrderNumber(row.order_number) : row.id}`}
                       >
                         View order details
                       </Link>

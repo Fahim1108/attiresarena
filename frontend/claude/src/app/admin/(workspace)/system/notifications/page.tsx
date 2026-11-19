@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { hasAnyRole, requireStaff } from "@/lib/admin/authorization";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_TONES, areaRoles } from "@/lib/admin/constants";
-import { formatDateTime, formatMoney } from "@/lib/admin/format";
+import { formatDateTime, formatMoney, formatOrderNumber } from "@/lib/admin/format";
 import { readOrderNotices } from "@/lib/admin/orders";
 import { resolveDisplayData } from "@/lib/admin/sample-data";
 import { SAMPLE_ORDER_NOTICES } from "@/lib/admin/sample-sales";
@@ -106,7 +106,7 @@ export default async function NotificationsPage() {
               <ul className={styles.noticeList}>
                 {notices.map((notice) => {
                   const label = notice.order_number
-                    ? `Order #${notice.order_number}`
+                    ? `Order ${formatOrderNumber(notice.order_number)}`
                     : "Order";
                   return (
                     <li key={notice.id} className={styles.noticeItem}>

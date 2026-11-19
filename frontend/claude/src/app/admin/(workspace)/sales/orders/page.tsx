@@ -11,7 +11,7 @@ import {
   toShipmentSummary,
   type ShipmentSummary,
 } from "@/lib/admin/courier";
-import { formatDateTime, formatMoney } from "@/lib/admin/format";
+import { formatDateTime, formatMoney, formatOrderNumber } from "@/lib/admin/format";
 import {
   bulkTransitionOrders,
   exportOrdersCsv,
@@ -217,7 +217,7 @@ export default async function OrdersPage({
                       <tr key={order.id}>
                         <td data-label="Order">
                           <span className="aa-cell-main">
-                            {order.order_number ? `#${order.order_number}` : "Order"}
+                            {formatOrderNumber(order.order_number)}
                           </span>
                           <span className="aa-cell-sub">{formatDateTime(order.placed_at)}</span>
                         </td>

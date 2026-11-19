@@ -10,6 +10,11 @@ export function formatMoneyShort(minor: number): string {
   return `৳${value.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }
 
+/** Display label for an order number: "AA-10001"; "Order" when unknown. Accepts the numeric value or its string form (the checkout confirmation carries it as a string). */
+export function formatOrderNumber(orderNumber: number | string | null | undefined): string {
+  return orderNumber ? `AA-${orderNumber}` : "Order";
+}
+
 export function formatCount(value: number): string {
   return value.toLocaleString("en-US");
 }

@@ -19,7 +19,7 @@ import {
   type OrderStatus,
   type PaymentStatus,
 } from "./constants";
-import { formatDateTime, parsePage, parsePageSize, toCsv } from "./format";
+import { formatDateTime, formatOrderNumber, parsePage, parsePageSize, toCsv } from "./format";
 
 /* ------------------------------------------------------------------ */
 /* Pure helpers (covered by tests/sales.check.ts)                      */
@@ -713,7 +713,7 @@ export async function bulkTransitionOrders(
   const byId = new Map(currentParsed.data.map((row) => [row.id, row]));
   const label = (id: string): string => {
     const row = byId.get(id);
-    return row?.order_number ? `#${row.order_number}` : "an order";
+    return row?.order_number ? formatOrderNumber(row.order_number) : "an order";
   };
   // All-or-nothing pre-check: no writes happen unless EVERY selected order
   // is unchanged and may legally move to the target status.
@@ -810,13 +810,15 @@ export async function exportOrdersCsv(input: {
 }
 
 /* ------------------------------------------------------------------ */
-/* 3-hour unverified-order sweep: owner-triggered manual run only.     */
+/* 3-hour unverified-order sweep: automatic (pg_cron) + manual run.    */
 /*                                                                     */
-/* NO SCHEDULER EXISTS (no pg_cron, no Vercel cron, no in-app          */
-/* scheduler). The sweep runs ONLY when a staff member with            */
-/* orders.manage runs it from the All Orders page. Automatic execution */
-/* needs a scheduler that does not exist yet — a separate,             */
-/* owner-approved step. Nothing here pretends otherwise.               */
+/* The sweep runs AUTOMATICALLY every 15 minutes via the pg_cron job  */
+/* 'attiresarena-unverified-order-sweep' (migration 20261119000200),   */
+/* which calls the scheduled wrapper run_unverified_order_sweep_       */
+/* scheduled() — the same private.cancel_stale_pending_orders() the    */
+/* manual run uses, without a staff JWT (a cron session has none).     */
+/* The manual run below remains for an immediate, staff-triggered      */
+/* sweep from the All Orders page.                                     */
 /* ------------------------------------------------------------------ */
 
 const sweepPreviewSchema = z.object({

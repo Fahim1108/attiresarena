@@ -546,7 +546,7 @@ describe("migration 20261117000200 text", () => {
     const files = readdirSync(join(repoRoot, "supabase/migrations"))
       .filter((f) => f.endsWith(".sql"))
       .sort();
-    expect(files).toHaveLength(44);
+    expect(files).toHaveLength(46);
     const fixIndex = files.indexOf("20261117000200_product_variant_cost_read_fix.sql");
     expect(fixIndex).toBeGreaterThan(-1);
     // Later migrations may call orderable_variant (the cost-safe reader) but

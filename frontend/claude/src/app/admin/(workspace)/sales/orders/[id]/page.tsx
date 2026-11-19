@@ -12,7 +12,7 @@ import {
   toShipmentSummary,
 } from "@/lib/admin/courier";
 import { readCustomerOrderHistory } from "@/lib/admin/customers";
-import { formatDateTime } from "@/lib/admin/format";
+import { formatDateTime, formatOrderNumber } from "@/lib/admin/format";
 import { readOrderDetail, setPaymentStatus, transitionOrder } from "@/lib/admin/orders";
 import { resolveDisplayRecord } from "@/lib/admin/sample-data";
 import { SAMPLE_ORDER_DETAIL } from "@/lib/admin/sample-sales";
@@ -49,7 +49,7 @@ export default async function OrderDetailPage({
     SAMPLE_ORDER_DETAIL,
   );
   const { order, items, history } = record;
-  const orderLabel = order.order_number ? `#${order.order_number}` : "Order";
+  const orderLabel = formatOrderNumber(order.order_number);
   // Previous orders + courier state are live-only (samples carry no
   // working actions or detail links). Both reads run in parallel; each
   // degrades honestly on its own if unavailable.

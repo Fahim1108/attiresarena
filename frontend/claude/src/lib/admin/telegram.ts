@@ -3,8 +3,8 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireStaff, actionOk, actionError, toActionError, type AdminActionResult, type StaffSession } from "./authorization";
-import { ORDER_STATUS_LABELS, areaRoles, type OrderStatus } from "./constants";
-import { formatMoney } from "./format";
+import { areaRoles } from "./constants";
+import { formatMoneyShort, formatOrderNumber } from "./format";
 
 /* ------------------------------------------------------------------ */
 /* Telegram bot integration (owner item 14).                           */
@@ -12,9 +12,13 @@ import { formatMoney } from "./format";
 /* The bot token is a SECRET: it is stored only in private.telegram_   */
 /* config (migration 20261115001200), it is never displayed back,      */
 /* never returned by the status read, never logged, and never included */
-/* in any action result. The ONLY send path is the explicit test       */
-/* action below, which runs server-side and only when a configuration  */
-/* exists and is enabled. There is no automatic new-order sending yet. */
+/* in any action result. There are two send paths, both server-side:   */
+/* the explicit test action below (staff-initiated, staff secret RPC)  */
+/* and the automatic new-order notice (notifyOrderPlaced, service-role */
+/* secret RPC from migration 20261119000100 — checkout has no staff    */
+/* session, so the server reads the secret as service_role). A failed  */
+/* notification never breaks checkout: notifyOrderPlaced returns      */
+/* false and logs a generic line instead of throwing.                  */
 /* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
@@ -95,20 +99,222 @@ export function buildTelegramTestMessage(): string {
   return "Attires Arena test notification. Telegram alerts are connected — new orders appear in Notifications, and this message confirms the bot can reach this chat.";
 }
 
+/** One line of the order notice: the stored item name, size, color and line total. */
+export interface OrderNoticeItem {
+  name: string;
+  size: string;
+  color: string;
+  quantity: number;
+  lineTotalMinor: number;
+}
+
 /**
- * Message text for a single order notice, for a future automatic send path.
- * Plain text only (no parse mode, so no markup injection), and no phone
- * number: the notice names the order, the customer, the total and the
- * status, and nothing else.
+ * Everything the new-order notice carries, in the owner's own format
+ * (from his other store's bot): brand + total + customer, order number,
+ * customer lines, delivery address, items, payment. Amounts are minor
+ * units; money renders as whole taka, as in his example. Lines with no
+ * value (email, discount) are omitted, never printed empty.
  */
-export function buildOrderNoticeMessage(notice: {
-  orderNumber: number | null;
+export interface OrderNotice {
+  orderNumber: number | string | null;
   customerName: string;
-  status: OrderStatus;
+  customerPhone: string | null;
+  customerEmail: string | null;
+  /** Address lines in print order: street line, then "area, district, division". */
+  addressLines: string[];
+  items: OrderNoticeItem[];
+  subtotalMinor: number;
+  deliveryMinor: number;
+  discountMinor: number;
   totalMinor: number;
-}): string {
-  const label = notice.orderNumber ? `#${notice.orderNumber}` : "a new order";
-  return `New order ${label} — ${notice.customerName}, ${formatMoney(notice.totalMinor)} (${ORDER_STATUS_LABELS[notice.status]}). See Notifications in the admin panel.`;
+  /** Database payment_method ('cod' — the only method the store offers). */
+  paymentMethod: string;
+  /** Database payment_status ('unpaid' | 'paid' | 'refunded'). */
+  paymentStatus: string;
+}
+
+function paymentStatusLabel(status: string): string {
+  if (status === "paid") return "Paid";
+  if (status === "refunded") return "Refunded";
+  return "Unpaid";
+}
+
+/**
+ * Message text for a single order notice, in the owner's format. Plain
+ * text only (no parse mode, so no markup injection). The phone and email
+ * go to the owner's own Telegram chat only — his bot, his saved chat id —
+ * never to the customer or any third party.
+ */
+export function buildOrderNoticeMessage(notice: OrderNotice): string {
+  const lines: string[] = [];
+  lines.push("🛒 🛒 New Order! — AttiresArena");
+  lines.push(`${formatMoneyShort(notice.totalMinor)} from ${notice.customerName}`);
+  lines.push("");
+  lines.push(`🆔 Order #: ${formatOrderNumber(notice.orderNumber)}`);
+  lines.push("");
+  lines.push("👤 Customer");
+  lines.push(`• Name: ${notice.customerName}`);
+  if (notice.customerPhone) lines.push(`• Phone: ${notice.customerPhone}`);
+  if (notice.customerEmail) lines.push(`• Email: ${notice.customerEmail}`);
+  lines.push("");
+  lines.push("📍 Delivery Address");
+  for (const line of notice.addressLines) {
+    if (line.trim() !== "") lines.push(`• ${line}`);
+  }
+  lines.push("");
+  lines.push(`🛍 Products (${notice.items.length})`);
+  for (const item of notice.items) {
+    lines.push(
+      `• ${item.name} [${item.size} / ${item.color}] × ${item.quantity} — ${formatMoneyShort(item.lineTotalMinor)}`,
+    );
+  }
+  lines.push("");
+  lines.push("💰 Payment");
+  lines.push(`• Subtotal: ${formatMoneyShort(notice.subtotalMinor)}`);
+  if (notice.discountMinor > 0) {
+    lines.push(`• Discount: −${formatMoneyShort(notice.discountMinor)}`);
+  }
+  lines.push(`• Delivery: ${formatMoneyShort(notice.deliveryMinor)}`);
+  lines.push(`• Total: ${formatMoneyShort(notice.totalMinor)}`);
+  lines.push(
+    `• Method: ${notice.paymentMethod.toUpperCase()} • ${paymentStatusLabel(notice.paymentStatus)}`,
+  );
+  return lines.join("\n");
+}
+
+/* ------------------------------------------------------------------ */
+/* Automatic new-order notice (service-role read paths).               */
+/*                                                                     */
+/* The checkout has no staff session, so these reads go through the    */
+/* service-role RPCs from migration 20261119000100 — never through the  */
+/* staff secret RPC, which require_admin would refuse for a guest.     */
+/* The rpc shape is the checkout transport's result type, written out  */
+/* here so this module does not import the checkout service.           */
+/* ------------------------------------------------------------------ */
+
+/** Minimal RPC shape, structurally identical to the checkout transport. */
+export type TelegramRpc = <T>(
+  name: string,
+  args: Record<string, unknown>,
+) => Promise<{ ok: true; data: T } | { ok: false; code: string }>;
+
+const orderNotificationItemSchema = z.object({
+  product_name: z.string(),
+  size: z.string(),
+  color: z.string(),
+  quantity: z.number().int(),
+  unit_price_minor: z.number().int(),
+  line_total_minor: z.number().int(),
+});
+
+const orderNotificationSchema = z.object({
+  id: z.string().uuid(),
+  order_number: z.number().int(),
+  customer_name: z.string(),
+  phone: z.string(),
+  email: z.string().nullable(),
+  division: z.string(),
+  district: z.string(),
+  area: z.string(),
+  address_line: z.string(),
+  subtotal_minor: z.number().int(),
+  delivery_charge_minor: z.number().int(),
+  discount_minor: z.number().int(),
+  total_minor: z.number().int(),
+  payment_method: z.string(),
+  payment_status: z.string(),
+  items: z.array(orderNotificationItemSchema),
+});
+
+export type OrderNotificationData = z.infer<typeof orderNotificationSchema>;
+
+/** Map the stored order payload onto the notice. Address prints as the street line, then "area, district, division". */
+export function toOrderNotice(data: OrderNotificationData): OrderNotice {
+  return {
+    orderNumber: data.order_number,
+    customerName: data.customer_name,
+    customerPhone: data.phone,
+    customerEmail: data.email,
+    addressLines: [data.address_line, `${data.area}, ${data.district}, ${data.division}`],
+    items: data.items.map((item) => ({
+      name: item.product_name,
+      size: item.size,
+      color: item.color,
+      quantity: item.quantity,
+      lineTotalMinor: item.line_total_minor,
+    })),
+    subtotalMinor: data.subtotal_minor,
+    deliveryMinor: data.delivery_charge_minor,
+    discountMinor: data.discount_minor,
+    totalMinor: data.total_minor,
+    paymentMethod: data.payment_method,
+    paymentStatus: data.payment_status,
+  };
+}
+
+const NOTIFY_DIAGNOSTIC_PREFIX = "[telegram-order-notice]";
+
+/**
+ * Send the new-order Telegram notice for an order that was just placed.
+ * Returns true only when Telegram accepted the message. NEVER throws and
+ * NEVER breaks checkout: every failure path (unconfigured, disabled,
+ * malformed payload, network, Telegram rejection) returns false after one
+ * generic log line. The log carries the order number only — never the
+ * message text, the phone, or the token.
+ */
+export async function notifyOrderPlaced(input: {
+  rpc: TelegramRpc;
+  orderNumber: number | string;
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+}): Promise<boolean> {
+  try {
+    const orderNumber =
+      typeof input.orderNumber === "string"
+        ? Number.parseInt(input.orderNumber, 10)
+        : input.orderNumber;
+    const orderResult = await input.rpc<OrderNotificationData>(
+      "admin_get_order_notification_for_server",
+      { p_order_number: orderNumber },
+    );
+    if (!orderResult.ok) {
+      console.error(`${NOTIFY_DIAGNOSTIC_PREFIX} order read failed for ${input.orderNumber}`);
+      return false;
+    }
+    const parsed = orderNotificationSchema.safeParse(orderResult.data);
+    if (!parsed.success) {
+      console.error(`${NOTIFY_DIAGNOSTIC_PREFIX} order payload malformed for ${input.orderNumber}`);
+      return false;
+    }
+    const secretResult = await input.rpc<{ bot_token: string; chat_id: string }>(
+      "admin_get_telegram_secret_for_server",
+      { p_order_id: parsed.data.id },
+    );
+    if (!secretResult.ok) {
+      console.error(`${NOTIFY_DIAGNOSTIC_PREFIX} telegram not configured or disabled`);
+      return false;
+    }
+    const secret = telegramSecretSchema.safeParse(secretResult.data);
+    if (!secret.success) {
+      console.error(`${NOTIFY_DIAGNOSTIC_PREFIX} telegram secret malformed`);
+      return false;
+    }
+    const sent = await sendTelegramMessage({
+      botToken: secret.data.bot_token,
+      chatId: secret.data.chat_id,
+      text: buildOrderNoticeMessage(toOrderNotice(parsed.data)),
+      fetchImpl: input.fetchImpl,
+      timeoutMs: input.timeoutMs,
+    });
+    if (!sent.ok) {
+      console.error(`${NOTIFY_DIAGNOSTIC_PREFIX} send failed for ${input.orderNumber}`);
+      return false;
+    }
+    return true;
+  } catch {
+    console.error(`${NOTIFY_DIAGNOSTIC_PREFIX} failed for ${input.orderNumber}`);
+    return false;
+  }
 }
 
 export function telegramSendMessageUrl(botToken: string): string {

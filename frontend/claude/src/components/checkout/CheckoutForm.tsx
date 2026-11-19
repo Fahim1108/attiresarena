@@ -11,6 +11,7 @@ import { useCart } from "@/context/CartContext";
 import { areaLabel, areasOf, districtLabel, districtsOf, divisionLabel, divisionNames, isInsideDhaka } from "@/data/bangladesh";
 import { canPlaceOrder } from "@/lib/checkout/gate";
 import { toMinorUnits } from "@/lib/checkout/coupons";
+import { formatOrderNumber } from "@/lib/admin/format";
 import { formatPrice } from "@/lib/format";
 import { isValidBdPhone, isValidEmail, normalizePhone, type FieldErrors } from "@/lib/validation";
 import { placeOrderAction, saveCheckoutProgressAction } from "@/services/actions";
@@ -139,7 +140,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
       <div data-order-placed>
         <EmptyState
           icon={<PackageCheck className="h-7 w-7" aria-hidden />}
-          title={`Order #${placed.orderNumber} received`}
+          title={`${formatOrderNumber(placed.orderNumber)} received`}
           description={`Your order is pending${placed.total !== undefined ? ` · Total ${formatPrice(placed.total)}` : ""} · Cash on Delivery. No payment has been recorded. We will contact you on ${placed.phone} to confirm it. Please keep your order number.`}
           action={<ButtonLink href="/shop">Continue Shopping</ButtonLink>}
         />

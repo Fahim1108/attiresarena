@@ -18,6 +18,9 @@ export interface CheckoutCookieJar {
 }
 export type PlacedOrder = { orderNumber: string; total: number };
 
+/** What the order-placed notification hook receives: the fresh order only. */
+export type PlacedOrderNotification = { orderNumber: string; total: number };
+
 type OrderRow = {
   order_number: number;
   total_minor: number;
@@ -53,7 +56,21 @@ function failure(code: string): Failure {
   return { ok: false, reason: "not_connected", message: generic };
 }
 
-export function createCheckoutService(rpc: CheckoutRpc, jar: CheckoutCookieJar, options: { clientKey: string }) {
+export function createCheckoutService(
+  rpc: CheckoutRpc,
+  jar: CheckoutCookieJar,
+  options: {
+    clientKey: string;
+    /**
+     * Called once, synchronously, after a FRESH order is placed — never
+     * awaited, never allowed to break checkout. The service never awaits
+     * the hook: the Next.js layer schedules the real work with after(),
+     * so a slow notification cannot delay the customer's confirmation.
+     * An idempotent replay of an already-placed order does NOT call it.
+     */
+    onOrderPlaced?: (order: PlacedOrderNotification) => void;
+  },
+) {
   if (!CLIENT_KEY.test(options.clientKey)) throw new Error("A hashed client key is required");
   const clientKey = options.clientKey;
   const currentToken = () => {
@@ -126,6 +143,19 @@ export function createCheckoutService(rpc: CheckoutRpc, jar: CheckoutCookieJar, 
       });
     const done = (row: OrderRow): ActionResult<PlacedOrder> => {
       jar.clear();
+      // Notify only a FRESH placement: an idempotent replay returns the same
+      // row with already_placed, and must not send the notice twice. A
+      // throwing hook must never break the order result.
+      if (!row.already_placed) {
+        try {
+          options.onOrderPlaced?.({
+            orderNumber: String(row.order_number),
+            total: row.total_minor / 100,
+          });
+        } catch {
+          // Notification failures never affect checkout.
+        }
+      }
       return { ok: true, data: { orderNumber: String(row.order_number), total: row.total_minor / 100 } };
     };
     for (let attempt = 0; attempt < 2; attempt += 1) {

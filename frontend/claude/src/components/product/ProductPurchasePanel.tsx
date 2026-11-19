@@ -3,13 +3,12 @@
 import { Banknote, CheckCircle2, CircleAlert, RotateCcw, ShieldCheck, ShoppingBag, Zap } from "lucide-react";
 import Link from "next/link";
 import { officialShirtSizeGuide } from "@/config/shirt-size-guide";
-import { APPAREL_SIZES, canonicalSize } from "@/lib/catalogue-dimensions";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button, Price, Rating } from "@/components/ui";
 import { useCart } from "@/context/CartContext";
 import { cn } from "@/lib/cn";
-import { findVariant, isSizeAvailable, toCartLine } from "@/lib/product";
+import { displayedSizes, findVariant, isSizeAvailable, toCartLine } from "@/lib/product";
 import type { Product, SizeGuide } from "@/types";
 import { QuantitySelector } from "./QuantitySelector";
 import { SizeGuideModal } from "./SizeGuideModal";
@@ -43,7 +42,12 @@ export function ProductPurchasePanel({ product, brandName, colorId, sizeGuide, c
   // Stock in ANY size of this color: no size selected yet is "undecided",
   // not "out of stock". The purchase buttons and status line must say so
   // instead of showing Sold Out / Out of stock before the shopper chooses.
-  const anySizeInStock = product.sizes.some((s) =>
+  // Only sizes the shopper can actually select may count: with apparel
+  // sizing the selector shows the fixed template list, so a stocked size
+  // whose name is not a canonical apparel size is invisible on the page
+  // and must not make the panel claim a size can be selected.
+  const displayedSizesList = displayedSizes(product);
+  const anySizeInStock = displayedSizesList.some((s) =>
     isSizeAvailable(product, colorId, s),
   );
   const purchaseDisabled = !anySizeInStock || (variant !== undefined && stock < 1);
@@ -86,7 +90,7 @@ export function ProductPurchasePanel({ product, brandName, colorId, sizeGuide, c
       <p className="text-sm text-ink">Color: <span className="font-medium">{product.colors.find(c=>c.id===colorId)?.name}</span></p>
 
       <SizeSelector
-        sizes={product.apparelSizing && canonicalSize(product.sizes[0] ?? "") ? APPAREL_SIZES.map(label=>(product.sizeOptions ?? product.sizes).find(s=>canonicalSize(s)===label) ?? label) : product.sizeOptions ?? product.sizes}
+        sizes={displayedSizesList}
         locked={product.reviewOnly === true}
         labels={product.sizeLabels}
         value={size}

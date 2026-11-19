@@ -95,6 +95,19 @@ describe("size-select stock state", () => {
     expect(html).not.toContain("Select a Size");
   });
 
+  it("shows Sold Out when the only stocked size is not a selectable apparel size", () => {
+    // Live case 2026-11-19 (Casual shirt): every template size button was
+    // disabled, yet the panel said "Select a Size" — a stocked size whose
+    // name is not a canonical apparel size counted toward "any size in
+    // stock" even though no shopper can select it. Only displayed sizes
+    // may count. ("Medium" is used deliberately: it keeps insertion order
+    // so sizes[0] stays "M" and the template branch triggers, as live.)
+    const html = renderPanel(panelProduct({ M: 0, Medium: 1 }));
+    expect(html).toContain("Sold Out");
+    expect(html).toContain("Out of stock");
+    expect(html).not.toContain("Select a Size");
+  });
+
   it("preselects the only size, so a single-size in-stock product still shows Add to Cart", () => {
     const html = renderPanel(panelProduct({ M: 1 }));
     expect(html).toContain("Add to Cart");

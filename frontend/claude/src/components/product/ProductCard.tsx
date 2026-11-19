@@ -6,7 +6,7 @@ import { Badge, Price, Rating, SmartImage } from "@/components/ui";
 import { useStorefront } from "@/context/StorefrontContext";
 import { cn } from "@/lib/cn";
 import { discountPercent } from "@/lib/format";
-import { findVariant, firstAvailableSize, imagesForColor, toCartLine, totalStock } from "@/lib/product";
+import { findVariant, firstAvailableSize, imagesForColor, selectableStock, toCartLine } from "@/lib/product";
 import { useCart } from "@/context/CartContext";
 import type { Product } from "@/types";
 import { useRouter } from "next/navigation";
@@ -46,7 +46,7 @@ export function ProductCard({ product, brandName, priority, sizes = "(min-width:
   const main = images[0];
   const hover = images[1];
   const off = discountPercent(product.price, product.compareAtPrice);
-  const soldOut = !product.reviewOnly && totalStock(product) === 0;
+  const soldOut = !product.reviewOnly && selectableStock(product) === 0;
   const href = `/product/${product.slug}${colorId && colorId !== product.colors[0]?.id ? `?color=${colorId}` : ""}`;
 
   return (

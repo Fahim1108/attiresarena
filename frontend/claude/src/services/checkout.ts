@@ -1,8 +1,10 @@
 import "server-only";
+import { after } from "next/server";
 import { createHash } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { CHECKOUT_COOKIE, type CheckoutOrdersConfiguration, checkoutCookieOptions, checkoutOrdersConfiguration } from "@/lib/checkout/config";
 import { createCheckoutService, validateCoupon, type CheckoutRpc, type CouponValidationResult, type PlacedOrder, type RpcResult } from "@/lib/checkout/service";
+import { notifyOrderPlaced } from "@/lib/admin/telegram";
 import { customerClient } from "@/lib/customer/supabase";
 import { publicSupabaseConfiguration } from "@/lib/supabase-public";
 import type { ActionResult } from "@/types";
@@ -133,7 +135,19 @@ async function service() {
         store.set(CHECKOUT_COOKIE, "", { ...checkoutCookieOptions(), maxAge: 0 });
       },
     },
-    { clientKey: await clientKeyFromRequest() },
+    {
+      clientKey: await clientKeyFromRequest(),
+      onOrderPlaced: (placed) => {
+        // Runs AFTER the response is sent, so a slow or failing Telegram
+        // send can never delay the customer's confirmation. The service-role
+        // transport is used deliberately: the notification RPCs are
+        // service_role-only, and the customer's own credential could never
+        // call them (nor should it — the notice is a server act).
+        after(async () => {
+          await notifyOrderPlaced({ rpc: rpcFor(config), orderNumber: placed.orderNumber });
+        });
+      },
+    },
   );
   return { checkout, didCustomerAuthFail: () => customerAuthFailed };
 }
