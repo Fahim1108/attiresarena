@@ -7,7 +7,7 @@ import { CartProvider } from "@/context/CartContext";
 import { StorefrontProvider } from "@/context/StorefrontContext";
 import { ToastProvider } from "@/context/ToastContext";
 import { WishlistProvider } from "@/context/WishlistContext";
-import { applyFooterOverride, getStorefrontContent, parseMarketingSettings, resolveStorefrontMetadata } from "@/lib/store-settings";
+import { applyAnnouncementOverride, applyFooterOverride, getStorefrontContent, parseMarketingSettings, resolveStorefrontMetadata } from "@/lib/store-settings";
 import { getInitialCart, getStorefrontSettings, getProducts } from "@/services";
 import "@fontsource-variable/cormorant-garamond";
 import "@fontsource-variable/inter";
@@ -43,6 +43,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // the static footer field by field; without stored values this returns the
   // static footer unchanged, so the storefront renders exactly as before.
   const footer = applyFooterOverride(settings.footer, content?.settings ?? null);
+  // Stored announcement-bar text/visibility replaces the static bar the
+  // same way; without a stored value the static bar is unchanged.
+  const header = applyAnnouncementOverride(settings.header, content?.settings ?? null);
   return (
     <html lang="en" >
       <head>
@@ -52,7 +55,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <CustomCodeSlot code={marketing.headCode} label="header" />
         <MarketingScripts marketing={marketing} />
-        <StorefrontProvider settings={{ ...settings, footer }}>
+        <StorefrontProvider settings={{ ...settings, header, footer }}>
           <ToastProvider>
             <WishlistProvider approvedProductIds={catalogue.items.map(p=>p.id)}>
               <CartProvider approvedProducts={catalogue.items} initialItems={initialCart} approvedVariantIds={catalogue.items.flatMap(p=>p.variants.filter(v=>v.stock>0).map(v=>v.id))}>
