@@ -19,7 +19,7 @@ export default function NewCouponPage() {
       <div className="space-y-6">
         <PageHeader
           title="New coupon"
-          description="Create a coupon. It validates server-side but cannot be applied at checkout until checkout integration lands."
+          description="Create a coupon. It validates server-side and can be applied at checkout."
           actions={
             <Link className="aa-secondary" href="/admin/sales/coupons">
               Back to coupons
@@ -31,9 +31,10 @@ export default function NewCouponPage() {
           </p>
         </PageHeader>
         <SalesNav current="coupons" />
-        <Notice kind="warning">
-          Applying a coupon at checkout is pending checkout integration. This coupon will be
-          usable in the eligibility test panel only, until then.
+        <Notice kind="info">
+          Coupons can be applied at checkout. Live redemption has not been
+          verified yet — use the eligibility test panel on the Coupons page
+          to check a code before sharing it.
         </Notice>
         <Card>
           <CardHeader>

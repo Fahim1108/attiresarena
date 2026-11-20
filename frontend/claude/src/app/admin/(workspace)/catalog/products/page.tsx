@@ -51,7 +51,7 @@ export default async function CatalogProductsPage({
       <div className="space-y-6">
         <PageHeader
           title="Products"
-          description="Search, filter and manage catalogue products. Publish a product to show it on the storefront; published products are visible but cannot be ordered yet."
+          description="Search, filter and manage catalogue products. Publish a product to show it on the storefront; published products can be ordered by customers."
           actions={
             !isSample && canManage ? (
               <Link href="/admin/catalog/products/new" className="aa-button">
