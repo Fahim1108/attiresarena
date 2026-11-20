@@ -83,11 +83,19 @@ export default async function CategoryPage({ params, searchParams }: { params: P
   const showShirtTypes = slug === "shirts" || isShirtSubcategory(category);
   const subs = showShirtTypes ? shirtSubcategories(allCategories) : [];
   const subCount = (s: string) => result.facets.categories.find((c) => c.slug === s)?.count ?? 0;
+  // "All Shirts" leads the chips on EVERY shirts page (it was missing
+  // on /category/shirts itself). Its count is the full Shirts total:
+  // on a sub-category page the facets are computed over the
+  // sub-filtered base, so subCount("shirts") there would show the sub
+  // count, not the total — one extra in-memory query over the already
+  // memoized feed (no extra Supabase round-trip).
+  const shirtsTotal =
+    slug === "shirts"
+      ? result.total
+      : (await getProducts({ categorySlugs: ["shirts"], pageSize: 1 })).total;
   const subcategories = showShirtTypes
     ? [
-        ...(slug === "shirts"
-          ? []
-          : [{ slug: "shirts", name: "All Shirts", count: subCount("shirts") }]),
+        { slug: "shirts", name: "All Shirts", count: shirtsTotal },
         ...subs.map((s) => ({ slug: s.slug, name: s.name, count: subCount(s.slug) })),
       ]
     : undefined;

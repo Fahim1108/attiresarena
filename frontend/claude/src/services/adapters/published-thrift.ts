@@ -321,8 +321,12 @@ export interface PublishedFeedRead extends StorefrontFeedHealth {
 /** Both feed sources in parallel, with per-source health and the merged visible count. Never throws. */
 const readPublishedFeedUncached = async (): Promise<PublishedFeedRead> => {
   const configuration = publicSupabaseConfiguration();
+  // SPEED (round 2): the allowlist RPC ran TWICE per request — once
+  // here and once via publishedShirts() (getStorefrontSettings), which
+  // uses its own readThriftFeedCached. Both now share that one cached
+  // read, so the homepage pays for one allowlist RPC, not two.
   const [allowlist, published] = await Promise.all([
-    readThriftFeed(configuration),
+    readThriftFeedCached(),
     readAdminFeed(configuration),
   ]);
   const health: StorefrontFeedHealth = {

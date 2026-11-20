@@ -426,12 +426,20 @@ export function parseCategoryRows(rows: unknown[]): CategoryRow[] {
 /**
  * Published categories for the storefront. Empty on any failure, so the
  * caller falls back to the static config unchanged.
+ * SPEED (round 2): per-request memo — the homepage and every category
+ * page read categories twice (getCategories + getProducts, each via
+ * liveCategories); without this the categories REST read ran twice.
+ * React cache() dedupes within ONE request only.
  */
-export async function getPublishedCategories(): Promise<CategoryRow[]> {
+const getPublishedCategoriesUncached = async (): Promise<CategoryRow[]> => {
   const rows = await readRows(
     "/rest/v1/categories?select=id,parent_id,name,slug,published,description,image_storage_path,banner_storage_path,seo_title,seo_description,sort_position&published=eq.true&order=sort_position.asc,created_at.asc",
   );
   return parseCategoryRows(rows).filter((row) => row.published);
+};
+const getPublishedCategoriesCached = cache(getPublishedCategoriesUncached);
+export async function getPublishedCategories(): Promise<CategoryRow[]> {
+  return getPublishedCategoriesCached();
 }
 
 /**

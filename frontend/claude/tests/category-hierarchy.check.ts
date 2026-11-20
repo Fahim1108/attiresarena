@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { dataSource } from "@/services/adapters";
 import { storeCategories } from "../src/config/catalogue";
 import {
   mergeDbCategories,
@@ -239,5 +240,81 @@ describe("chips without DB rows (Preview 2026-11-21 regression)", () => {
     });
     expect(selectableStock(soldOut)).toBe(0);
     expect(selectableStock(product({ id: "p-instock", slug: "in-stock-1" }))).toBe(1);
+  });
+});
+
+describe("review mode (Preview) uses the DB-merged categories — round-2 regression", () => {
+  // Preview 2026-11-21, deployment 4PTUtkqv9: chips showed (0) and every
+  // sub-category page was "Coming Soon". Root cause, proven from the
+  // live Preview HTML: vercel.json sets CLAUDE_DESIGN_PREVIEW=1, so
+  // reviewInventoryEnabled() was true on Preview and the adapter
+  // returned a static category list (only Shirts available, static ids
+  // cat-casual-shirt…) while admin products carry DB UUIDs — zero
+  // matches, zero counts. The adapter now uses the DB-merged list in
+  // review mode too (see owner-catalogue.ts). These tests stub the
+  // staging-shaped reads in preview env and assert the adapter level,
+  // not just queryProducts().
+  const adminRow = {
+    id: "30000000-0000-4000-8000-000000000001",
+    slug: "casual-admin-1",
+    name: "Casual admin shirt",
+    description: "A thrift shirt.",
+    category_id: CASUAL_ID,
+    highlights: [],
+    tags: [],
+    badges: [],
+    created_at: "2026-11-19T00:00:00Z",
+    published_at: "2026-11-19T00:00:00Z",
+    youtube_video_id: null,
+    seo_title: null,
+    seo_description: null,
+    meta_keywords: null,
+    variants: [{ id: "50000000-0000-4000-8000-000000000001", size: "M", color: "Navy", price_minor: 45000, sale_price_minor: null, available: 1 }],
+    media: [{ path: "60000000-0000-4000-8000-000000000001/70000000-0000-4000-8000-000000000001.jpg", alt: "Casual admin shirt" }],
+  };
+  const dbRows = [
+    row({ id: CASUAL_ID, name: "Casual shirt", slug: "casual-shirt", sort_position: 1 }),
+    row({ id: FORMAL_ID, name: "Formal shirt", slug: "formal-shirt", sort_position: 2 }),
+    row({ id: CHECK_ID, name: "Check shirt", slug: "check-shirt", sort_position: 3 }),
+  ];
+  function feeds(categoryRows: unknown[], admin: unknown[]) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/rest/v1/categories"))
+          return new Response(JSON.stringify(categoryRows), { status: 200 });
+        if (url.includes("/rpc/published_admin_catalogue"))
+          return new Response(JSON.stringify(admin), { status: 200 });
+        return new Response(JSON.stringify([]), { status: 200 });
+      }),
+    );
+  }
+  beforeEach(() => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("CLAUDE_DESIGN_PREVIEW", "1");
+    vi.stubEnv("SUPABASE_URL", "https://jwccyndyaamodxjtjtfo.supabase.co");
+    vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_isolated_unit_fixture");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("lists a DB-assigned product under its sub-category with a real count, and keeps non-shirts coming soon", async () => {
+    feeds(dbRows, [adminRow]);
+    expect((await dataSource.getCategoryBySlug("casual-shirt"))?.available).toBe(true);
+    expect((await dataSource.getCategoryBySlug("pants"))?.available).toBe(false);
+    expect((await dataSource.getCategoryBySlug("sneakers"))?.available).toBe(false);
+    const casual = await dataSource.getProducts({ categorySlugs: ["casual-shirt"] });
+    expect(casual.items.map((p) => p.slug)).toEqual(["casual-admin-1"]);
+    expect(casual.facets.categories.find((c) => c.slug === "casual-shirt")?.count).toBe(1);
+    const shirts = await dataSource.getProducts({ categorySlugs: ["shirts"] });
+    expect(shirts.items.map((p) => p.slug)).toContain("casual-admin-1");
+  });
+
+  it("keeps sub-category pages available (honestly empty) when the categories read returns nothing", async () => {
+    feeds([], [adminRow]);
+    expect((await dataSource.getCategoryBySlug("casual-shirt"))?.available).toBe(true);
+    expect((await dataSource.getProducts({ categorySlugs: ["casual-shirt"] })).total).toBe(0);
   });
 });
