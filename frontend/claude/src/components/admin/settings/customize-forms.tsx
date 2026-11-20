@@ -239,9 +239,9 @@ export function CustomizeForm({
       </div>
 
       <p className="aa-hint">
-        Saved choices are stored and do not change the storefront yet. The
-        default theme stays in place until a follow-up wires these values
-        through CSS variables.
+        Saved heading/body fonts and button shape apply on the storefront
+        on the next page load. Button style (solid/outline) is not applied
+        yet — the storefront has no single button style to switch.
       </p>
       <div className="aa-form-actions">
         <SubmitButton>Save customize settings</SubmitButton>

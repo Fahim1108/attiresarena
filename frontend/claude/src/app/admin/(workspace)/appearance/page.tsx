@@ -76,8 +76,8 @@ export default async function AppearanceLayoutPage() {
             </CardHeader>
             <CardContent>
               <Notice kind="info">
-                Stored only: the storefront header still uses its built-in
-                links. Saved links take effect once header wiring reads them.
+                Saved links replace the storefront header navigation on the
+                next page load.
               </Notice>
               <NavigationLinksForm
                 initial={navigationLinks}
@@ -97,8 +97,8 @@ export default async function AppearanceLayoutPage() {
             </CardHeader>
             <CardContent>
               <Notice kind="info">
-                Stored only: the storefront footer still uses its built-in
-                links. Saved links take effect once footer wiring reads them.
+                Saved links replace the storefront footer link groups on the
+                next page load.
               </Notice>
               <FooterLinksForm
                 initial={footerLinks}

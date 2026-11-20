@@ -43,7 +43,7 @@ export function RedirectAutoForm({
   );
 }
 
-/** Redirect create/edit form. Saved redirects are stored, not yet enforced. */
+/** Redirect create/edit form. Saved redirects are enforced on the storefront by src/proxy.ts while redirect_auto is on. */
 export function RedirectForm({
   initial,
   action,

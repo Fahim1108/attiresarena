@@ -17,18 +17,26 @@ const order = (over: Record<string, unknown> = {}) => ({
  * In-memory stand-in for the database RPCs. It mirrors the rules the database enforces:
  * idempotency per session (CK004 for a different cart), time-independent retries, and refusals.
  */
-function fakeDatabase(options: { now?: () => number } = {}) {
+function fakeDatabase(options: { now?: () => number; blockedPhones?: string[] } = {}) {
   type Session = { completed: boolean; items: { variant_id: string; quantity: number }[]; order?: { order_number: number; total_minor: number; placed_at: string; items: { variant_id: string; quantity: number }[] } };
   const sessions = new Map<string, Session>();
   const calls: { name: string; args: Record<string, unknown> }[] = [];
   let next = 0; let orders = 0;
   const now = options.now ?? (() => Date.now());
+  // Mutable so a test can block a phone between two calls (e.g. a replay
+  // after the block). Phones are canonicalised like the database does:
+  // spaces/dashes stripped, leading +88/88 removed.
+  const blockedPhones = new Set((options.blockedPhones ?? []).map((p) => p.replace(/[\s-]/g, "").replace(/^\+?88/, "")));
+  const canonical = (p: string) => p.replace(/[\s-]/g, "").replace(/^\+?88/, "");
   const bad = <T,>(code: string): RpcResult<T> => ({ ok: false, code });
   const same = (a: { variant_id: string; quantity: number }[], b: { variant_id: string; quantity: number }[]) =>
     JSON.stringify([...a].sort((x, y) => x.variant_id.localeCompare(y.variant_id))) === JSON.stringify([...b].sort((x, y) => x.variant_id.localeCompare(y.variant_id)));
   const rpc: CheckoutRpc = async <T,>(name: string, args: Record<string, unknown>) => {
     calls.push({ name, args });
     const good = (data: unknown): RpcResult<T> => ({ ok: true, data: data as T });
+    if (name === 'is_phone_blocked') {
+      return good(blockedPhones.has(canonical(String(args.p_phone ?? ""))));
+    }
     if (name === 'start_checkout_session') {
       const token = String(++next).padStart(64, 'a');
       sessions.set(token, { completed: false, items: [] });
@@ -53,7 +61,7 @@ function fakeDatabase(options: { now?: () => number } = {}) {
     if (name === 'update_checkout_contact') return good({});
     return bad('unknown');
   };
-  return { rpc, calls, sessions, orderCount: () => orders };
+  return { rpc, calls, sessions, orderCount: () => orders, blockedPhones };
 }
 function jar(initial?: string) {
   let value = initial; const log: string[] = [];
@@ -164,7 +172,7 @@ describe('checkout server flow', () => {
     expect(db.calls.some((c) => c.args.raw_token === '<script>')).toBe(false);
   });
   it('every refusal code maps to a guest message, and no message suggests order tracking', async () => {
-    const codes = ['CK001', 'CK002', 'CK003', 'CK005', 'CK006', 'CK007', 'CK008', 'CK010', 'CK011', 'network', 'PGRST202'];
+    const codes = ['CK001', 'CK002', 'CK003', 'CK005', 'CK006', 'CK007', 'CK008', 'CK010', 'CK011', 'CK012', 'network', 'PGRST202'];
     for (const code of codes) {
       const db = fakeDatabase();
       const rpc: CheckoutRpc = async (name, args) => (name === 'place_checkout_order' ? { ok: false, code } : db.rpc(name, args));
@@ -190,6 +198,43 @@ describe('checkout server flow', () => {
     const db = fakeDatabase();
     expect(await createCheckoutService(db.rpc, jar(), { clientKey: CLIENT }).placeOrder(order({ items: [] }))).toMatchObject({ ok: false, reason: 'validation' });
     expect(db.calls).toHaveLength(0);
+  });
+});
+
+describe('blocked-customer enforcement', () => {
+  it('refuses a new order from a blocked phone with the CK012 message and never places it', async () => {
+    const db = fakeDatabase({ blockedPhones: ['01712345678'] });
+    const result = await createCheckoutService(db.rpc, jar(), { clientKey: CLIENT }).placeOrder(order());
+    expect(result).toEqual({ ok: false, reason: 'validation', message: checkoutMessagesForTests.CK012 });
+    expect(checkoutMessagesForTests.CK012).toMatch(/mobile number/i);
+    expect(db.calls.some((c) => c.name === 'place_checkout_order')).toBe(false);
+    expect(db.orderCount()).toBe(0);
+  });
+  it('checks the blocked status with the customer phone from the order', async () => {
+    const db = fakeDatabase();
+    await createCheckoutService(db.rpc, jar(), { clientKey: CLIENT }).placeOrder(order());
+    const check = db.calls.find((c) => c.name === 'is_phone_blocked');
+    expect(check?.args.p_phone).toBe('+8801712345678');
+  });
+  it('a failed block check never blocks checkout — the database trigger is the backstop', async () => {
+    const db = fakeDatabase();
+    const rpc: CheckoutRpc = async (name, args) => (name === 'is_phone_blocked' ? { ok: false, code: 'PGRST202' } : db.rpc(name, args));
+    const result = await createCheckoutService(rpc, jar(), { clientKey: CLIENT }).placeOrder(order());
+    expect(result).toEqual({ ok: true, data: { orderNumber: '10001', total: 2530 } });
+    expect(db.orderCount()).toBe(1);
+  });
+  it('a replay of an already-placed order still returns the original order after the phone is blocked', async () => {
+    const db = fakeDatabase();
+    const cookies = jar();
+    const service = createCheckoutService(db.rpc, cookies, { clientKey: CLIENT });
+    await service.saveProgress({ customer: { fullName: 'Nasrin Akter', phone: '01712345678' }, items: [{ variantId: V1, quantity: 1 }] });
+    const token = cookies.value()!;
+    const first = await createCheckoutService(db.rpc, jar(token), { clientKey: CLIENT }).placeOrder(order());
+    expect(first).toMatchObject({ ok: true });
+    db.blockedPhones.add('01712345678');
+    const retry = await createCheckoutService(db.rpc, jar(token), { clientKey: CLIENT }).placeOrder(order());
+    expect(retry).toEqual(first);
+    expect(db.orderCount()).toBe(1);
   });
 });
 

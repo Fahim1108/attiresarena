@@ -20,22 +20,34 @@ import {
   SEO_OG_LOCALE,
   type SeoEnv,
 } from "./seo";
-import type {
-  Banner,
-  FooterSettings,
-  HeaderSettings,
-  HeroSettings,
-} from "@/types";
-import { publicSupabaseConfiguration } from "./supabase-public";
-import { PRODUCT_MEDIA_BUCKET } from "./admin/constants";
 import {
+  CUSTOMIZE_BUTTONS_SCHEMA,
+  CUSTOMIZE_TYPOGRAPHY_SCHEMA,
   DEFAULT_ERROR_404,
+  FONT_STACKS,
+  FOOTER_LINKS_SCHEMA,
+  NAV_LINKS_SCHEMA,
   activeWidgets,
+  parseLayoutSetting,
   parseWidgetRow,
   resolveErrorPage,
   type ErrorPageConfig,
+  type LayoutSettingKey,
   type Widget,
 } from "./admin/reference-adapt";
+import type {
+  Banner,
+  Category,
+  FooterSettings,
+  HeaderSettings,
+  HeroSettings,
+  LogoSettings,
+  ThemeSettings,
+} from "@/types";
+import { publicSupabaseConfiguration } from "./supabase-public";
+import { PRODUCT_MEDIA_BUCKET } from "./admin/constants";
+import { isCatalogStoragePath } from "./admin/catalog-variants";
+import { brandMediaUrl } from "./brand-media-delivery";
 
 /**
  * Fallback-safe storefront settings reader.
@@ -51,10 +63,14 @@ import {
  * Wiring status: the policy pages call this reader, and the root layout
  * calls it for marketing/metadata and applies the footer and
  * announcement-bar overrides below to the storefront settings. The
- * homepage calls it for hero/promo banners and the About page for its
- * content block. The merge functions are pure so the wiring can land
- * without changing this reader; banner images additionally need a
- * resolvable public URL (see resolveBannerImageUrls).
+ * layout reader also returns the public-safe layout settings
+ * (navigation links, footer link groups, customize choices — see
+ * parseLayoutSettings; the anonymous policy must allowlist them,
+ * migration 20261119000900), and the root layout applies those
+ * overrides too. The homepage calls it for hero/promo banners and the
+ * About page for its content block. The merge functions are pure so
+ * the wiring can land without changing this reader; banner images
+ * additionally need a resolvable public URL (see resolveBannerImageUrls).
  */
 
 export interface ContentBlockRow {
@@ -82,6 +98,13 @@ export interface StorefrontContent {
   settings: Record<string, unknown>;
   blocks: ContentBlockRow[];
   banners: BannerRow[];
+  /**
+   * Parsed public-safe layout settings (navigation_links, footer_links,
+   * customize_typography, customize_buttons). Empty when the table is
+   * unreadable or the anonymous policy does not allowlist a key yet —
+   * every override below then keeps the static config.
+   */
+  layout: Partial<Record<LayoutSettingKey, unknown>>;
 }
 
 async function readRows(path: string): Promise<unknown[]> {
@@ -178,9 +201,38 @@ function parseSettings(rows: unknown[]): Record<string, unknown> {
   return settings;
 }
 
+/**
+ * Public-safe layout settings only. Rows for any other key (notably
+ * error_404, which getErrorPage404 reads separately, and the
+ * staff-only redirect_auto / featured_categories_count) are ignored
+ * here even if the policy ever returns them, so a policy change alone
+ * can never leak an operational setting into the storefront. Malformed
+ * rows are dropped by parseLayoutSetting, never trusted.
+ */
+function parseLayoutSettings(
+  rows: unknown[],
+): Partial<Record<LayoutSettingKey, unknown>> {
+  const layout: Partial<Record<LayoutSettingKey, unknown>> = {};
+  const keys: LayoutSettingKey[] = [
+    "navigation_links",
+    "footer_links",
+    "customize_typography",
+    "customize_buttons",
+  ];
+  for (const row of rows) {
+    if (!isRecord(row)) continue;
+    if (typeof row.key !== "string" || !("value" in row)) continue;
+    const key = row.key as LayoutSettingKey;
+    if (!keys.includes(key)) continue;
+    const parsed = parseLayoutSetting(key, row.value);
+    if (parsed !== null) layout[key] = parsed;
+  }
+  return layout;
+}
+
 export async function getStorefrontContent(): Promise<StorefrontContent | null> {
   if (!publicSupabaseConfiguration()) return null;
-  const [settingRows, blockRows, bannerRows] = await Promise.all([
+  const [settingRows, blockRows, bannerRows, layoutRows] = await Promise.all([
     readRows("/rest/v1/store_settings?select=key,value"),
     readRows(
       "/rest/v1/content_blocks?select=slug,title,body,image_storage_path,sort_position,visible,updated_at&visible=eq.true&order=sort_position.asc",
@@ -188,11 +240,13 @@ export async function getStorefrontContent(): Promise<StorefrontContent | null> 
     readRows(
       "/rest/v1/banners?select=id,title,subtitle,image_storage_path,link_url,sort_position,visible,placement&visible=eq.true&order=sort_position.asc",
     ),
+    readRows("/rest/v1/layout_settings?select=key,value"),
   ]);
   return {
     settings: parseSettings(settingRows),
     blocks: parseBlocks(blockRows),
     banners: parseBanners(bannerRows),
+    layout: parseLayoutSettings(layoutRows),
   };
 }
 
@@ -253,6 +307,245 @@ function splitBlockParagraphs(body: string): string[] {
     .split(/\n\s*\n/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
+}
+
+// ---------------------------------------------------------------------------
+// Published categories (Admin Panel v2, categories wiring)
+// ---------------------------------------------------------------------------
+
+/**
+ * One row of public.categories as the storefront reads it: same
+ * public-safe pattern as getStorefrontContent (publishable REST client,
+ * `cache: "no-store"`, empty on any failure). The anon RLS policy
+ * `category_public` returns published rows only, so an unpublished row
+ * is indistinguishable from a missing one over this read — the merge
+ * below therefore never hides a static category on unpublish alone.
+ */
+export interface CategoryRow {
+  id: string;
+  parent_id: string | null;
+  name: string;
+  slug: string;
+  published: boolean;
+  description: string;
+  image_storage_path: string | null;
+  banner_storage_path: string | null;
+  seo_title: string | null;
+  seo_description: string | null;
+  sort_position: number;
+}
+
+const CATEGORY_SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+function nonBlankText(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+/** Validate one categories row; null when malformed (never throws). */
+export function parseCategoryRow(value: unknown): CategoryRow | null {
+  if (!isRecord(value)) return null;
+  const id = typeof value.id === "string" ? value.id : null;
+  const slug = typeof value.slug === "string" ? value.slug : null;
+  const name = nonBlankText(value.name);
+  if (!id || !slug || !CATEGORY_SLUG_PATTERN.test(slug) || !name) return null;
+  const parentId = value.parent_id ?? null;
+  if (parentId !== null && typeof parentId !== "string") return null;
+  if (typeof value.published !== "boolean") return null;
+  if (typeof value.description !== "string") return null;
+  if (
+    typeof value.sort_position !== "number" ||
+    !Number.isInteger(value.sort_position)
+  )
+    return null;
+  const image = value.image_storage_path ?? null;
+  const banner = value.banner_storage_path ?? null;
+  if (image !== null && typeof image !== "string") return null;
+  if (banner !== null && typeof banner !== "string") return null;
+  const seoTitle = value.seo_title ?? null;
+  const seoDescription = value.seo_description ?? null;
+  if (seoTitle !== null && typeof seoTitle !== "string") return null;
+  if (seoDescription !== null && typeof seoDescription !== "string") return null;
+  return {
+    id,
+    parent_id: parentId,
+    name,
+    slug,
+    published: value.published,
+    description: value.description,
+    image_storage_path: image,
+    banner_storage_path: banner,
+    seo_title: seoTitle,
+    seo_description: seoDescription,
+    sort_position: value.sort_position,
+  };
+}
+
+export function parseCategoryRows(rows: unknown[]): CategoryRow[] {
+  const parsed: CategoryRow[] = [];
+  for (const row of rows) {
+    const category = parseCategoryRow(row);
+    if (category) parsed.push(category);
+  }
+  return parsed;
+}
+
+/**
+ * Published categories for the storefront. Empty on any failure, so the
+ * caller falls back to the static config unchanged.
+ */
+export async function getPublishedCategories(): Promise<CategoryRow[]> {
+  const rows = await readRows(
+    "/rest/v1/categories?select=id,parent_id,name,slug,published,description,image_storage_path,banner_storage_path,seo_title,seo_description,sort_position&published=eq.true&order=sort_position.asc,created_at.asc",
+  );
+  return parseCategoryRows(rows).filter((row) => row.published);
+}
+
+/**
+ * Display URL for a stored category image/banner, or null when the path
+ * is not a valid catalog storage path. Served by /api/product-media,
+ * which only releases objects the published-category media policy
+ * allows — migration 20261119001000 (authored, NOT applied). Promoting
+ * this wiring without applying that migration breaks category photos
+ * for rows that have a stored image (the URL 404s); the static photo
+ * is kept only for rows with no stored image.
+ */
+export function categoryMediaUrl(
+  storagePath: string | null | undefined,
+): string | null {
+  if (!storagePath || !isCatalogStoragePath(storagePath)) return null;
+  return `/api/product-media/${storagePath}`;
+}
+
+/**
+ * Merge published DB categories over the static config.
+ *
+ * - Returns the static list unchanged (same reference) when no
+ *   published row is given, so a failed or empty read renders exactly
+ *   as before.
+ * - A DB row matching a static slug overrides name, description, SEO
+ *   and photo/banner — but NEVER the static `id`: product filtering
+ *   and the size guide key off the static ids, and admin products keep
+ *   their DB category UUID as categoryId, so swapping ids would break
+ *   /category/* matching (see catalog-publication.ts).
+ * - A DB row with a new slug is appended as a real category with the
+ *   DB uuid as id, so products assigned to it can match it in filters.
+ *   With no stored photo it uses the generic category illustration
+ *   until a photo is added in admin.
+ * - Description: the stored text wins when non-blank; otherwise the
+ *   previous storefront wording is kept ("Individual thrift shirts…"
+ *   for Shirts, "Coming soon." for everything else).
+ * - Order is depth-first by parent (top-level rows by sort_position,
+ *   each followed by its children); a row whose parent is not among
+ *   the published rows is treated as top-level. Static categories
+ *   with no DB row keep their relative order after the DB-driven
+ *   ones. sortOrder is reassigned sequentially in final order.
+ * - Unpublished rows are ignored here (and invisible to the anon
+ *   read anyway): unpublishing a category that also exists in the
+ *   static config does NOT remove it from the shop — that needs a
+ *   follow-up read that can see unpublished rows.
+ */
+export function mergeDbCategories(
+  staticCategories: Category[],
+  dbRows: CategoryRow[],
+): Category[] {
+  // Re-validate: the merge must never trust an unparsed row (bad slugs,
+  // missing names) even when called outside getPublishedCategories.
+  const rows = dbRows.flatMap((value) => {
+    const parsed = parseCategoryRow(value);
+    return parsed && parsed.published ? [parsed] : [];
+  });
+  if (rows.length === 0) return staticCategories;
+  const bySlug = new Map<string, CategoryRow>();
+  const byId = new Map<string, CategoryRow>();
+  for (const row of rows) {
+    if (!bySlug.has(row.slug)) bySlug.set(row.slug, row);
+    if (!byId.has(row.id)) byId.set(row.id, row);
+  }
+  const children = new Map<string, CategoryRow[]>();
+  const roots: CategoryRow[] = [];
+  for (const row of rows) {
+    const parent =
+      row.parent_id !== null ? byId.get(row.parent_id) : undefined;
+    if (parent) {
+      const list = children.get(parent.id) ?? [];
+      list.push(row);
+      children.set(parent.id, list);
+    } else {
+      roots.push(row);
+    }
+  }
+  const byPosition = (a: CategoryRow, b: CategoryRow) =>
+    a.sort_position - b.sort_position || a.name.localeCompare(b.name);
+  roots.sort(byPosition);
+  for (const list of children.values()) list.sort(byPosition);
+  const ordered: CategoryRow[] = [];
+  const visit = (row: CategoryRow) => {
+    ordered.push(row);
+    for (const child of children.get(row.id) ?? []) visit(child);
+  };
+  for (const root of roots) visit(root);
+
+  const merged: Category[] = [];
+  const usedSlugs = new Set<string>();
+  for (const row of ordered) {
+    if (usedSlugs.has(row.slug)) continue;
+    usedSlugs.add(row.slug);
+    const base = staticCategories.find((c) => c.slug === row.slug);
+    const description =
+      nonBlankText(row.description) ??
+      (row.slug === "shirts"
+        ? "Individual thrift shirts, carefully selected."
+        : "Coming soon.");
+    const imageUrl = categoryMediaUrl(row.image_storage_path);
+    const bannerUrl = categoryMediaUrl(row.banner_storage_path);
+    const seoTitle = nonBlankText(row.seo_title);
+    const seoDescription = nonBlankText(row.seo_description);
+    if (base) {
+      merged.push({
+        ...base,
+        name: row.name,
+        description,
+        ...(seoTitle ? { seoTitle } : { seoTitle: undefined }),
+        ...(seoDescription ? { seoDescription } : { seoDescription: undefined }),
+        ...(imageUrl
+          ? {
+              image: { src: imageUrl, alt: row.name },
+              thumbnail: { src: imageUrl, alt: row.name },
+            }
+          : {}),
+        ...(bannerUrl
+          ? { banner: { src: bannerUrl, alt: row.name } }
+          : { banner: undefined }),
+        sortOrder: 0,
+      });
+    } else {
+      merged.push({
+        id: row.id,
+        slug: row.slug,
+        name: row.name,
+        description,
+        ...(seoTitle ? { seoTitle } : {}),
+        ...(seoDescription ? { seoDescription } : {}),
+        image: imageUrl
+          ? { src: imageUrl, alt: row.name }
+          : { src: "/images/categories/shirts.svg", alt: row.name },
+        thumbnail: imageUrl
+          ? { src: imageUrl, alt: row.name }
+          : { src: "/images/categories/shirts.svg", alt: row.name },
+        ...(bannerUrl ? { banner: { src: bannerUrl, alt: row.name } } : {}),
+        sortOrder: 0,
+      });
+    }
+  }
+  for (const base of staticCategories) {
+    if (!usedSlugs.has(base.slug)) merged.push({ ...base, sortOrder: 0 });
+  }
+  return merged.map((category, index) => ({
+    ...category,
+    sortOrder: index + 1,
+  }));
 }
 
 /**
@@ -389,6 +682,159 @@ export function applyFooterOverride(
       }
       return link;
     }),
+  };
+}
+
+/**
+ * Store-name override (wired in the root layout). The saved store_name
+ * replaces the static site name; blank or absent keeps it. Returns the
+ * static name unchanged when nothing applies.
+ */
+export function applySiteNameOverride(
+  siteName: string,
+  settings: Record<string, unknown> | null | undefined,
+): string {
+  return settingText(settings, "store_name") ?? siteName;
+}
+
+/**
+ * Logo override (wired in the root layout). A saved logo_storage_path
+ * replaces the header logo with the brand-media route URL; the path is
+ * validated by brandMediaUrl, so a malformed or non-brand path keeps
+ * the static logo. The inverse (dark-background) logo is deliberately
+ * NOT replaced: one upload cannot serve both light and dark
+ * backgrounds, so the footer keeps the static white logo. The square
+ * badge is also untouched (it feeds the OG image). The alt text follows
+ * the resolved site name.
+ */
+export function applyBrandOverride(
+  logo: LogoSettings,
+  settings: Record<string, unknown> | null | undefined,
+  siteName: string,
+): LogoSettings {
+  const url = brandMediaUrl(settingText(settings, "logo_storage_path"));
+  if (!url) return logo;
+  return { ...logo, primary: url, alt: siteName };
+}
+
+/** Button corner radius from the stored shape + radius choice. */
+function customizeButtonRadius(buttons: {
+  shape: "square" | "rounded" | "pill";
+  radius_px: number;
+}): string {
+  if (buttons.shape === "square") return "0px";
+  if (buttons.shape === "pill") return "9999px";
+  return `${buttons.radius_px}px`;
+}
+
+/**
+ * Theme-customize override (wired in the root layout through
+ * ThemeStyle). Saved heading/body fonts replace the theme font stacks,
+ * and the saved button shape/radius replaces the control radius
+ * (--aa-radius-control, used by every rounded-control button). The
+ * card radius and all colors stay static. The button *style*
+ * (solid/outline) is deliberately NOT applied here: the storefront has
+ * no single primary-button style hook — primary buttons are ad-hoc
+ * `bg-primary` classes in many components plus the shared Button —
+ * so a global flip would restyle only some of them. Returns the static
+ * theme unchanged when nothing valid is stored.
+ */
+export function applyCustomizeOverride(
+  theme: ThemeSettings,
+  layout: Partial<Record<LayoutSettingKey, unknown>> | null | undefined,
+): ThemeSettings {
+  // Re-validated here (not just trusted from the reader) so the
+  // override is safe for any caller, including tests.
+  const typography = CUSTOMIZE_TYPOGRAPHY_SCHEMA.safeParse(
+    layout?.["customize_typography"],
+  );
+  const buttons = CUSTOMIZE_BUTTONS_SCHEMA.safeParse(
+    layout?.["customize_buttons"],
+  );
+  const serif = typography.success
+    ? FONT_STACKS[typography.data.heading_font]
+    : null;
+  const sans = typography.success
+    ? FONT_STACKS[typography.data.body_font]
+    : null;
+  const controlRadius = buttons.success
+    ? customizeButtonRadius(buttons.data)
+    : null;
+  if (serif === null && sans === null && controlRadius === null) return theme;
+  return {
+    ...theme,
+    typography: {
+      ...theme.typography,
+      serif: serif ?? theme.typography.serif,
+      sans: sans ?? theme.typography.sans,
+    },
+    radius: {
+      ...theme.radius,
+      control: controlRadius ?? theme.radius.control,
+    },
+  };
+}
+
+/**
+ * Navigation override (wired in the root layout). A saved, non-empty
+ * navigation_links list replaces the header navigation wholesale
+ * (label/href/children map 1:1 onto NavItem, already validated by
+ * parseLayoutSetting). An empty or malformed list keeps the static
+ * navigation — an empty nav would strand visitors. Note this replaces
+ * the services adapter's live Men→Shirts rewrite too: saving links is
+ * the owner's explicit choice of navigation.
+ */
+export function applyNavigationOverride(
+  header: HeaderSettings,
+  layout: Partial<Record<LayoutSettingKey, unknown>> | null | undefined,
+): HeaderSettings {
+  // Re-validated here (not just trusted from the reader) so the
+  // override is safe for any caller, including tests.
+  const parsed = NAV_LINKS_SCHEMA.safeParse(layout?.["navigation_links"]);
+  if (!parsed.success || parsed.data.length === 0) return header;
+  return {
+    ...header,
+    navigation: parsed.data.map((link) => ({
+      label: link.label,
+      href: link.href,
+      ...(link.children.length > 0
+        ? {
+            children: link.children.map((child) => ({
+              label: child.label,
+              href: child.href,
+            })),
+          }
+        : {}),
+    })),
+  };
+}
+
+/**
+ * Footer-links override (wired in the root layout). A saved, non-empty
+ * footer_links list replaces the footer link columns wholesale
+ * (title/links map 1:1 onto FooterColumn, already validated by
+ * parseLayoutSetting). An empty or malformed list keeps the static
+ * columns. Only the link columns change here — the tagline and contact
+ * block are owned by applyFooterOverride / the Footer component and
+ * are untouched.
+ */
+export function applyFooterLinksOverride(
+  footer: FooterSettings,
+  layout: Partial<Record<LayoutSettingKey, unknown>> | null | undefined,
+): FooterSettings {
+  // Re-validated here (not just trusted from the reader) so the
+  // override is safe for any caller, including tests.
+  const parsed = FOOTER_LINKS_SCHEMA.safeParse(layout?.["footer_links"]);
+  if (!parsed.success || parsed.data.length === 0) return footer;
+  return {
+    ...footer,
+    columns: parsed.data.map((group) => ({
+      title: group.title,
+      links: group.links.map((link) => ({
+        label: link.label,
+        href: link.href,
+      })),
+    })),
   };
 }
 
@@ -598,6 +1044,8 @@ export interface StaticSeoBase {
   siteUrl: string;
   description: string;
   logoBadge: string;
+  /** Same-origin brand-media URL for a saved favicon, when one is stored. */
+  faviconUrl?: string;
 }
 
 /**
@@ -674,7 +1122,10 @@ export function resolveStorefrontMetadata(
     ...(googleVerification
       ? { verification: { google: googleVerification } }
       : {}),
-    icons: { icon: "/brand/icon.png", apple: "/brand/apple-icon.png" },
+    icons: {
+      icon: base.faviconUrl ?? "/brand/icon.png",
+      apple: "/brand/apple-icon.png",
+    },
     openGraph: {
       siteName: base.siteName,
       type: "website",

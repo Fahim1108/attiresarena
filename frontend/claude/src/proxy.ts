@@ -1,8 +1,26 @@
 import { publicSupabaseConfiguration } from "@/lib/supabase-public";
 import { storefrontEnabled, isPreviewOnlyPath, reviewInventoryEnabled } from "@/lib/storefront-policy";
+import {
+  createCachedRedirectConfig,
+  fetchRedirectConfig,
+  isProtectedPath,
+  resolveStorefrontRedirect,
+} from "@/lib/redirects";
 import { createServerClient } from "@supabase/ssr";
 import { browsableShirts } from "@/services/adapters/owner-catalogue";
 import { NextResponse, type NextRequest } from "next/server";
+
+/**
+ * Saved url_redirects, cached for 60s. The config comes from
+ * public.resolve_storefront_redirects (migration 20261119000800) via the
+ * public Supabase credentials — never a service-role key. Any failure
+ * loads null, and requests pass through unchanged (fail open).
+ */
+const loadRedirectConfig = createCachedRedirectConfig(async () => {
+  const config = publicSupabaseConfiguration();
+  if (!config) return null;
+  return fetchRedirectConfig(config.url, config.key);
+});
 // Never publish sample inventory or sample customer accounts as a live store.
 export async function proxy(request?: NextRequest) {
   if (
@@ -10,6 +28,17 @@ export async function proxy(request?: NextRequest) {
     (request && isPreviewOnlyPath(request.nextUrl.pathname) && !reviewInventoryEnabled())
   ) {
     return new NextResponse("Page not available", { status: 404 });
+  }
+  // Saved redirects run before the product-existence check below, so a
+  // redirect from a retired product URL wins over the 404 page. They never
+  // apply to protected paths (/admin, /api, /_next, /_vercel), and never
+  // when the redirect_auto toggle is off — see @/lib/redirects.
+  if (request && !isProtectedPath(request.nextUrl.pathname)) {
+    const redirectConfig = await loadRedirectConfig();
+    if (redirectConfig) {
+      const resolved = resolveStorefrontRedirect(request.url, redirectConfig);
+      if (resolved) return NextResponse.redirect(resolved.url, resolved.code);
+    }
   }
   // Resolve public product existence before streaming can commit a misleading HTTP 200.
   if (request?.nextUrl.pathname.startsWith("/product/")) {

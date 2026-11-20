@@ -1552,6 +1552,8 @@ describe("D1 checkout transport (customer JWT vs guest service-role)", () => {
     return {
       start_checkout_session: { status: 200, body: { token: CHECKOUT_TOKEN, expires_at: "2026-11-17T00:00:00.000Z" } },
       set_checkout_items: { status: 200, body: {} },
+      // The blocked-phone pre-check runs before placement; false = not blocked.
+      is_phone_blocked: { status: 200, body: false },
       place_checkout_order: {
         status: 200,
         body: {
@@ -1574,6 +1576,7 @@ describe("D1 checkout transport (customer JWT vs guest service-role)", () => {
     expect(fetchCalls.map((call) => call.url.split("/rpc/")[1])).toEqual([
       "start_checkout_session",
       "set_checkout_items",
+      "is_phone_blocked",
       "place_checkout_order",
     ]);
     for (const call of fetchCalls) {
@@ -1588,7 +1591,9 @@ describe("D1 checkout transport (customer JWT vs guest service-role)", () => {
     expect(startBody.phone).toBe("01712345678");
     expect(startBody.email).toBeNull();
     expect(startBody.client_key).toMatch(/^[0-9a-f]{64}$/);
-    const placeBody = fetchCalls[2]?.body as Record<string, unknown>;
+    const blockBody = fetchCalls[2]?.body as Record<string, unknown>;
+    expect(blockBody.p_phone).toBe("01712345678");
+    const placeBody = fetchCalls[3]?.body as Record<string, unknown>;
     expect(placeBody.payment_method).toBe("cod");
     expect(placeBody.client_key).toBe(startBody.client_key);
   });
@@ -1600,7 +1605,7 @@ describe("D1 checkout transport (customer JWT vs guest service-role)", () => {
     signedIn();
     const result = await placeCheckoutOrder(orderInput);
     expect(result).toEqual({ ok: true, data: { orderNumber: "12345", total: 1560 } });
-    expect(fetchCalls).toHaveLength(3);
+    expect(fetchCalls).toHaveLength(4);
     for (const call of fetchCalls) {
       expect(call.headers).toEqual({
         apikey: FAKE_PUBLISHABLE_KEY,

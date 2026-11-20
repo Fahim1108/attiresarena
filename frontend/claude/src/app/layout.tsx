@@ -7,7 +7,8 @@ import { CartProvider } from "@/context/CartContext";
 import { StorefrontProvider } from "@/context/StorefrontContext";
 import { ToastProvider } from "@/context/ToastContext";
 import { WishlistProvider } from "@/context/WishlistContext";
-import { applyAnnouncementOverride, applyFooterOverride, getStorefrontContent, parseMarketingSettings, resolveStorefrontMetadata } from "@/lib/store-settings";
+import { applyAnnouncementOverride, applyBrandOverride, applyCustomizeOverride, applyFooterLinksOverride, applyFooterOverride, applyNavigationOverride, applySiteNameOverride, getStorefrontContent, parseMarketingSettings, resolveStorefrontMetadata, settingText } from "@/lib/store-settings";
+import { brandMediaUrl } from "@/lib/brand-media-delivery";
 import { getInitialCart, getStorefrontSettings, getProducts } from "@/services";
 import "@fontsource-variable/cormorant-garamond";
 import "@fontsource-variable/inter";
@@ -21,8 +22,9 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
   const [s, content] = await Promise.all([getStorefrontSettings(), getStorefrontContent()]);
+  const siteName = applySiteNameOverride(s.siteName, content?.settings ?? null);
   return resolveStorefrontMetadata(
-    { siteName: s.siteName, siteUrl: s.siteUrl, description: s.description, logoBadge: s.logo.badge },
+    { siteName, siteUrl: s.siteUrl, description: s.description, logoBadge: s.logo.badge, faviconUrl: brandMediaUrl(settingText(content?.settings ?? null, "favicon_storage_path")) ?? undefined },
     content?.settings ?? null,
   );
 }
@@ -39,23 +41,32 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const [settings, initialCart, catalogue, content] = await Promise.all([getStorefrontSettings(), getInitialCart(), getProducts({pageSize:500}), getStorefrontContent()]);
   const marketing = parseMarketingSettings(content?.settings ?? null);
-  // Stored footer values (social links, contact details, about text) replace
-  // the static footer field by field; without stored values this returns the
-  // static footer unchanged, so the storefront renders exactly as before.
-  const footer = applyFooterOverride(settings.footer, content?.settings ?? null);
+  // Stored settings replace the static values field by field; without
+  // stored values each override returns the static config unchanged
+  // (same reference), so the storefront renders exactly as before.
+  // Store name + logo + favicon come from store_settings; navigation,
+  // footer links and theme customize come from layout_settings (the
+  // anonymous policy must allowlist those keys — see migration
+  // 20261119000900 — or the layout read returns empty and the static
+  // config is kept). Footer tagline/contact are handled by
+  // applyFooterOverride; only the link columns change here.
   // Stored announcement-bar text/visibility replaces the static bar the
   // same way; without a stored value the static bar is unchanged.
-  const header = applyAnnouncementOverride(settings.header, content?.settings ?? null);
+  const siteName = applySiteNameOverride(settings.siteName, content?.settings ?? null);
+  const logo = applyBrandOverride(settings.logo, content?.settings ?? null, siteName);
+  const theme = applyCustomizeOverride(settings.theme, content?.layout ?? null);
+  const header = applyNavigationOverride(applyAnnouncementOverride(settings.header, content?.settings ?? null), content?.layout ?? null);
+  const footer = applyFooterLinksOverride(applyFooterOverride(settings.footer, content?.settings ?? null), content?.layout ?? null);
   return (
     <html lang="en" >
       <head>
-        <ThemeStyle theme={settings.theme} />
+        <ThemeStyle theme={theme} />
         <style>{motionVariables}</style>
       </head>
       <body>
         <CustomCodeSlot code={marketing.headCode} label="header" />
         <MarketingScripts marketing={marketing} />
-        <StorefrontProvider settings={{ ...settings, header, footer }}>
+        <StorefrontProvider settings={{ ...settings, siteName, logo, theme, header, footer }}>
           <ToastProvider>
             <WishlistProvider approvedProductIds={catalogue.items.map(p=>p.id)}>
               <CartProvider approvedProducts={catalogue.items} initialItems={initialCart} approvedVariantIds={catalogue.items.flatMap(p=>p.variants.filter(v=>v.stock>0).map(v=>v.id))}>
