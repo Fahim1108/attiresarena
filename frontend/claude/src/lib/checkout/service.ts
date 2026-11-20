@@ -46,6 +46,7 @@ const messages: Record<string, string> = {
   CK009: "This coupon could not be applied to your order. Remove the coupon and try again.",
   CK010: "This order has too many items. Please reduce your cart and try again.",
   CK011: "Only one of each item can be ordered.",
+  CK012: "Orders cannot be placed from this mobile number right now. Please contact the store if you think this is a mistake.",
   "22023": "Please check your name, mobile number, delivery address and cart, then try again.",
 };
 const generic = "We could not place your order. Your cart has been kept. Please try again.";
@@ -158,10 +159,27 @@ export function createCheckoutService(
       }
       return { ok: true, data: { orderNumber: String(row.order_number), total: row.total_minor / 100 } };
     };
+    let blockChecked = false;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const prepared = await prepare(input);
       if ("ok" in prepared) return prepared;
-      const token = "completed" in prepared ? prepared.completed : prepared.token;
+      const isReplay = "completed" in prepared;
+      const token = isReplay ? prepared.completed : prepared.token;
+      if (!isReplay && !blockChecked) {
+        // Blocked-customer enforcement (migration 20261119000600): a phone
+        // in blocked_customers (unblocked_at null) cannot place a NEW
+        // order. The check runs here, before any stock is touched, so the
+        // customer gets the CK012 message instead of a generic failure.
+        // A replay of an already-placed order is NOT checked: the order
+        // already exists, and refusing it would hide the confirmation.
+        // A failed check (RPC missing because the migration is not applied
+        // yet, or a network error) must NOT block checkout — it fails open
+        // and the database trigger in the same migration is the
+        // authoritative enforcement once the migration is applied.
+        blockChecked = true;
+        const blocked = await rpc<boolean>("is_phone_blocked", { p_phone: input.customer.phone });
+        if (blocked.ok && blocked.data === true) return failure("CK012");
+      }
       // Same checkout + same items: the database returns the original order, at any time.
       const placed = await place(token);
       if (placed.ok) return done(placed.data);
@@ -223,4 +241,4 @@ export async function validateCoupon(
   return { ok: false };
 }
 
-export const checkoutMessagesForTests = { ...messages, generic };
+export const checkoutMessagesForTests: Record<string, string> = { ...messages, generic };

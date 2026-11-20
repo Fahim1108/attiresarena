@@ -83,7 +83,7 @@ export default async function ThemeSettingsPage() {
           <CardHeader>
             <CardTitle headingLevel="h2">Logo</CardTitle>
             <CardDescription>
-              Uploading a logo stores it privately. It applies once the header wiring reads the stored setting.
+              Uploading a logo stores it privately. The saved logo replaces the header logo on the next page load.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -101,7 +101,7 @@ export default async function ThemeSettingsPage() {
           <CardHeader>
             <CardTitle headingLevel="h2">Favicon</CardTitle>
             <CardDescription>
-              Uploading a favicon stores it privately. It applies once the document metadata wiring reads the stored setting.
+              Uploading a favicon stores it privately. The saved favicon replaces the browser tab icon on the next page load.
             </CardDescription>
           </CardHeader>
           <CardContent>

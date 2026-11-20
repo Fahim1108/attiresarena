@@ -16,6 +16,7 @@ import {
   parseSeoRobots,
   parseSeoSitemap,
   settingString,
+  type PixelEventName,
   type StoreSettingsMap,
 } from "@/lib/admin/settings-shared";
 import styles from "@/components/admin/admin-v2-forms.module.css";
@@ -30,6 +31,33 @@ const PAGE_LABELS: Record<string, string> = {
   shop: "Shop",
   about: "About",
   contact: "Contact",
+};
+
+/** Plain-language meaning of each Pixel event, and whether it fires today. */
+const PIXEL_EVENT_DESCRIPTIONS: Record<
+  PixelEventName,
+  { description: string; live: boolean }
+> = {
+  PageView: {
+    description: "Someone opens any page on the store.",
+    live: true,
+  },
+  ViewContent: {
+    description: "Someone opens a product page.",
+    live: false,
+  },
+  AddToCart: {
+    description: "Someone adds a product to the cart.",
+    live: false,
+  },
+  InitiateCheckout: {
+    description: "Someone starts checkout.",
+    live: false,
+  },
+  Purchase: {
+    description: "Someone completes an order.",
+    live: false,
+  },
 };
 
 function overrideValue(
@@ -351,87 +379,129 @@ export function MarketingSettingsForm({
   return (
     <form action={formAction}>
       <FormMessage state={state} />
-      <div className={styles.statusLine}>
-        <strong>Meta Pixel</strong>
-        {pixelId ? (
-          <StatusBadge tone="success">Configured</StatusBadge>
-        ) : (
-          <StatusBadge tone="neutral">Not configured</StatusBadge>
-        )}
-      </div>
-      <div className="aa-form-grid">
-        <div className="aa-field">
-          <label htmlFor="meta-pixel-id">Meta Pixel ID</label>
-          <input
-            id="meta-pixel-id"
-            name="meta_pixel_id"
-            inputMode="numeric"
-            spellCheck={false}
-            autoComplete="off"
-            defaultValue={pixelId}
-            maxLength={20}
-            placeholder="123456789012345…"
-          />
-          <p className="aa-hint">
-            Numbers only. Clear the field to stop loading the Pixel.
-          </p>
+      <section
+        className={styles.panel}
+        aria-labelledby="marketing-pixel-heading"
+      >
+        <div className={styles.panelHeader}>
+          <h3 id="marketing-pixel-heading" className={styles.panelTitle}>
+            Meta Pixel
+          </h3>
+          {pixelId ? (
+            <StatusBadge tone="success">Configured</StatusBadge>
+          ) : (
+            <StatusBadge tone="neutral">Not configured</StatusBadge>
+          )}
         </div>
-      </div>
-      <fieldset className={styles.group} style={{ marginTop: "0.75rem" }}>
-        <legend className={styles.groupTitle}>Pixel events</legend>
-        <div className={styles.checkList}>
-          {PIXEL_EVENTS.map((event) => (
-            <label key={event}>
-              <input
-                type="checkbox"
-                name={`pixel_${event}`}
-                defaultChecked={events[event]}
-              />
-              <span>{event}</span>
-            </label>
-          ))}
-        </div>
-        <p className={styles.groupNote}>
-          PageView runs when the Pixel loads. The other events are stored
-          here and fire once their pages are wired to send them; nothing
-          fires them yet.
+        <p className={styles.panelNote}>
+          {pixelId
+            ? "Configured — the Pixel loads on every store page."
+            : "Not configured — no Pixel code loads on the store."}
         </p>
-      </fieldset>
-      <hr className={styles.sectionDivider} />
-      <div className={styles.statusLine}>
-        <strong>Google Analytics</strong>
-        {gaId ? (
-          <StatusBadge tone="success">Configured</StatusBadge>
-        ) : (
-          <StatusBadge tone="neutral">Not configured</StatusBadge>
-        )}
-      </div>
-      <div className="aa-form-grid">
-        <div className="aa-field">
-          <label htmlFor="ga-measurement-id">Measurement ID</label>
-          <input
-            id="ga-measurement-id"
-            name="ga_measurement_id"
-            spellCheck={false}
-            autoComplete="off"
-            defaultValue={gaId}
-            maxLength={24}
-            placeholder="G-XXXXXXXXXX…"
-          />
-          <p className="aa-hint">
-            Clear the field to stop loading Google Analytics.
-          </p>
+        <div className="aa-form-grid">
+          <div className="aa-field">
+            <label htmlFor="meta-pixel-id">Meta Pixel ID</label>
+            <input
+              id="meta-pixel-id"
+              name="meta_pixel_id"
+              inputMode="numeric"
+              spellCheck={false}
+              autoComplete="off"
+              defaultValue={pixelId}
+              maxLength={20}
+              placeholder="123456789012345…"
+            />
+            <p className="aa-hint">
+              Numbers only. Find it in Meta Events Manager → Data sources
+              → your Pixel — the number shown under its name. Clear the
+              field to stop loading the Pixel.
+            </p>
+          </div>
         </div>
-      </div>
-      <hr className={styles.sectionDivider} />
-      <div className={styles.statusLine}>
-        <strong>SMS marketing</strong>
-        <StatusBadge tone="neutral">Not connected</StatusBadge>
-      </div>
-      <p className="aa-hint">
-        No SMS provider is connected and no message is sent from this panel.
-        These fields only record which provider to use later.
-      </p>
+        <fieldset className={styles.group} style={{ marginTop: "0.75rem" }}>
+          <legend className={styles.groupTitle}>Pixel events</legend>
+          <div className={styles.checkList}>
+            {PIXEL_EVENTS.map((event) => {
+              const info = PIXEL_EVENT_DESCRIPTIONS[event];
+              return (
+                <label key={event} className={styles.eventRow}>
+                  <input
+                    type="checkbox"
+                    name={`pixel_${event}`}
+                    defaultChecked={events[event]}
+                  />
+                  <span>
+                    <strong>{event}</strong>
+                    <span className={styles.eventDesc}>
+                      {info.description}{" "}
+                      {info.live
+                        ? "Fires today when the Pixel loads."
+                        : "Not wired yet — does not fire."}
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          <p className={styles.groupNote}>
+            Only PageView fires today. The other events are stored here and
+            will fire once their pages are wired to send them.
+          </p>
+        </fieldset>
+      </section>
+      <section
+        className={styles.panel}
+        aria-labelledby="marketing-ga-heading"
+      >
+        <div className={styles.panelHeader}>
+          <h3 id="marketing-ga-heading" className={styles.panelTitle}>
+            Google Analytics
+          </h3>
+          {gaId ? (
+            <StatusBadge tone="success">Configured</StatusBadge>
+          ) : (
+            <StatusBadge tone="neutral">Not configured</StatusBadge>
+          )}
+        </div>
+        <p className={styles.panelNote}>
+          {gaId
+            ? "Configured — Analytics loads on every store page."
+            : "Not configured — no Analytics code loads on the store."}
+        </p>
+        <div className="aa-form-grid">
+          <div className="aa-field">
+            <label htmlFor="ga-measurement-id">Measurement ID</label>
+            <input
+              id="ga-measurement-id"
+              name="ga_measurement_id"
+              spellCheck={false}
+              autoComplete="off"
+              defaultValue={gaId}
+              maxLength={24}
+              placeholder="G-XXXXXXXXXX…"
+            />
+            <p className="aa-hint">
+              Starts with G-. Find it in Google Analytics → Admin → Data
+              Streams → Web — the Measurement ID. Clear the field to stop
+              loading Google Analytics.
+            </p>
+          </div>
+        </div>
+      </section>
+      <section
+        className={styles.panel}
+        aria-labelledby="marketing-sms-heading"
+      >
+        <div className={styles.panelHeader}>
+          <h3 id="marketing-sms-heading" className={styles.panelTitle}>
+            SMS marketing
+          </h3>
+          <StatusBadge tone="neutral">Not connected</StatusBadge>
+        </div>
+        <p className={styles.panelNote}>
+          No SMS provider is connected and no message is sent from this
+          panel. These fields only record which provider to use later.
+        </p>
       <div className="aa-form-grid">
         <div className="aa-field">
           <label htmlFor="sms-provider">Provider name</label>
@@ -467,6 +537,11 @@ export function MarketingSettingsForm({
           SMS marketing enabled (has no effect until a provider is connected)
         </label>
       </div>
+      </section>
+      <p className="aa-hint" style={{ marginTop: "0.25rem" }}>
+        Saving applies on the next page load — tracking code starts or stops
+        loading then.
+      </p>
       <div className="aa-form-actions">
         <SubmitButton>Save marketing settings</SubmitButton>
       </div>

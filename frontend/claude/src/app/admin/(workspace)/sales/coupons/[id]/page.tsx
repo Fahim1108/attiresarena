@@ -105,9 +105,9 @@ export default async function CouponDetailPage({
           </div>
         ) : null}
 
-        <Notice kind="warning">
-          Applying a coupon at checkout is pending checkout integration. This coupon cannot be
-          used by customers until that integration lands.
+        <Notice kind="info">
+          Coupons can be applied at checkout. Live redemption has not been
+          verified yet.
         </Notice>
 
         <Card>
@@ -187,7 +187,7 @@ export default async function CouponDetailPage({
         <Card>
           <CardHeader>
             <CardTitle headingLevel="h2">Redemptions</CardTitle>
-            <CardDescription>Recorded uses of this coupon. No redemptions exist until checkout integration records them.</CardDescription>
+            <CardDescription>Recorded uses of this coupon. Checkout records a redemption when a customer uses the code.</CardDescription>
           </CardHeader>
           <CardContent>
             {redemptions.length === 0 ? (

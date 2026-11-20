@@ -531,8 +531,10 @@ export function resolveErrorPage(stored: unknown): ErrorPageConfig {
   return parsed.success ? parsed.data : DEFAULT_ERROR_404;
 }
 
-/* Customize: typography + buttons. Stored only; the storefront theme is
- * unchanged until a follow-up wires these values through CSS variables. */
+/* Customize: typography + buttons. Wired to the storefront through
+ * applyCustomizeOverride (lib/store-settings): heading/body fonts and
+ * button shape/radius apply; button style (solid/outline) is stored
+ * but not applied — the storefront has no single button style hook. */
 
 export const FONT_OPTIONS = [
   {

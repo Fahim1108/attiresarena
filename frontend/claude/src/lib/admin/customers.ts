@@ -456,7 +456,7 @@ export async function blockCustomer(
   revalidatePath("/admin/sales/customers");
   revalidatePath(`/admin/sales/customers/${encodeURIComponent(parsed.data.phone)}`);
   return actionOk(
-    "Customer blocked (admin record only — checkout does not check this yet).",
+    "Customer blocked. This number can no longer place new orders.",
   );
 }
 

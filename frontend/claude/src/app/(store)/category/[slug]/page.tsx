@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { logo, site } from "@/config";
 import { CatalogView } from "@/components/catalog/CatalogView";
 import { BreadcrumbJsonLd } from "@/components/seo/JsonLd";
-import { ButtonLink } from "@/components/ui";
+import { ButtonLink, SmartImage } from "@/components/ui";
 import { parseProductQuery } from "@/lib/catalog-query";
 import { buildPageMetadata, hasListingParams, LISTING_VARIANT_ROBOTS, PRIVATE_PAGE_ROBOTS, resolveDefaultOgImage, resolveEntitySeo, resolveTwitterCard } from "@/lib/seo";
 import { getStorefrontContent } from "@/lib/store-settings";
@@ -87,6 +87,19 @@ export default async function CategoryPage({ params, searchParams }: { params: P
         result={result}
         brands={brands}
         locked={{ category: slug }}
+        banner={
+          category.banner ? (
+            <div className="relative mt-4 aspect-[21/9] overflow-hidden rounded-card">
+              <SmartImage
+                src={category.banner.src}
+                alt={category.name}
+                fill
+                sizes="(min-width:1024px) 1024px, 100vw"
+                className="object-cover"
+              />
+            </div>
+          ) : undefined
+        }
       />
     </>
   );

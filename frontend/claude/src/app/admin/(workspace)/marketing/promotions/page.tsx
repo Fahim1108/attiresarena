@@ -135,7 +135,7 @@ export default async function PromotionsPage() {
               <BannerList
                 banners={promos}
                 emptyTitle="No promotional banners yet"
-                emptyDescription="Add a promotional banner above. Promotional banners are stored here and apply once the storefront wiring reads them."
+                emptyDescription="Add a promotional banner above. Promotional banners replace the built-in promotions on the next page load; a banner whose image cannot be served is skipped."
                 editHref={(id) => `/admin/content/banners?edit=${id}`}
               />
             )}

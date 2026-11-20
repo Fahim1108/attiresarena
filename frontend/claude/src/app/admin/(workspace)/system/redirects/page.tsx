@@ -47,16 +47,17 @@ export default async function RedirectsPage({
             System
           </p>
         </PageHeader>
-        <Notice kind="warning">
-          Redirects are stored here but not yet enforced: saving a redirect
-          does not change what visitors see until redirect enforcement is
-          built. Nothing here rewrites URLs today.
+        <Notice kind="info">
+          Redirects saved here take effect on the storefront while
+          Automatic redirects (below) is on: a visitor to a saved old path
+          is sent to its target. Turn the toggle off to pause all redirects
+          without deleting them.
         </Notice>
         <Card>
           <CardHeader>
             <CardTitle headingLevel="h2">Automatic redirects</CardTitle>
             <CardDescription>
-              When on, the storefront will one day redirect old URLs automatically. Today this choice is stored only.
+              When on, the storefront redirects saved old URLs to their targets. When off, saved redirects do nothing.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -97,7 +98,7 @@ export default async function RedirectsPage({
               <RedirectList
                 redirects={redirects}
                 emptyTitle="No redirects yet"
-                emptyDescription="Add a redirect above. Stored redirects do nothing until enforcement is built."
+                emptyDescription="Add a redirect above. Redirects only take effect while Automatic redirects is on."
                 editHref={(id) => `/admin/system/redirects?edit=${id}`}
               />
             )}

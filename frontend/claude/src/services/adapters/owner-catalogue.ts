@@ -8,15 +8,16 @@ import { unavailableServices } from "./unavailable";
 import { customerServices } from "./customer";
 import {campaignHero} from '@/config/campaign-banners';
 import {reviewShirts} from './review-thrift';
-import {publishedShirts,approvedReviews,readPublishedFeed,readThriftFeed,readAdminFeed} from './published-thrift';
+import {publishedShirts,approvedReviews,readPublishedFeed} from './published-thrift';
 import {mergeStorefrontFeed} from '@/lib/catalog-publication';
 import {toMerchandisingCandidates} from '@/lib/merchandising';
 
 import {storeCategories} from '@/config/catalogue';
 import {defaultStorefrontSettings} from '@/config';
 import {queryProducts} from '@/lib/catalog-query';
+import {getPublishedCategories,mergeDbCategories} from '@/lib/store-settings';
 import {availableShirtTypes,publishedAvailable} from '@/lib/catalogue-dimensions';
-import type {Product} from '@/types';
+import type {Category,Product} from '@/types';
 import type {StorefrontDataSource} from '../types';
 
 /** Verified publications supersede the matching design-review copy, never duplicate it. The merged list is the allowlist feed UNION published admin products (allowlist wins on collision); feedUnavailable is true only when BOTH feed data calls fail. */
@@ -37,7 +38,17 @@ export async function browsableShirtsWithStatus(options:{liveReview?:boolean}={}
 export async function browsableShirts(options:{liveReview?:boolean}={}){
  return (await browsableShirtsWithStatus(options)).products;
 }
-const categories=storeCategories.map(c=>({...c,available:c.slug==='shirts',description:c.slug==='shirts'?'Individual thrift shirts, carefully selected.':'Coming soon.',...(c.slug==='shirts'?{image:{src:'/inventory/thrift-shirts/AA-SHIRT-001-front.jpg',alt:'Attires Arena thrift shirts'},thumbnail:{src:'/inventory/thrift-shirts/AA-SHIRT-001-front.jpg',alt:'Attires Arena thrift shirts'}}:{})}));
+const categories=storeCategories.map(c=>({...c,available:c.slug==='shirts',description:c.slug==='shirts'?'Individual thrift shirts, carefully selected.':'Coming soon.',...(c.slug==='shirts'?{image:{src:'/images/mockup/category-shirts-check.svg',alt:'Check shirts in white and maroon'},thumbnail:{src:'/images/mockup/category-shirts-check.svg',alt:'Check shirts in white and maroon'}}:{})}));
+
+/** DB-driven categories: published rows override the static config (name, description, photo, banner, SEO, order); the static config is the fallback when the read fails. Static ids are kept by the merge — product filtering keys off them. */
+async function liveCategories():Promise<Category[]>{
+ return mergeDbCategories(storeCategories,await getPublishedCategories());
+}
+
+/** Shirts-only availability + the Shirts photo override, applied on top of the merged list. The adapter photo override always wins for Shirts, even when the DB row has a stored photo. The override image must match the promoted Shirts photo (check-shirts mockup, b994a81) — do not revert it to the old portrait. */
+function applyCategoryAvailability(cats:Category[],hasPublished:boolean,catalogueUnavailable:boolean):Category[]{
+ return cats.map(c=>({...c,available:c.slug==='shirts'&&hasPublished,catalogueUnavailable,...(c.slug==='shirts'?{image:{src:'/images/mockup/category-shirts-check.svg',alt:'Check shirts in white and maroon'},thumbnail:{src:'/images/mockup/category-shirts-check.svg',alt:'Check shirts in white and maroon'}}:{})}));
+}
 
 /** Explicit owner inventory curation. Source order is not represented as a publication timestamp. Real publications sort newest-first by createdAt (the projector's published_at); design-review fixtures keep slug order after them. Featured prefers products badged "Featured Product" in admin; the fixture preview slice remains only when nothing is flagged. */
 export function curatedInventoryCollection(products:Product[],kind:'new-arrivals'|'featured'|'best-sellers',limit=8){
@@ -66,11 +77,15 @@ export const ownerCatalogue:StorefrontDataSource={...unavailableServices,...cust
  async getHomepageProducts(){return toMerchandisingCandidates((await browsableShirtsWithStatus()).products);},
  async getProducts(query={}){
   const {products,feedUnavailable}=await browsableShirtsWithStatus();
+  // Category facets resolve slugs through the same DB-driven list the
+  // category pages use, so a published DB-only category appears as a
+  // filter option. Review mode keeps the static taxonomy (fixtures).
+  const cats=reviewInventoryEnabled()?categories:await liveCategories();
   // Provisional preview sizes and visually proposed metadata never satisfy verified facets.
   const requiresVerified=Boolean(query.sizes?.length||query.shirtType||query.collection);
   const verified=products.filter(p=>!p.reviewOnly&&publishedAvailable(p));
-  const result=queryProducts(requiresVerified?verified:products,categories,[],query);
-  const sizes=queryProducts(verified,categories,[],query).facets;
+  const result=queryProducts(requiresVerified?verified:products,cats,[],query);
+  const sizes=queryProducts(verified,cats,[],query).facets;
   return {...result,facets:{...result.facets,sizes:sizes.sizes,sizeLabels:sizes.sizeLabels},catalogueUnavailable:feedUnavailable};
  },
  async getProductBySlug(slug){return (await browsableShirts()).find(p=>p.slug===slug)??null;},
@@ -89,16 +104,19 @@ export const ownerCatalogue:StorefrontDataSource={...unavailableServices,...cust
  },async getInitialCart(){return [];},
  async getCategories(){
   if(reviewInventoryEnabled())return categories;
-  const thrift=await readThriftFeed();
-  // The admin source is read only when the allowlist read fails: a
-  // working allowlist already proves the feed is reachable. Shirts
-  // availability still reflects the allowlist feed only (admin
-  // products do not list on /category/* pages — see
-  // catalog-publication.ts, shirts-only design intent).
-  let catalogueUnavailable=false;
-  if(!thrift.ok)catalogueUnavailable=!(await readAdminFeed()).ok;
-  const hasPublished=thrift.products.length>0;
-  return categories.map(c=>({...c,available:c.slug==='shirts'&&hasPublished,catalogueUnavailable}));
+  // Shirts availability reflects the whole browsable catalogue
+  // (allowlist UNION admin-published), the same list /shop and the
+  // homepage render — not the allowlist alone. The allowlist is empty
+  // on production while admin-published shirts are live, which left
+  // /category/shirts on "Coming Soon" while /shop showed 22 products.
+  // feedUnavailable is true only when BOTH feed sources fail, exactly
+  // as browsableShirtsWithStatus reports it.
+  const {products,feedUnavailable}=await browsableShirtsWithStatus();
+  const hasPublished=products.length>0;
+  // DB-driven categories merged over the static config (name,
+  // description, photo, banner, SEO, order); the Shirts photo
+  // override in applyCategoryAvailability still wins for Shirts.
+  return applyCategoryAvailability(await liveCategories(),hasPublished,feedUnavailable);
  },async getCategoryBySlug(slug){return (await this.getCategories()).find(c=>c.slug===slug)??null;},
  async getSizeGuide(id){return id==='tops'?officialShirtSizeGuide:null;},
  async getManualPaymentConfiguration(){
