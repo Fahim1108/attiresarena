@@ -29,11 +29,10 @@ export default async function HomepageContentPage() {
         </PageHeader>
         <LayoutTabs current="homepage-sections" />
         <Notice kind="info">
-          Saved settings apply on the next page load once the storefront
-          wiring for that setting is connected. The announcement bar and hero
-          slides are stored here; their storefront rendering is connected
-          through the shared storefront settings, which this module does not
-          modify. Policy-page text (see Pages) already applies on the next
+          Saved settings apply on the next page load. The announcement bar
+          and hero slides render from what is stored here; a hero banner
+          whose image cannot be served is skipped and the built-in slides
+          stay. Policy-page text (see Pages) already applies on the next
           page load.
         </Notice>
         <Card>

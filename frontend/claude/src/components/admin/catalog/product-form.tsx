@@ -48,7 +48,7 @@ function minorToDecimal(minor: number | null): string {
 }
 
 const STOREFRONT_NOTE =
-  "Saving here sets the product Active or Inactive in the admin panel. Publishing — from the product list or the edit page — shows it on the public storefront. Published products are visible but cannot be ordered yet.";
+  "Saving here sets the product Active or Inactive in the admin panel. Publishing — from the product list or the edit page — shows it on the public storefront, where customers can order it.";
 
 export function ProductForm({
   mode,

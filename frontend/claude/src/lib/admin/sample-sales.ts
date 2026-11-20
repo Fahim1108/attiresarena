@@ -324,8 +324,8 @@ export const SAMPLE_CUSTOMER_PROFILE: CustomerProfileData = {
 };
 
 /* ------------------------------------------------------------------ */
-/* Coupons (usage counts are zero: no redemptions are recorded until   */
-/* checkout integration lands).                                        */
+/* Coupons (usage counts are zero: these are sample rows, and checkout  */
+/* records redemptions for real coupons only).                          */
 /* ------------------------------------------------------------------ */
 
 export const SAMPLE_COUPONS: CouponListEntry[] = [

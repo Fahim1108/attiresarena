@@ -585,6 +585,9 @@ export interface DashboardData {
   incompleteCount: number;
   incompleteTruncated: boolean;
   ordersTruncated: boolean;
+  /** True when the best/least-seller query hit its 1,000-row cap, so
+   *  older order items in the period may not be counted. */
+  orderItemsTruncated: boolean;
   /** Human labels of sections whose query failed; the page warns about them. */
   failedSections: string[];
 }
@@ -613,6 +616,10 @@ export async function loadDashboard(
   granularity: RevenueGranularity,
 ): Promise<DashboardLoadResult> {
   const failedSections: string[] = [];
+  // Set inside the best-sellers query below: the query takes the most
+  // recent items first, so hitting its cap means older items were
+  // never fetched.
+  let orderItemsTruncated = false;
   try {
     const previousRange = previousPeriodRange(range);
     const currentBounds = rangeBounds(range);
@@ -708,6 +715,9 @@ export async function loadDashboard(
           .limit(ORDER_ITEMS_QUERY_LIMIT);
         if (result.error) throw result.error;
         const rows = parseRows(orderItemRowSchema, result.data);
+        if (rows.length >= ORDER_ITEMS_QUERY_LIMIT) {
+          orderItemsTruncated = true;
+        }
         const windowStart = Date.parse(currentBounds.startIso);
         const windowEnd = Date.parse(currentBounds.endIsoExclusive);
         return rows.filter((row) => {
@@ -858,6 +868,7 @@ export async function loadDashboard(
         ordersTruncated:
           currentOrders.length >= ORDERS_QUERY_LIMIT ||
           previousOrders.length >= ORDERS_QUERY_LIMIT,
+        orderItemsTruncated,
         failedSections: [...new Set(failedSections)],
       },
     };

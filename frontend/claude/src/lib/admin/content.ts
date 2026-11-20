@@ -96,7 +96,7 @@ export const MANAGED_BLOCKS: {
   storefront: string;
   wired: boolean;
 }[] = [
-  { slug: "about", label: "About", storefront: "/about", wired: false },
+  { slug: "about", label: "About", storefront: "/about", wired: true },
   { slug: "privacy-policy", label: "Privacy Policy", storefront: "/privacy-policy", wired: true },
   { slug: "terms", label: "Terms & Conditions", storefront: "/terms", wired: true },
   { slug: "return-policy", label: "Return & Exchange Policy", storefront: "/return-policy", wired: true },
@@ -191,7 +191,7 @@ function revalidateBlockPage(slug: string): void {
   if (managed) revalidatePath(managed.storefront);
 }
 
-/** Banner changes surface on the homepage once hero/promo wiring lands. */
+/** Banner changes surface on the homepage on the next page load; banners whose image cannot be served are skipped. */
 function revalidateBannerSurfaces(): void {
   revalidatePath("/");
 }

@@ -28,6 +28,7 @@ import type {
   HeroSettings,
 } from "@/types";
 import { publicSupabaseConfiguration } from "./supabase-public";
+import { PRODUCT_MEDIA_BUCKET } from "./admin/constants";
 import { isCatalogStoragePath } from "./admin/catalog-variants";
 import {
   DEFAULT_ERROR_404,
@@ -50,11 +51,12 @@ import {
  * reference), so the storefront renders exactly as before.
  *
  * Wiring status: the policy pages call this reader, and the root layout
- * calls it for marketing/metadata and applies the footer override below
- * to the storefront settings. The announcement bar and hero slides still
- * flow through the services adapter, which this module must not touch;
- * their pure merge functions are provided and tested here so the wiring
- * can land without changing this reader.
+ * calls it for marketing/metadata and applies the footer and
+ * announcement-bar overrides below to the storefront settings. The
+ * homepage calls it for hero/promo banners and the About page for its
+ * content block. The merge functions are pure so the wiring can land
+ * without changing this reader; banner images additionally need a
+ * resolvable public URL (see resolveBannerImageUrls).
  */
 
 export interface ContentBlockRow {
@@ -245,6 +247,14 @@ export function settingText(
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+/** Split a stored block body into non-empty paragraphs (blank-line separated). */
+function splitBlockParagraphs(body: string): string[] {
+  return body
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
 }
 
 // ---------------------------------------------------------------------------
@@ -499,10 +509,7 @@ export function resolvePolicyPage(
 ): PolicyPage {
   const block = blocks?.find((b) => b.slug === page.slug && b.visible);
   if (!block) return page;
-  const paragraphs = block.body
-    .split(/\n\s*\n/)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
+  const paragraphs = splitBlockParagraphs(block.body);
   if (paragraphs.length === 0) return page;
   const updated = block.updated_at.slice(0, 10);
   return {
@@ -515,6 +522,32 @@ export function resolvePolicyPage(
       },
     ],
     updated: /^\d{4}-\d{2}-\d{2}$/.test(updated) ? updated : page.updated,
+  };
+}
+
+export interface AboutContent {
+  /** Stored block title, or null to keep the built-in story heading. */
+  title: string | null;
+  /** Stored story paragraphs; the page keeps its built-in text when empty. */
+  paragraphs: string[];
+}
+
+/**
+ * About-page override. Returns null when no visible "about" block with a
+ * non-empty body is saved, so the page keeps its built-in story text.
+ * When a block matches, its title replaces the story heading (when set)
+ * and its paragraphs replace the story paragraphs.
+ */
+export function resolveAboutContent(
+  blocks: ContentBlockRow[] | null | undefined,
+): AboutContent | null {
+  const block = blocks?.find((b) => b.slug === "about" && b.visible);
+  if (!block) return null;
+  const paragraphs = splitBlockParagraphs(block.body);
+  if (paragraphs.length === 0) return null;
+  return {
+    title: block.title?.trim() ? block.title.trim() : null,
+    paragraphs,
   };
 }
 
@@ -536,7 +569,7 @@ export function parseAnnouncementBar(
 }
 
 /**
- * Announcement-bar override (NOT YET WIRED — see module header). The stored
+ * Announcement-bar override (wired in the root layout). The stored
  * text replaces the bar's left message and `visible` controls the bar.
  * Returns the static header unchanged when no valid value is stored.
  */
@@ -601,7 +634,7 @@ export function applyFooterOverride(
 }
 
 /**
- * Hero-slide override (NOT YET WIRED — see module header). Visible hero
+ * Hero-slide override (wired on the homepage). Visible hero
  * banners, in stored order, replace the static slides. Banner images live
  * in a private Storage bucket, so the caller must supply a resolver that
  * turns a storage path into a displayable URL; banners without a URL are
@@ -631,6 +664,124 @@ export function applyHeroOverride(
   }
   if (slides.length === 0) return hero;
   return { ...hero, slides };
+}
+
+/**
+ * Promo-banner override (wired on the homepage). Visible promo
+ * banners, in stored order, replace the static promotions. Same image
+ * rule as the hero override: banners without a displayable URL are
+ * skipped, and the static promotions stay when none resolves.
+ */
+export function applyPromoOverride(
+  promoBanners: Banner[],
+  banners: BannerRow[] | null | undefined,
+  imageUrl: (storagePath: string) => string | null,
+): Banner[] {
+  const items: Banner[] = [];
+  for (const banner of banners ?? []) {
+    if (!banner.visible || banner.placement !== "promo") continue;
+    const src = imageUrl(banner.image_storage_path);
+    if (!src) continue;
+    items.push({
+      id: banner.id,
+      title: banner.title,
+      subtitle: banner.subtitle ?? undefined,
+      cta: banner.link_url
+        ? { label: "Shop Now", href: banner.link_url }
+        : undefined,
+      image: { src, alt: banner.title },
+      align: "left",
+      tone: "dark",
+    });
+  }
+  if (items.length === 0) return promoBanners;
+  return items;
+}
+
+/**
+ * Banner image storage paths, as written by the admin banner form:
+ * `banners/<uuid>.jpg|png|webp` in the private product-media bucket.
+ * Anything else is not a banner image and never gets a public URL.
+ */
+export const BANNER_STORAGE_PATH_PATTERN =
+  /^banners\/[0-9a-f-]{36}\.(jpg|png|webp)$/;
+
+/** Public route URL for a banner image, or null when the path is not a banner image. */
+export function bannerImageRouteUrl(storagePath: string): string | null {
+  if (!BANNER_STORAGE_PATH_PATTERN.test(storagePath)) return null;
+  const file = storagePath.slice("banners/".length);
+  return `/api/banner-media/${encodeURIComponent(file)}`;
+}
+
+const BANNER_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+
+/**
+ * Resolve which saved banner images the anonymous storefront can
+ * actually display. For each well-formed banner path, the private-bucket
+ * object endpoint is probed with the public anon configuration (the
+ * same credential shape the feed reads use): a 200 with an image
+ * content type means the object is servable and the banner maps to its
+ * public route URL. Anything else — bad shape, denied, missing, wrong
+ * type, network error — maps to nothing, so the merge functions skip
+ * that banner and the static slides/promotions stay.
+ *
+ * This is the guard that keeps the wiring safe before the
+ * visible-banner storage policy (migration 20261119000300) is applied:
+ * until then every probe fails and the storefront renders exactly as
+ * before, with no broken images. The probe cancels the response body
+ * without reading it, so no image bytes are downloaded.
+ */
+export async function resolveBannerImageUrls(
+  banners: BannerRow[] | null | undefined,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Map<string, string>> {
+  const urls = new Map<string, string>();
+  const config = publicSupabaseConfiguration();
+  if (!config || !banners) return urls;
+  await Promise.all(
+    banners.map(async (banner) => {
+      const routeUrl = bannerImageRouteUrl(banner.image_storage_path);
+      if (!routeUrl) return;
+      const file = banner.image_storage_path.slice("banners/".length);
+      const upstreamUrl =
+        `${config.url}/storage/v1/object/authenticated/` +
+        `${PRODUCT_MEDIA_BUCKET}/banners/${encodeURIComponent(file)}`;
+      let upstream: Response;
+      try {
+        upstream = await fetchImpl(upstreamUrl, {
+          method: "GET",
+          headers: {
+            apikey: config.key,
+            ...(config.key.startsWith("eyJ")
+              ? { Authorization: `Bearer ${config.key}` }
+              : {}),
+          },
+          cache: "no-store",
+          signal: AbortSignal.timeout(5000),
+        });
+      } catch {
+        return;
+      }
+      try {
+        if (!upstream.ok) return;
+        const type =
+          upstream.headers
+            .get("content-type")
+            ?.split(";")[0]
+            ?.trim()
+            .toLowerCase() ?? "";
+        if (!BANNER_IMAGE_TYPES.has(type)) return;
+        urls.set(banner.image_storage_path, routeUrl);
+      } finally {
+        await upstream.body?.cancel().catch(() => {});
+      }
+    }),
+  );
+  return urls;
 }
 
 // ---------------------------------------------------------------------------

@@ -187,7 +187,7 @@ describe("visibility wiring", () => {
   it("keeps the honest storefront note in both places in the product form", () => {
     const form = source("../src/components/admin/catalog/product-form.tsx");
     expect(form).toContain(
-      "Published products are visible but cannot be ordered yet.",
+      "shows it on the public storefront, where customers can order it.",
     );
     expect(form.match(/\{STOREFRONT_NOTE\}/g)).toHaveLength(2);
     const slice = form.slice(
