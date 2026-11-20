@@ -11,6 +11,7 @@ import { selectableStock } from "../src/lib/product";
 import {
   SHIRT_PARENT_ID,
   isShirtSubcategory,
+  shirtSubKey,
   shirtSubcategories,
   topLevelCategories,
 } from "../src/lib/category-hierarchy";
@@ -89,6 +90,19 @@ describe("shirt sub-category mapping", () => {
     expect(isShirtSubcategory({ slug: "something-else", name: "Formal shirt" })).toBe(true);
     expect(isShirtSubcategory({ slug: "hoodies", name: "Hoodies" })).toBe(false);
     expect(isShirtSubcategory({ slug: "shirts", name: "Shirts" })).toBe(false);
+  });
+
+  it("canonicalizes messy staging rows to the same shirt type (plural + mis-slugged)", () => {
+    // Real staging rows (published_categories(), 2026-11-20): a
+    // "Formal shirts" duplicate (slug formal-shirts) and a "Casual
+    // shirt" row whose slug is "staging-category-f7a3f419-…".
+    expect(shirtSubKey({ slug: "formal-shirts", name: "Formal shirts" })).toBe("formal");
+    expect(shirtSubKey({ slug: "something-else", name: "Formal shirts" })).toBe("formal");
+    expect(shirtSubKey({ slug: "staging-category-f7a3f419-40c8-42aa-a39c-cad87677c4c7", name: "Casual shirt" })).toBe("casual");
+    expect(shirtSubKey({ slug: "check-shirt", name: "check shirt" })).toBe("check");
+    expect(shirtSubKey({ slug: "hoodies", name: "Hoodies" })).toBe(null);
+    expect(shirtSubKey({ slug: "shirts", name: "Shirts" })).toBe(null);
+    expect(isShirtSubcategory({ slug: "formal-shirts", name: "Formal shirts" })).toBe(true);
   });
 
   it("keeps only Shirts, Pants, Sneakers, Belt, Wallet, Watches top-level", () => {
@@ -316,5 +330,123 @@ describe("review mode (Preview) uses the DB-merged categories — round-2 regres
     feeds([], [adminRow]);
     expect((await dataSource.getCategoryBySlug("casual-shirt"))?.available).toBe(true);
     expect((await dataSource.getProducts({ categorySlugs: ["casual-shirt"] })).total).toBe(0);
+  });
+});
+
+describe("review mode with real staging rows (plural + mis-slugged)", () => {
+  // The two real staging products are NOT assigned to the three
+  // proper sub-category rows: TEST Shirt → "Formal shirts" (plural
+  // duplicate, 22566784-…) and the lifecycle shirt → a "Casual
+  // shirt" row whose slug is "staging-category-f7a3f419-…". By raw
+  // id they match no sub-category, so their chips would stay (0)
+  // and their sub-pages empty even after the review-mode fix. The
+  // canonical sub key (shirtSubKey) maps both rows to their shirt
+  // type, so they list and count under Formal / Casual.
+  const FORMAL_SHIRTS_ID = "22566784-0723-4cef-8e1e-7007084306d9";
+  const CASUAL_STAGING_ID = "f7a3f419-40c8-42aa-a39c-cad87677c4c7";
+  const CHECK_ID_REAL = "83e0f4a6-7f24-4cc2-adab-f067a0427f7a";
+  const stagingRows = [
+    {
+      id: FORMAL_SHIRTS_ID,
+      parent_id: null,
+      name: "Formal shirts",
+      slug: "formal-shirts",
+      published: true,
+      description: "",
+      image_storage_path: null,
+      banner_storage_path: null,
+      seo_title: null,
+      seo_description: null,
+      sort_position: 1,
+    },
+    {
+      id: CASUAL_STAGING_ID,
+      parent_id: null,
+      name: "Casual shirt",
+      slug: "staging-category-f7a3f419-40c8-42aa-a39c-cad87677c4c7",
+      published: true,
+      description: "",
+      image_storage_path: null,
+      banner_storage_path: null,
+      seo_title: null,
+      seo_description: null,
+      sort_position: 2,
+    },
+    {
+      id: CHECK_ID_REAL,
+      parent_id: null,
+      name: "check shirt",
+      slug: "check-shirt",
+      published: true,
+      description: "",
+      image_storage_path: null,
+      banner_storage_path: null,
+      seo_title: null,
+      seo_description: null,
+      sort_position: 3,
+    },
+  ];
+  function stagingAdmin(id: string, slug: string, categoryId: string) {
+    return {
+      id,
+      slug,
+      name: slug,
+      description: "A thrift shirt.",
+      category_id: categoryId,
+      highlights: [],
+      tags: [],
+      badges: [],
+      created_at: "2026-11-19T00:00:00Z",
+      published_at: "2026-11-19T00:00:00Z",
+      youtube_video_id: null,
+      seo_title: null,
+      seo_description: null,
+      meta_keywords: null,
+      variants: [{ id: `50000000-0000-4000-8000-0000000000${id.slice(-2)}`, size: "M", color: "Navy", price_minor: 45000, sale_price_minor: null, available: 1 }],
+      media: [{ path: "60000000-0000-4000-8000-000000000001/70000000-0000-4000-8000-000000000001.jpg", alt: slug }],
+    };
+  }
+  const stagingAdminRows = [
+    stagingAdmin("30000000-0000-4000-8000-000000000011", "formal-shirts-product", FORMAL_SHIRTS_ID),
+    stagingAdmin("30000000-0000-4000-8000-000000000012", "casual-staging-product", CASUAL_STAGING_ID),
+  ];
+  beforeEach(() => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("CLAUDE_DESIGN_PREVIEW", "1");
+    vi.stubEnv("SUPABASE_URL", "https://jwccyndyaamodxjtjtfo.supabase.co");
+    vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_isolated_unit_fixture");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/rest/v1/categories"))
+          return new Response(JSON.stringify(stagingRows), { status: 200 });
+        if (url.includes("/rpc/published_admin_catalogue"))
+          return new Response(JSON.stringify(stagingAdminRows), { status: 200 });
+        return new Response(JSON.stringify([]), { status: 200 });
+      }),
+    );
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("lists mis-assigned staging products under their proper sub-category with real counts", async () => {
+    expect((await dataSource.getCategoryBySlug("formal-shirt"))?.available).toBe(true);
+    expect((await dataSource.getCategoryBySlug("casual-shirt"))?.available).toBe(true);
+    const formal = await dataSource.getProducts({ categorySlugs: ["formal-shirt"] });
+    expect(formal.items.map((p) => p.slug)).toEqual(["formal-shirts-product"]);
+    expect(formal.facets.categories.find((c) => c.slug === "formal-shirt")?.count).toBe(1);
+    const casual = await dataSource.getProducts({ categorySlugs: ["casual-shirt"] });
+    expect(casual.items.map((p) => p.slug)).toEqual(["casual-staging-product"]);
+    expect(casual.facets.categories.find((c) => c.slug === "casual-shirt")?.count).toBe(1);
+    const shirts = await dataSource.getProducts({ categorySlugs: ["shirts"] });
+    expect(shirts.items.map((p) => p.slug)).toEqual(
+      expect.arrayContaining(["formal-shirts-product", "casual-staging-product"]),
+    );
+    // Neither messy row leaks out as a top-level tile.
+    const top = topLevelCategories(await dataSource.getCategories()).map((c) => c.slug);
+    expect(top).not.toContain("formal-shirts");
+    expect(top).not.toContain("staging-category-f7a3f419-40c8-42aa-a39c-cad87677c4c7");
   });
 });

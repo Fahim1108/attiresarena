@@ -31,6 +31,43 @@ const SHIRT_SUBCATEGORY_NAMES = new Set([
   "check shirt",
 ]);
 
+/**
+ * Canonical shirt-type key for a category, or null when it is not a
+ * shirt sub-category. Slug is tried first, display name second.
+ *
+ * Normalization matters because the STAGING rows are messy (verified
+ * 2026-11-20 via published_categories()): besides the three proper
+ * rows there is a "Formal shirts" duplicate (slug formal-shirts, id
+ * 22566784-0723-4cef-8e1e-7007084306d9 — the TEST Shirt's category)
+ * and a "Casual shirt" row whose slug is the garbage
+ * "staging-category-f7a3f419-…" (id f7a3f419-…, the lifecycle
+ * shirt's category). Without normalization those two products match
+ * NO sub-category: their chips stay (0), their sub-pages stay empty,
+ * and "Formal shirts" would even leak out as a top-level tile. The
+ * normalization only collapses a plural "shirts" to "shirt" and
+ * hyphens/spacing — it never touches non-shirt categories.
+ */
+export type ShirtSubKey = "casual" | "formal" | "check";
+
+export function shirtSubKey(category: {
+  slug: string;
+  name: string;
+}): ShirtSubKey | null {
+  for (const value of [category.slug, category.name]) {
+    const normalized = value
+      .trim()
+      .toLowerCase()
+      .replace(/-/g, " ")
+      .replace(/\bshirts\b/g, "shirt")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (normalized === "casual shirt") return "casual";
+    if (normalized === "formal shirt") return "formal";
+    if (normalized === "check shirt") return "check";
+  }
+  return null;
+}
+
 export function isShirtSubcategory(category: {
   slug: string;
   name: string;
@@ -39,6 +76,7 @@ export function isShirtSubcategory(category: {
     (SHIRT_SUBCATEGORY_SLUGS as readonly string[]).includes(
       category.slug.trim().toLowerCase(),
     ) || SHIRT_SUBCATEGORY_NAMES.has(category.name.trim().toLowerCase())
+    || shirtSubKey(category) !== null
   );
 }
 

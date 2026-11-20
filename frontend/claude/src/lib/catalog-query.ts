@@ -1,5 +1,5 @@
 import { canonicalSize, publishedAvailable, SHIRT_CLASSIFICATIONS } from "./catalogue-dimensions";
-import { isShirtSubcategory } from "./category-hierarchy";
+import { isShirtSubcategory, shirtSubKey } from "./category-hierarchy";
 import type { Brand, CatalogFacets, Category, Paginated, Product, ProductQuery, SortOption } from "@/types";
 
 export const DEFAULT_PAGE_SIZE = 12;
@@ -85,7 +85,20 @@ function matchesSearch(p: Product, term: string, categories: Category[], brands:
  */
 function matchesSingleCategory(p: Product, category: Category, categories: Category[]): boolean {
   if (p.categoryId === category.id) return true;
-  if (category.slug !== "shirts") return false;
+  if (category.slug !== "shirts") {
+    // A sub-category page also matches products assigned to a
+    // duplicate / mis-slugged row for the SAME shirt type, by
+    // canonical sub key: staging has "Formal shirts" (plural,
+    // slug formal-shirts) and a "Casual shirt" row whose slug is
+    // "staging-category-f7a3f419-…" — neither id equals the proper
+    // sub-category id, but both are the same shirt type. Without
+    // this their chips stay (0) and their sub-pages stay empty
+    // even though the products ARE assigned to that type.
+    if (!isShirtSubcategory(category)) return false;
+    const ownersCategory = categories.find((c) => c.id === p.categoryId);
+    const key = ownersCategory ? shirtSubKey(ownersCategory) : null;
+    return key !== null && key === shirtSubKey(category);
+  }
   const ownersCategory = categories.find((c) => c.id === p.categoryId);
   if (!ownersCategory) return true;
   return isShirtSubcategory(ownersCategory);
