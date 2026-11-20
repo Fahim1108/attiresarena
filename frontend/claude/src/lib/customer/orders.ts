@@ -7,6 +7,7 @@ import type {
   ProductImage,
 } from "@/types";
 import type { CustomerClient } from "./supabase";
+import { customerPhoneSchema } from "./validation";
 
 /**
  * Customer order reads + projection. Own-row RLS (`orders_own_read`,
@@ -193,12 +194,31 @@ export function projectCustomerOrder(
   };
 }
 
-/** Parse a user-supplied order number: exactly 5 digits in the database range. */
+/**
+ * Parse a user-supplied order number: exactly 5 digits in the
+ * database range. The AA- prefix from confirmation messages is
+ * accepted (either case, hyphen optional) and stripped; surrounding
+ * whitespace is ignored. Anything else yields null.
+ */
 export function parseCustomerOrderNumber(value: string): number | null {
-  const match = /^(\d{5})$/.exec(value.trim());
+  const match = /^(?:aa-?)?(\d{5})$/i.exec(value.trim());
   if (!match?.[1]) return null;
   const number = Number(match[1]);
   return number >= 10000 && number <= 99999 ? number : null;
+}
+
+/**
+ * Normalise a user-supplied phone to the strict stored form
+ * (01[3-9]XXXXXXXX) for guest tracking, or null when it cannot be
+ * one. Same rule as customerPhoneSchema — spaces/dashes stripped,
+ * a +88/88 prefix removed — so the app and the database function
+ * (private.normalize_bd_phone, migration 20261119000500) agree on
+ * what counts as the same number. A null here never reaches the
+ * database: the lookup fails closed as "not found".
+ */
+export function normalizeTrackingPhone(value: string): string | null {
+  const parsed = customerPhoneSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
 }
 
 function logOrderReadFailure(reason: string): void {

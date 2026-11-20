@@ -56,6 +56,24 @@ export function checkoutOrdersEnabled(): boolean {
   return checkoutOrdersConfiguration() !== null;
 }
 
+/**
+ * Trusted server credential for the guest order-tracking lookup
+ * (public.customer_track_order_by_phone, migration
+ * 20261119000500). Same credential rules as checkout — server-only
+ * SUPABASE_SERVICE_ROLE_KEY, pinned project URL — but deliberately
+ * NOT gated by the checkout-orders flags: tracking must keep working
+ * when ordering is switched off, and switching ordering on must never
+ * silently enable tracking. Returns null when the credential is
+ * unavailable; callers fail closed (order not found), never crash.
+ */
+export function trackingRpcConfiguration(): CheckoutOrdersConfiguration | null {
+  const url = (process.env.SUPABASE_URL ?? "").replace(/\/$/, "");
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  if (serviceKey.length < 20 || serviceKey === process.env.SUPABASE_PUBLISHABLE_KEY) return null;
+  if (url !== `https://${isProductionStorefront() ? projects.production : projects.staging}.supabase.co`) return null;
+  return { url, serviceKey };
+}
+
 /** Never readable by browser JavaScript; sent only over HTTPS on deployments. */
 export function checkoutCookieOptions(expires?: Date) {
   return {
