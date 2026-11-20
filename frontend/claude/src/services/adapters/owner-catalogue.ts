@@ -119,8 +119,12 @@ export const ownerCatalogue:StorefrontDataSource={...unavailableServices,...cust
   const {products,feedUnavailable}=await browsableShirtsWithStatus();
   const hasPublished=products.length>0;
   // DB-driven categories merged over the static config (name,
-  // description, photo, banner, SEO, order); the Shirts photo
-  // override in applyCategoryAvailability still wins for Shirts.
+  // description, photo, banner, SEO, order) — liveCategories() already
+  // merges stored category SEO via mergeDbCategories, so the M-A
+  // published_categories() RPC read stays as the fail-safe path
+  // (readPublishedCategories) rather than a second merge here.
+  // The Shirts photo override in applyCategoryAvailability still
+  // wins for Shirts.
   return applyCategoryAvailability(await liveCategories(),hasPublished,feedUnavailable);
  },async getCategoryBySlug(slug){return (await this.getCategories()).find(c=>c.slug===slug)??null;},
  async getSizeGuide(id){return id==='tops'?officialShirtSizeGuide:null;},
@@ -141,7 +145,11 @@ export const ownerCatalogue:StorefrontDataSource={...unavailableServices,...cust
   const classifications=availableShirtTypes(verified).map(([,slug,label])=>({label,href:`/shop?shirt=${slug}`}));
   const winter=verified.some(p=>p.collectionSlugs?.includes('winter'));
   return {...defaultStorefrontSettings,
-   description:'Attires Arena — individual thrift shirts in Bangladesh.',
+   // Owner-approved home description (Fahim, 2026-11-19 — target search
+   // phrases). This is the sentence that actually reaches the layout
+   // metadata on the live adapter (it overrides brand.ts); keep it in
+   // sync with site.description in src/config/brand.ts.
+   description:'Best thrift collection in Bangladesh — individual thrift shirts at reasonable prices, delivered across Bangladesh.',
    commerce:{...defaultStorefrontSettings.commerce,demoCoupons:[]},
    footer:{...defaultStorefrontSettings.footer,columns:defaultStorefrontSettings.footer.columns.map(c=>({...c,links:c.links.filter(l=>l.href!=='/collections/winter'||winter)}))},
    demo:{...defaultStorefrontSettings.demo,seedCart:false,showNotices:false},hero:campaignHero,

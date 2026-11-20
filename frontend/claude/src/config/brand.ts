@@ -14,5 +14,10 @@ export const logo: LogoSettings = {
 export const site = {
   name: "Attires Arena",
   url: "https://attiresarena.com",
-  description: "Premium menswear, footwear and accessories, delivered across Bangladesh.",
+  // Owner-approved wording (Fahim, 2026-11-19 — target search phrases):
+  // "Best thrift collection in Bangladesh", thrift at reasonable prices,
+  // delivered across Bangladesh. This is the default meta/OG description
+  // (layout fallback) — NOT visible body copy, so the "best" phrasing
+  // targets the search intent without asserting it as editorial fact.
+  description: "Best thrift collection in Bangladesh — individual thrift shirts at reasonable prices, delivered across Bangladesh.",
 };

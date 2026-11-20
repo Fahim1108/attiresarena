@@ -84,6 +84,8 @@ export interface Product {
   rating: { average: number; count: number };
   /** ISO date string. */
   createdAt: string;
+  /** ISO date string of the last product update (feed RPC `updated_at`); absent until migration 20261119001100 is applied. Sitemap lastModified only. */
+  updatedAt?: string;
   tags: string[];
   /** Key into the size-guide table (see mocks/size-guides.ts). */
   sizeGuideId?: string;
@@ -113,11 +115,15 @@ export interface Category {
   /**
    * Stored category SEO overrides (categories.seo_title/seo_description).
    * Read from the DB by the storefront via getPublishedCategories /
-   * mergeDbCategories (src/lib/store-settings.ts); generateMetadata
+   * mergeDbCategories (src/lib/store-settings.ts); the public
+   * `published_categories` RPC (migration 20261119001100) is the
+   * fail-safe read path (readPublishedCategories). generateMetadata
    * falls back to name/description when absent.
    */
   seoTitle?: string;
   seoDescription?: string;
+  /** ISO date string of the last category update (same read path); absent until migration 20261119001100 is applied. Sitemap lastModified only. */
+  updatedAt?: string;
   image: ProductImage;
   /** Photo used by the mobile category cards. Falls back to `image`. */
   thumbnail?: ProductImage;

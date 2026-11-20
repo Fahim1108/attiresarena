@@ -138,6 +138,46 @@ export const SEO_PRIVATE_ROBOTS_DISALLOW: readonly string[] = [
   "/loader-preview",
 ];
 
+/**
+ * AI-search crawler / token names allowed explicitly in robots.txt when
+ * indexing is ON (AI-search readiness). Every token was verified against
+ * vendor documentation (2026-11-19): GPTBot / OAI-SearchBot /
+ * ChatGPT-User (OpenAI — training, ChatGPT search, live user fetch),
+ * ClaudeBot / Claude-SearchBot / Claude-User (Anthropic — same three
+ * jobs), PerplexityBot / Perplexity-User (Perplexity — search, live
+ * fetch), Google-Extended / Applebot-Extended (robots.txt product
+ * tokens, not crawlers — they govern whether already-crawled content
+ * may be used for Gemini / Apple AI training), CCBot (Common Crawl —
+ * the open dataset many AI trainers use), meta-externalagent (Meta —
+ * vendor token is lowercase), Meta-WebIndexer (Meta — search indexer;
+ * allowing it helps Meta AI cite and link to the content),
+ * meta-externalfetcher (Meta — user-triggered fetcher; Meta says it
+ * may bypass robots.txt, listed for explicitness only). No other bot
+ * names are listed: tokens that could not be verified against vendor
+ * docs are left out rather than guessed. The AI group repeats the
+ * private disallows (see buildRobots): a bot matching its own group
+ * uses ONLY that group's rules, so an Allow-only AI group would
+ * accidentally open private paths to AI crawlers. When indexing is OFF
+ * or off-production, the disallow-all group covers AI bots too —
+ * nothing changes there.
+ */
+export const AI_SEARCH_BOT_USER_AGENTS: readonly string[] = [
+  "GPTBot",
+  "OAI-SearchBot",
+  "ChatGPT-User",
+  "ClaudeBot",
+  "Claude-SearchBot",
+  "Claude-User",
+  "PerplexityBot",
+  "Perplexity-User",
+  "Google-Extended",
+  "Applebot-Extended",
+  "CCBot",
+  "meta-externalagent",
+  "Meta-WebIndexer",
+  "meta-externalfetcher",
+];
+
 // ---------------------------------------------------------------------------
 // next.config.ts builders (build-time env ONLY — no stored toggles exist here)
 // ---------------------------------------------------------------------------
@@ -334,12 +374,13 @@ export function resolveTwitterCard(
  * caps, so every value legal under either write cap renders in full and
  * fallback output (no SEO data) is byte-identical to before.
  *
- * LIVE DATA IS BLOCKED: neither public feed RPC returns SEO columns yet,
- * so no stored value reaches a page until the follow-up RPC-extension
- * migration is applied. The type fields + projector passthrough + this
- * resolver land now so the pages work the moment that migration lands.
- * Category SEO additionally needs a new public category read path (the
- * storefront reads static category config, never DB category rows).
+ * LIVE DATA: the feed RPCs return SEO columns only once migration
+ * 20261119001100 (authored, NOT applied — gated approval still needed)
+ * lands. Until then the type fields + projector passthrough + this
+ * resolver stand ready and every page falls back byte-identically.
+ * Category SEO additionally flows through the new public
+ * `published_categories` read path in the same migration, merged onto
+ * the static category config by exact slug match.
  */
 export interface EntitySeoInput {
   seoTitle?: string | null;
@@ -418,12 +459,12 @@ export function extractRowSeoFields(
 
 /**
  * Parse a stored `google_search_console_verification` value. Rendered via
- * Next.js `verification: { google }` when present. The setting key is NOT
- * in the code/DB allowlists yet, so nothing can store it until the
- * follow-up allowlist migration lands (see implementation notes); reads
- * here are generic and render nothing when the value is absent. Tokens
- * are long opaque strings: trimmed, ≤500 chars, no whitespace or
- * markup-significant characters. Never render an empty verification.
+ * Next.js `verification: { google }` when present. The setting key is in
+ * the code allowlist (SETTING_KEYS + SEO_EXTENDED_SCHEMA) and the DB
+ * allowlist (migration 20261119000400, authored — saving fails until
+ * that migration is applied). Tokens are long opaque strings: trimmed,
+ * ≤500 chars, no whitespace or markup-significant characters. Never
+ * render an empty verification.
  */
 export function parseGoogleVerification(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -495,17 +536,19 @@ export interface SitemapEntry {
  * all off). Categories: available ones only — coming-soon categories are
  * by design, not indexable listings. Products: reviewOnly fixtures are
  * EXCLUDED (never advertise design-review copies). Product lastModified
- * is the first-publication/creation date: neither public feed RPC
- * exposes updated_at (same follow-up as SEO-7); never `new Date()`.
- * changeFrequency is omitted (Google ignores it). Priorities are static
- * and modest. Brands, collections, listing indexes, private paths, and
- * query-string URLs are deliberately excluded.
+ * is updated_at when the feed returns it (migration 20261119001100),
+ * else the first-publication/creation date; category lastModified is
+ * updated_at when the category read path returns it, else omitted.
+ * Never `new Date()`. changeFrequency is omitted (Google ignores it).
+ * Priorities are static and modest. Brands, collections, listing
+ * indexes, private paths, and query-string URLs are deliberately
+ * excluded.
  */
 export function buildSitemapEntries(input: {
   baseUrl: string;
   toggles: SitemapToggles | null;
-  products: Array<{ slug: string; createdAt: string; reviewOnly?: boolean }>;
-  categories: Array<{ slug: string; available?: boolean }>;
+  products: Array<{ slug: string; createdAt: string; updatedAt?: string; reviewOnly?: boolean }>;
+  categories: Array<{ slug: string; available?: boolean; updatedAt?: string }>;
   policySlugs: string[];
 }): SitemapEntry[] {
   const toggles = input.toggles ?? {
@@ -527,7 +570,12 @@ export function buildSitemapEntries(input: {
   if (toggles.includeCategories) {
     for (const category of input.categories) {
       if (category.available !== true) continue;
-      entries.push({ url: url(`/category/${category.slug}`), priority: 0.8 });
+      const lastModified = parsableSitemapDate(category.updatedAt);
+      entries.push({
+        url: url(`/category/${category.slug}`),
+        ...(lastModified ? { lastModified } : {}),
+        priority: 0.8,
+      });
     }
   }
   if (toggles.includePolicies) {
@@ -538,9 +586,9 @@ export function buildSitemapEntries(input: {
   if (toggles.includeProducts) {
     for (const product of input.products) {
       if (product.reviewOnly === true) continue;
-      const lastModified = Number.isFinite(Date.parse(product.createdAt))
-        ? product.createdAt
-        : undefined;
+      const lastModified =
+        parsableSitemapDate(product.updatedAt) ??
+        parsableSitemapDate(product.createdAt);
       entries.push({
         url: url(`/product/${product.slug}`),
         ...(lastModified ? { lastModified } : {}),
@@ -551,11 +599,113 @@ export function buildSitemapEntries(input: {
   return entries;
 }
 
+/** A parsable ISO date string, else undefined (never throws, never `new Date()`). */
+function parsableSitemapDate(value: string | undefined): string | undefined {
+  return value !== undefined && Number.isFinite(Date.parse(value))
+    ? value
+    : undefined;
+}
+
+// ---------------------------------------------------------------------------
+// llms.txt (AI-search readiness) — pure builder; the route files supply live data
+// ---------------------------------------------------------------------------
+
+/** Minimal no-content response while indexing is off or off-production: the store name + an explicit statement, no links, no products. Sitemap-consistent in the sense that matters — nothing is advertised while indexing is off. */
+export const LLMS_TXT_OFF_TEXT = `# Attires Arena\n\n> Search indexing is off for this store.\n`;
+
+export interface LlmsTxtInput {
+  baseUrl: string;
+  /** False when indexing is off or off-production: the minimal response above. */
+  allowed: boolean;
+  products: Array<{
+    slug: string;
+    name: string;
+    /** Whole BDT (Money). Rendered as-is, never invented. */
+    price: number;
+    description?: string;
+    reviewOnly?: boolean;
+  }>;
+  categories: Array<{ slug: string; name: string; available?: boolean }>;
+  /**
+   * Sitemap inclusion toggles, passed through by the llms loader
+   * (src/lib/llms.ts) from parseSeoSitemap — the same keys the sitemap
+   * route honours. Omitted = include (existing callers/tests keep
+   * listing); explicit false omits that whole section. The loader
+   * passes `?? false`, so unparsable/missing toggles list neither
+   * products nor categories — the same null = all-off rule as
+   * buildSitemapEntries.
+   */
+  includeProducts?: boolean;
+  includeCategories?: boolean;
+  /** llms-full.txt: adds each product's real description line. */
+  full?: boolean;
+}
+
+/**
+ * Build llms.txt (or llms-full.txt with full: true). Same slug universe
+ * as the sitemap: real published products/categories only, reviewOnly
+ * fixtures excluded, available-only categories. The sitemap inclusion
+ * toggles gate this file too (review fix S1): includeProducts /
+ * includeCategories off omits that whole section, so llms.txt can
+ * never advertise what the owner chose to leave out of the sitemap.
+ * The summary and delivery lines use the owner's own target phrases
+ * (Fahim, 2026-11-19): "Best thrift collection in Bangladesh", thrift
+ * at reasonable prices, delivery across Bangladesh including Barishal
+ * division (Barishal is in the checkout address data,
+ * src/data/bangladesh.ts — no shop location is claimed). No other
+ * marketing copy is written here.
+ */
+export function buildLlmsTxt(input: LlmsTxtInput): string {
+  if (!input.allowed) return LLMS_TXT_OFF_TEXT;
+  const url = (path: string) => canonicalUrl(input.baseUrl, path);
+  const lines: string[] = [
+    "# Attires Arena",
+    "",
+    "> Best thrift collection in Bangladesh. Individual thrift shirts at reasonable prices, delivered across Bangladesh.",
+    "",
+    "Delivery is available across Bangladesh, including Barishal division, with Cash on Delivery.",
+    "",
+    "## Pages",
+    "",
+    `- [Home](${url("/")})`,
+    `- [Shop](${url("/shop")})`,
+    `- [About](${url("/about")})`,
+    `- [Contact](${url("/contact")})`,
+    `- [FAQ](${url("/faq")})`,
+    "",
+  ];
+  if (input.includeCategories !== false) {
+    lines.push("## Categories", "");
+    for (const category of input.categories) {
+      if (category.available !== true) continue;
+      lines.push(`- [${category.name}](${url(`/category/${category.slug}`)})`);
+    }
+    lines.push("");
+  }
+  if (input.includeProducts !== false) {
+    lines.push("## Products", "");
+    for (const product of input.products) {
+      if (product.reviewOnly === true) continue;
+      lines.push(
+        `- [${product.name}](${url(`/product/${product.slug}`)}) — BDT ${product.price}`,
+      );
+      if (input.full) {
+        const description =
+          typeof product.description === "string"
+            ? product.description.trim()
+            : "";
+        if (description) lines.push(`  ${description.slice(0, 320)}`);
+      }
+    }
+  }
+  return `${lines.join("\n")}\n`;
+}
+
 // ---------------------------------------------------------------------------
 // robots.txt object (SEO-3) — pure builder; the route file supplies policy
 // ---------------------------------------------------------------------------
 
-/** robots.txt: disallow-all with NO sitemap ref unless the policy allows crawling; otherwise Allow + private disallows + sitemap ref. */
+/** robots.txt: disallow-all with NO sitemap ref unless the policy allows crawling; otherwise Allow + private disallows + sitemap ref, with an explicit AI-crawler group (same Allow, same private disallows — see AI_SEARCH_BOT_USER_AGENTS). */
 export function buildRobots(input: {
   policy: IndexingPolicy;
   baseUrl: string;
@@ -564,11 +714,18 @@ export function buildRobots(input: {
     return { rules: { userAgent: "*", disallow: "/" } };
   }
   return {
-    rules: {
-      userAgent: "*",
-      allow: "/",
-      disallow: [...SEO_PRIVATE_ROBOTS_DISALLOW],
-    },
+    rules: [
+      {
+        userAgent: "*",
+        allow: "/",
+        disallow: [...SEO_PRIVATE_ROBOTS_DISALLOW],
+      },
+      {
+        userAgent: [...AI_SEARCH_BOT_USER_AGENTS],
+        allow: "/",
+        disallow: [...SEO_PRIVATE_ROBOTS_DISALLOW],
+      },
+    ],
     sitemap: canonicalUrl(input.baseUrl, "/sitemap.xml"),
   };
 }
@@ -714,12 +871,13 @@ export function mergeSeoKeywords(
 // JSON-LD builders (SEO-4) — plain data; the JsonLd component stringifies
 // ---------------------------------------------------------------------------
 
-/** Organization (+sameAs from stored social links only — never invented handles). */
+/** Organization (+sameAs from stored social links only — never invented handles). `description` is the stored `seo_default_description` when set, else the owner-approved site description (brand.ts, Fahim's target phrases, 2026-11-19). */
 export function organizationJsonLd(input: {
   name: string;
   url: string;
   logoUrl: string;
   sameAs: string[];
+  description?: string;
 }): Record<string, unknown> {
   return {
     "@context": "https://schema.org",
@@ -727,6 +885,7 @@ export function organizationJsonLd(input: {
     name: input.name,
     url: input.url,
     logo: input.logoUrl,
+    ...(input.description ? { description: input.description } : {}),
     ...(input.sameAs.length > 0 ? { sameAs: input.sameAs } : {}),
   };
 }

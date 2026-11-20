@@ -47,8 +47,8 @@ import {
 } from "../src/lib/store-settings";
 
 describe("v2 setting-key allowlist", () => {
-  it("contains the original 17 keys plus the 19 v2 keys", () => {
-    expect(SETTING_KEYS).toHaveLength(36);
+  it("contains the original 17 keys plus the 19 v2 keys plus the M-B verification key", () => {
+    expect(SETTING_KEYS).toHaveLength(37);
     for (const key of [
       "meta_pixel_id",
       "meta_pixel_events",
@@ -66,6 +66,8 @@ describe("v2 setting-key allowlist", () => {
       "seo_canonical_base_url",
       "seo_robots",
       "seo_sitemap",
+      // SEO follow-up M-B (migration 20261119000400).
+      "google_search_console_verification",
       "display_currency",
       "display_timezone",
       "low_stock_threshold",
@@ -201,6 +203,8 @@ describe("extended SEO validation", () => {
       includePolicies: true,
       includeProducts: false,
     },
+    // M-B: empty token clears the stored value.
+    google_search_console_verification: "",
   };
 
   it("accepts a complete valid extended SEO payload", () => {
@@ -424,6 +428,9 @@ describe("storefront metadata resolution", () => {
     expect(robots.index).toBe(false);
     expect(robots.follow).toBe(false);
     const title = meta.title as unknown as { default?: unknown; template?: unknown };
+    // DELIBERATE (Fahim's call, 2026-11-20): the default home title keeps
+    // the live wording; the "Best thrift collection in Bangladesh" phrase
+    // stays in the brand description / llms.txt / FAQ / JSON-LD, not the title.
     expect(title.default).toBe("Attires Arena — Thrift Shirts in Bangladesh");
     expect(title.template).toBe("%s | Attires Arena");
     expect(meta.description).toBe("Premium menswear.");

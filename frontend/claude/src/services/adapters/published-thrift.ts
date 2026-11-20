@@ -10,8 +10,10 @@ import {
   MAX_PUBLISHED_FEED_ROWS,
   deriveFeedUnavailable,
   mergeStorefrontFeed,
+  parsePublishedCategoryRow,
   projectPublishedAdminProduct,
   supabaseRefFromUrl,
+  type PublishedCategoryRow,
   type StorefrontFeedHealth,
 } from "@/lib/catalog-publication";
 import type { Product, Review } from "@/types";
@@ -45,6 +47,7 @@ type PublicConfig = NonNullable<
 
 const THRIFT_CATALOGUE_PATH = "/rest/v1/rpc/published_thrift_catalogue";
 const PUBLISHED_ADMIN_PATH = "/rest/v1/rpc/published_admin_catalogue";
+const PUBLISHED_CATEGORIES_PATH = "/rest/v1/rpc/published_categories";
 const REVIEWS_PATH = "/rest/v1/product_reviews";
 
 type FeedReadResult =
@@ -124,7 +127,8 @@ async function readRows(
   }
 }
 
-function projectThriftRow(row: unknown): Product | null {
+/** Pure thrift-row projector, exported for tests (the feed reader wraps it with logging). */
+export function projectThriftRow(row: unknown): Product | null {
   if (!row || typeof row !== "object") return null;
   // Every field access below is typeof-guarded; the cast only recovers
   // the index signature (the legacy code relied on `any[]` rows).
@@ -169,6 +173,14 @@ function projectThriftRow(row: unknown): Product | null {
   // fields are absent entirely until the follow-up RPC extension returns
   // them; until then every thrift product falls back to name/description.
   const seo = extractRowSeoFields(r, { keywords: false });
+  // updated_at is lenient like the SEO fields: a parsable date survives,
+  // anything else degrades to absent. The key is missing entirely until
+  // migration 20261119001100 is applied.
+  const updatedAt =
+    typeof r.updated_at === "string" &&
+    Number.isFinite(Date.parse(r.updated_at))
+      ? r.updated_at
+      : undefined;
   const variant = {
     id: r.variant_id,
     sku: typeof r.sku === "string" ? r.sku : r.variant_id,
@@ -202,6 +214,7 @@ function projectThriftRow(row: unknown): Product | null {
     isBestSeller: false,
     rating: { average: 0, count: 0 },
     createdAt: r.created_at,
+    ...(updatedAt ? { updatedAt } : {}),
     tags: [],
     sizeGuideId: "tops",
   };
@@ -239,6 +252,30 @@ export async function readThriftFeed(
 const readThriftFeedCached = cache(async () => readThriftFeed());
 export async function publishedShirts(): Promise<Product[]> {
   return (await readThriftFeedCached()).products;
+}
+
+/**
+ * Published categories with their SEO fields (migration 20261119001100).
+ * Any failure — including the pre-migration 404, when the RPC does not
+ * exist yet — returns no rows instead of throwing, so the storefront
+ * keeps rendering the static category config byte-identically. One bad
+ * row is skipped, the rest still merge.
+ */
+export async function readPublishedCategories(
+  configuration: PublicConfig | null = publicSupabaseConfiguration(),
+): Promise<{ rows: PublishedCategoryRow[]; ok: boolean; error: string | null }> {
+  const read = await readRows(
+    configuration,
+    PUBLISHED_CATEGORIES_PATH,
+    "POST",
+  );
+  if (!read.ok) return { rows: [], ok: false, error: read.reason };
+  const rows: PublishedCategoryRow[] = [];
+  for (const row of read.rows) {
+    const parsed = parsePublishedCategoryRow(row);
+    if (parsed) rows.push(parsed);
+  }
+  return { rows, ok: true, error: null };
 }
 
 /** Published admin products with their success signal. Unapplied migration 008 surfaces as ok:false (HTTP 404), never as a crash. */
