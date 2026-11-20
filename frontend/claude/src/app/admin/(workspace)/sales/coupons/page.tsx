@@ -76,10 +76,9 @@ export default async function CouponsPage() {
           </div>
         ) : null}
 
-        <Notice kind="warning">
-          Applying a coupon at checkout is pending checkout integration — place_checkout_order
-          has no coupon parameter yet. Coupons created here cannot be used by customers until
-          that integration lands. The test panel below checks eligibility only.
+        <Notice kind="info">
+          Coupons can be applied at checkout. Live redemption has not been
+          verified yet. The test panel below checks eligibility only.
         </Notice>
         {usageTruncated ? (
           <Notice kind="warning">

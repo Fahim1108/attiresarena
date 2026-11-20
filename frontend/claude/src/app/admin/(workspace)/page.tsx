@@ -322,6 +322,11 @@ export default async function AdminDashboard({
       "Order totals cover the most recent 5,000 orders in each period.",
     );
   }
+  if (data.orderItemsTruncated) {
+    warnings.push(
+      "Best and least sellers cover only the 1,000 most recent order items, so older sales in this period may be missing.",
+    );
+  }
   if (data.incompleteTruncated) {
     warnings.push("The incomplete-orders total covers the first 500 abandoned checkouts.");
   }
@@ -495,7 +500,7 @@ export default async function AdminDashboard({
             <KpiCard
               href="/admin/sales/customers"
               Icon={Users}
-              label="Total Customers"
+              label="Customers in period"
               value={{ kind: "count-up", value: data.customerCount, format: "count" }}
               delta={periodDelta(data.customerCount, data.customerCountPrevious)}
               deltaCaption="vs previous period"

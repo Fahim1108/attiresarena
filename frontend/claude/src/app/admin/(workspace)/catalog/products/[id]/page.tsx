@@ -243,9 +243,9 @@ export default async function EditCatalogProductPage({
           </CardHeader>
           <CardContent>
             <p className="aa-muted">
-              Publishing shows this product on the public storefront. Published
-              products are visible but cannot be ordered yet. Unpublishing
-              removes it from the storefront at once.
+              Publishing shows this product on the public storefront and
+              makes it orderable. Unpublishing removes it from the
+              storefront at once.
               {product.published_at
                 ? ` Last published ${new Date(product.published_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}.`
                 : ""}
