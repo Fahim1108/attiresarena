@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 
 import type { Metadata } from "next";
 import type { PolicyPage } from "@/content/policies";
@@ -47,6 +48,10 @@ import type {
 import { publicSupabaseConfiguration } from "./supabase-public";
 import { PRODUCT_MEDIA_BUCKET } from "./admin/constants";
 import { isCatalogStoragePath } from "./admin/catalog-variants";
+import {
+  SHIRT_PARENT_ID,
+  isShirtSubcategory,
+} from "./category-hierarchy";
 import { brandMediaUrl } from "./brand-media-delivery";
 
 /**
@@ -230,7 +235,7 @@ function parseLayoutSettings(
   return layout;
 }
 
-export async function getStorefrontContent(): Promise<StorefrontContent | null> {
+const getStorefrontContentUncached = async (): Promise<StorefrontContent | null> => {
   if (!publicSupabaseConfiguration()) return null;
   const [settingRows, blockRows, bannerRows, layoutRows] = await Promise.all([
     readRows("/rest/v1/store_settings?select=key,value"),
@@ -248,6 +253,19 @@ export async function getStorefrontContent(): Promise<StorefrontContent | null> 
     banners: parseBanners(bannerRows),
     layout: parseLayoutSettings(layoutRows),
   };
+};
+
+/**
+ * SPEED: per-request memo. The homepage reads store content 3 times
+ * per load (root layout + page metadata + page), each read being four
+ * parallel Supabase queries. React cache() dedupes within ONE request
+ * only; the next request re-fetches, so admin setting changes still
+ * show immediately. Anonymous public settings only (no cookies/user
+ * input), so sharing inside one request is safe.
+ */
+const getStorefrontContentCached = cache(getStorefrontContentUncached);
+export async function getStorefrontContent(): Promise<StorefrontContent | null> {
+  return getStorefrontContentCached();
 }
 
 /** Visible content blocks only (used by the policy pages). Empty on failure. */
@@ -507,6 +525,11 @@ export function mergeDbCategories(
         ...base,
         name: row.name,
         description,
+        // Hierarchy: a real DB parent_id wins; until the shirt
+        // sub-categories are given a parent in admin, they map to
+        // Shirts (see lib/category-hierarchy.ts).
+        parentId:
+          row.parent_id ?? (isShirtSubcategory(row) ? SHIRT_PARENT_ID : null),
         ...(seoTitle ? { seoTitle } : { seoTitle: undefined }),
         ...(seoDescription ? { seoDescription } : { seoDescription: undefined }),
         ...(imageUrl
@@ -526,6 +549,11 @@ export function mergeDbCategories(
         slug: row.slug,
         name: row.name,
         description,
+        // Hierarchy: a real DB parent_id wins; until the shirt
+        // sub-categories are given a parent in admin, they map to
+        // Shirts (see lib/category-hierarchy.ts).
+        parentId:
+          row.parent_id ?? (isShirtSubcategory(row) ? SHIRT_PARENT_ID : null),
         ...(seoTitle ? { seoTitle } : {}),
         ...(seoDescription ? { seoDescription } : {}),
         image: imageUrl

@@ -171,7 +171,7 @@ function StockStatus({
   if (!sizeSelected) {
     if (!anyInStock)
       return (
-        <span className="flex items-center gap-1.5 text-xs text-danger">
+        <span className="inline-flex items-center gap-1.5 rounded bg-primary px-2 py-1 text-xs font-semibold text-white">
           <CircleAlert className="h-4 w-4" aria-hidden /> Out of stock
         </span>
       );
@@ -183,7 +183,7 @@ function StockStatus({
   }
   if (!inStock || stock === 0)
     return (
-      <span className="flex items-center gap-1.5 text-xs text-danger">
+      <span className="inline-flex items-center gap-1.5 rounded bg-primary px-2 py-1 text-xs font-semibold text-white">
         <CircleAlert className="h-4 w-4" aria-hidden /> Out of stock
       </span>
     );

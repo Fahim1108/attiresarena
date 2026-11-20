@@ -1,6 +1,7 @@
 import { Fragment } from "react";
 import { ShirtStyles } from "./ShirtStyles";
 import { ShopBySize } from "./ShopBySize";
+import { topLevelCategories } from "@/lib/category-hierarchy";
 import { ProductGrid } from "@/components/product/ProductGrid";
 import { resolveLook, selectHomepageCollections, type MerchandisingCandidate } from "@/lib/merchandising";
 import styles from "./MerchandisingSection.module.css";
@@ -86,7 +87,9 @@ function SectionRenderer({ section, settings, data, products }: { section: Homep
       return (
         <section className="container" aria-label="Shop by Categories">
           <h2 className="mb-3 font-display text-[22px] font-semibold text-ink sm:text-[26px]">Shop by Categories</h2>
-          <HomeCategories categories={data.categories} />
+          {/* Hierarchy: only top-level categories here — Casual/Formal/
+              Check live inside Shirts, not as their own tiles. */}
+          <HomeCategories categories={topLevelCategories(data.categories)} />
           <ShirtStyles products={(data.candidates ?? []).map(c=>c.product)} />
         </section>
       );

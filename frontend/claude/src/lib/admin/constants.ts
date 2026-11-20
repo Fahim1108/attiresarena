@@ -369,6 +369,9 @@ export const SIZE_OPTIONS = [
   "XL",
   "XXL",
   "3XL",
+  "4XL",
+  "5XL",
+  "6XL",
 ] as const;
 
 export const PRODUCT_BADGES = [

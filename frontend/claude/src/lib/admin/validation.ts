@@ -25,7 +25,7 @@ export const totpSchema = z.object({
 });
 const measurement=z.string().regex(/^([0-9]{1,3}(\.[0-9]{1,2})?)?$/).refine(v=>!v||(Number(v)>0&&Number(v)<=100),'Enter inches between 0 and 100.').optional().default('');
 /** Selectable actual sizes for one physical garment; never used to create variants. */
-export const garmentSizes=["S","M","L","XL","2XL","3XL","Over Size"] as const;
+export const garmentSizes=["S","M","L","XL","2XL","3XL","4XL","5XL","6XL","Over Size"] as const;
 export const garmentConditions=[["excellent","Excellent"],["very_good","Very good"],["good","Good"],["fair","Fair — describe flaws"]] as const;
 export const shirtAttributes=["Solid", "Striped", "Formal", "Casual", "Checked / Plaid", "Printed", "Denim", "Oxford", "Flannel", "Overshirt", "Linen", "Cuban Collar", "Short Sleeve", "Long Sleeve"] as const;
 export const draftSchema = z.object({

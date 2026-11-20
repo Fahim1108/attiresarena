@@ -15,6 +15,7 @@ import {toMerchandisingCandidates} from '@/lib/merchandising';
 import {storeCategories} from '@/config/catalogue';
 import {defaultStorefrontSettings} from '@/config';
 import {queryProducts} from '@/lib/catalog-query';
+import {isShirtSubcategory} from '@/lib/category-hierarchy';
 import {getPublishedCategories,mergeDbCategories} from '@/lib/store-settings';
 import {availableShirtTypes,publishedAvailable} from '@/lib/catalogue-dimensions';
 import type {Category,Product} from '@/types';
@@ -45,9 +46,13 @@ async function liveCategories():Promise<Category[]>{
  return mergeDbCategories(storeCategories,await getPublishedCategories());
 }
 
-/** Shirts-only availability + the Shirts photo override, applied on top of the merged list. The adapter photo override always wins for Shirts, even when the DB row has a stored photo. The override image must match the promoted Shirts photo (check-shirts mockup, b994a81) — do not revert it to the old portrait. */
+/** Shirts-only availability + the Shirts photo override, applied on top of the merged list. The adapter photo override always wins for Shirts, even when the DB row has a stored photo. The override image must match the promoted Shirts photo (check-shirts mockup, b994a81) — do not revert it to the old portrait.
+ * Hierarchy (2026-11-20): the shirt sub-categories (Casual/Formal/
+ * Check) are available too — they render as sub-options inside Shirts
+ * and as their own listing pages — while every other non-shirt
+ * category stays "coming soon" by design. */
 function applyCategoryAvailability(cats:Category[],hasPublished:boolean,catalogueUnavailable:boolean):Category[]{
- return cats.map(c=>({...c,available:c.slug==='shirts'&&hasPublished,catalogueUnavailable,...(c.slug==='shirts'?{image:{src:'/images/mockup/category-shirts-check.svg',alt:'Check shirts in white and maroon'},thumbnail:{src:'/images/mockup/category-shirts-check.svg',alt:'Check shirts in white and maroon'}}:{})}));
+ return cats.map(c=>({...c,available:(c.slug==='shirts'||isShirtSubcategory(c))&&hasPublished,catalogueUnavailable,...(c.slug==='shirts'?{image:{src:'/images/mockup/category-shirts-check.svg',alt:'Check shirts in white and maroon'},thumbnail:{src:'/images/mockup/category-shirts-check.svg',alt:'Check shirts in white and maroon'}}:{})}));
 }
 
 /** Explicit owner inventory curation. Source order is not represented as a publication timestamp. Real publications sort newest-first by createdAt (the projector's published_at); design-review fixtures keep slug order after them. Featured prefers products badged "Featured Product" in admin; the fixture preview slice remains only when nothing is flagged. */

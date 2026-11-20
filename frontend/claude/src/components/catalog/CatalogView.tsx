@@ -1,5 +1,6 @@
 import { ShirtStyles } from "@/components/home/ShirtStyles";
 import { SearchX, TriangleAlert } from "lucide-react";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { ProductGrid } from "@/components/product/ProductGrid";
 import { Breadcrumbs, ButtonLink, EmptyState } from "@/components/ui";
@@ -21,10 +22,13 @@ interface CatalogViewProps {
   brands: Brand[];
   locked?: { category?: string; brand?: string };
   banner?: ReactNode;
+  /** Sub-category chips (Shirts page: Casual/Formal/Check). */
+  subcategories?: { slug: string; name: string; count: number }[];
+  currentSubcategory?: string;
 }
 
 /** Shared product listing layout for /shop, /category/[slug] and /brand/[slug]. */
-export function CatalogView({ title, description, breadcrumbs, query, result, brands, locked, banner }: CatalogViewProps) {
+export function CatalogView({ title, description, breadcrumbs, query, result, brands, locked, banner, subcategories, currentSubcategory }: CatalogViewProps) {
   // Feed failure is NOT an empty catalogue: when the data call itself
   // failed and nothing rendered, say so honestly instead of showing
   // empty filters and "No products found". No internals leak here —
@@ -58,6 +62,24 @@ export function CatalogView({ title, description, breadcrumbs, query, result, br
             {description && <p className="mt-2 max-w-xl text-sm text-ink-muted">{description}</p>}
           </div>
         </div>
+        {subcategories && subcategories.length > 0 && (
+          <nav aria-label="Shirt types" className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="text-sm text-ink-muted">Shop by type:</span>
+            {subcategories.map((s) => {
+              const active = s.slug === currentSubcategory;
+              return (
+                <Link
+                  key={s.slug}
+                  href={`/category/${s.slug}`}
+                  aria-current={active ? "page" : undefined}
+                  className={active ? "aa-press inline-flex min-h-11 items-center gap-1.5 rounded-full border border-primary bg-primary px-3.5 py-1.5 text-sm font-medium text-white" : "aa-press inline-flex min-h-11 items-center gap-1.5 rounded-full border border-line bg-white px-3.5 py-1.5 text-sm font-medium text-ink hover:border-primary hover:text-primary"}
+                >
+                  {s.name} <span className={active ? "text-xs text-white/80" : "text-xs text-ink-muted"}>({s.count})</span>
+                </Link>
+              );
+            })}
+          </nav>
+        )}
         <ShirtStyles products={result.items} query={query} />
         {banner}
 

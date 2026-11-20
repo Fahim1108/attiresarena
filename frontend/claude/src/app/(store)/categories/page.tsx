@@ -3,6 +3,7 @@ import { logo, site } from "@/config";
 import { CategoryCard } from "@/components/category/CategoryCard";
 import { buildPageMetadata, resolveDefaultOgImage, resolveTwitterCard } from "@/lib/seo";
 import { getStorefrontContent } from "@/lib/store-settings";
+import { topLevelCategories } from "@/lib/category-hierarchy";
 import { Breadcrumbs, ButtonLink, EmptyState } from "@/components/ui";
 import { getCategories, getProducts } from "@/services";
 
@@ -12,7 +13,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function CategoriesPage() {
-  const [categories, all] = await Promise.all([getCategories(), getProducts({ pageSize: 1 })]);
+  const [allCategories, all] = await Promise.all([getCategories(), getProducts({ pageSize: 1 })]);
+  // Hierarchy: only top-level categories here — Casual/Formal/Check
+  // live inside Shirts, not as their own tiles.
+  const categories = topLevelCategories(allCategories);
   const counts = Object.fromEntries(all.facets.categories.map((c) => [c.slug, c.count]));
   return (
     <div className="container py-8">

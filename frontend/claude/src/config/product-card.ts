@@ -1,7 +1,7 @@
 import type { ProductCardSettings } from "@/types";
 
 export const productCard: ProductCardSettings = {
-  imageAspect: "landscape",
+  imageAspect: "portrait",
   showBrand: false,
   showRating: false,
   showColorSwatches: false,

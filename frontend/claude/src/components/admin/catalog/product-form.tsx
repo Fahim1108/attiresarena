@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 import { PRODUCT_BADGES } from "@/lib/admin/constants";
 import { slugify } from "@/lib/admin/format";
+import { isShirtSubcategory } from "@/lib/category-hierarchy";
 import { youtubeWatchUrl } from "@/lib/youtube-video";
 import { YoutubeVideoPlayer } from "@/components/product/YoutubeVideoPlayer";
 import {
@@ -113,6 +114,12 @@ export function ProductForm({
     ? (categories.find((c) => c.id === pair.replacedId) ?? null)
     : null;
   const primaries = primaryCategories(categories);
+  // Hierarchy (2026-11-20): Shirts is the parent — the three shirt
+  // types are grouped under a "Shirts" heading in the picker and stay
+  // selectable there. Values stay the real category UUIDs, so saving
+  // is unchanged; the grouping is presentation only.
+  const shirtPrimaries = primaries.filter((c) => isShirtSubcategory(c));
+  const otherPrimaries = primaries.filter((c) => !isShirtSubcategory(c));
   const secondaries = primaryId
     ? secondaryCategoriesFor(categories, primaryId)
     : [];
@@ -228,7 +235,16 @@ export function ProductForm({
                   aria-describedby={describedBy("category_id", "product-category")}
                 >
                   <option value="">No category</option>
-                  {primaries.map((category) => (
+                  {shirtPrimaries.length > 0 && (
+                    <optgroup label="Shirts">
+                      {shirtPrimaries.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {categoryLabel(category)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {otherPrimaries.map((category) => (
                     <option key={category.id} value={category.id}>
                       {categoryLabel(category)}
                     </option>

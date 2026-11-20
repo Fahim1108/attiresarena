@@ -103,6 +103,14 @@ export interface Category {
   name: string;
   description: string;
   /**
+   * Parent category id, when this category is a sub-category.
+   * Storefront-only: the DB parent_id wins when set; until then the
+   * shirt sub-categories (Casual/Formal/Check) are mapped to Shirts
+   * ("cat-shirts") by lib/category-hierarchy.ts. Absent for top-level
+   * categories.
+   */
+  parentId?: string | null;
+  /**
    * Stored category SEO overrides (categories.seo_title/seo_description).
    * Read from the DB by the storefront via getPublishedCategories /
    * mergeDbCategories (src/lib/store-settings.ts); generateMetadata

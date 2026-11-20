@@ -1,4 +1,5 @@
 import { canonicalSize, publishedAvailable, SHIRT_CLASSIFICATIONS } from "./catalogue-dimensions";
+import { isShirtSubcategory } from "./category-hierarchy";
 import type { Brand, CatalogFacets, Category, Paginated, Product, ProductQuery, SortOption } from "@/types";
 
 export const DEFAULT_PAGE_SIZE = 12;
@@ -78,11 +79,16 @@ function matchesSearch(p: Product, term: string, categories: Category[], brands:
  * category UUID, which matches no static id. The storefront is
  * shirts-only by design, so a product whose category matches no static
  * category at all is a published shirt: it belongs under "shirts" and
- * never under a non-shirt slug.
+ * never under a non-shirt slug. Products in a shirt sub-category
+ * (Casual/Formal/Check — children of Shirts) also belong under
+ * "shirts", while still matching their own sub-category page.
  */
 function matchesSingleCategory(p: Product, category: Category, categories: Category[]): boolean {
   if (p.categoryId === category.id) return true;
-  return category.slug === "shirts" && !categories.some((c) => c.id === p.categoryId);
+  if (category.slug !== "shirts") return false;
+  const ownersCategory = categories.find((c) => c.id === p.categoryId);
+  if (!ownersCategory) return true;
+  return isShirtSubcategory(ownersCategory);
 }
 
 function matchesCategories(p: Product, catIds: readonly (string | undefined)[] | undefined, categories: Category[]): boolean {

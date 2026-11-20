@@ -1,1 +1,6 @@
-.button::before{content:"";position:absolute;inset:-3px;border:2px solid #25d366;border-radius:50%;animation:whatsapp-ripple 2.6s ease-out infinite;pointer-events:none;z-index:-1}@keyframes whatsapp-ripple{0%{transform:scale(1);opacity:.45}90%,100%{transform:scale(1.65);opacity:0}}@media(prefers-reduced-motion:reduce){.button::before{animation:none;opacity:0}}
+/* Pulsating WhatsApp button: the whole button gently scales and emits a
+   fading green ring (replaces the old expanding waterdrop/ripple ring).
+   Respects reduced-motion: no animation, plain static button. */
+.button{animation:whatsapp-pulse 2.2s ease-in-out infinite}
+@keyframes whatsapp-pulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(37,211,102,.45)}50%{transform:scale(1.07);box-shadow:0 0 0 12px rgba(37,211,102,0)}}
+@media(prefers-reduced-motion:reduce){.button{animation:none}}
