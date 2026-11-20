@@ -76,6 +76,17 @@ export const faqs: { category: string; items: { q: string; a: string }[] }[] = [
       { q: "How do I place an order?", a: "Add products to your cart, go to checkout, enter your delivery details and choose Cash on Delivery. Our team will call to confirm." },
       { q: "Which payment methods do you accept?", a: "Cash on Delivery is available across Bangladesh. bKash, Nagad and card payments are coming soon." },
       { q: "Can I change or cancel my order?", a: "Yes — contact us before the order is dispatched and we will update or cancel it." },
+      // Owner target phrase (Fahim, 2026-11-19): "Best thrift collection
+      // in Bangladesh". The QUESTION targets the search intent; the
+      // answer states only facts (one-piece selection, real size/price/
+      // photo per shirt, delivery + COD) and never asserts "best" as a
+      // verified fact.
+      { q: "Where can I find the best thrift collection in Bangladesh?", a: "Attires Arena sells individual thrift shirts, carefully selected one piece at a time. Every shirt is listed with its real size, price and photo, and delivery is available across Bangladesh with Cash on Delivery." },
+      // Owner target phrase (Fahim, 2026-11-19): "thrift in reasonable
+      // price". The range is the real production catalogue on
+      // 2026-11-19 (2 published products: ৳450 and ৳499) — revisit when
+      // the catalogue grows; prices may change without notice (see Terms).
+      { q: "How much do thrift shirts cost?", a: "Each shirt is priced per piece. Shirts on the store now range from ৳450 to ৳499, and you can pay Cash on Delivery." },
     ],
   },
   {
@@ -84,6 +95,13 @@ export const faqs: { category: string; items: { q: string; a: string }[] }[] = [
       { q: "How long does delivery take?", a: "1–2 working days inside Dhaka and 3–5 working days outside Dhaka." },
       { q: "How much is delivery?", a: "৳80 inside Dhaka and ৳130 outside Dhaka. Delivery is free on orders over ৳2,000." },
       { q: "Can I check the product before paying?", a: "Yes. You can inspect your parcel in front of the rider before paying." },
+      // Owner target phrase (Fahim, 2026-11-19): "best thrift shirt in
+      // Barishal". No shop location is claimed — the answer states the
+      // verifiable fact: Barishal division is in the checkout address
+      // data (src/data/bangladesh.ts DIVISIONS), so its districts can be
+      // selected at checkout; time/cost are the existing outside-Dhaka
+      // figures from this same FAQ group.
+      { q: "Can I order a thrift shirt in Barishal?", a: "Yes. We deliver across Bangladesh, including Barishal division — Barguna, Barishal, Bhola, Jhalokati, Patuakhali and Pirojpur districts can be selected in the checkout address form. Delivery outside Dhaka takes 3–5 working days and costs ৳130, with Cash on Delivery available." },
     ],
   },
   {

@@ -497,6 +497,10 @@ export async function saveSeoExtendedSettings(
       includePolicies: form.get("seo_sitemap_policies") === "on",
       includeProducts: form.get("seo_sitemap_products") === "on",
     },
+    google_search_console_verification: formText(
+      form,
+      "google_search_console_verification",
+    ),
   });
   if (!parsed.success) {
     const first = parsed.error.issues[0];
@@ -513,6 +517,10 @@ export async function saveSeoExtendedSettings(
     ["seo_canonical_base_url", parsed.data.seo_canonical_base_url],
     ["seo_robots", parsed.data.seo_robots],
     ["seo_sitemap", parsed.data.seo_sitemap],
+    [
+      "google_search_console_verification",
+      parsed.data.google_search_console_verification,
+    ],
   ];
   for (const [key, value] of entries) {
     const saved = await setSetting(session.client, key, value);

@@ -123,6 +123,7 @@ import { canonicalSize } from "@/lib/catalogue-dimensions";
 import { extractRowSeoFields } from "@/lib/seo";
 import { isYoutubeVideoId } from "@/lib/youtube-video";
 import type {
+  Category,
   ColorOption,
   Product,
   ProductBadge,
@@ -215,6 +216,12 @@ export interface PublishedAdminRow {
   badges: string[];
   created_at: string;
   published_at: string | null;
+  /**
+   * Product maintenance timestamp (products.updated_at), from the feed
+   * RPC (migration 20261119001100). Null/absent until that migration is
+   * applied; lenient like the SEO fields — never a reason to drop a row.
+   */
+  updated_at: string | null;
   /** YouTube video ID from products.youtube_video_id (migration 014); null/absent when no video. */
   youtube_video_id: string | null;
   /**
@@ -294,6 +301,14 @@ export function parsePublishedAdminRow(value: unknown): PublishedAdminRow | null
   // the product still projects. The fields are absent entirely until the
   // follow-up RPC extension returns them.
   const seo = extractRowSeoFields(value, { keywords: true });
+  // updated_at is the same shape: a parsable date survives, anything
+  // else degrades to null. Absent entirely until migration 20261119001100.
+  const updatedAt =
+    value.updated_at !== undefined &&
+    value.updated_at !== null &&
+    isParsableDate(value.updated_at)
+      ? (value.updated_at as string)
+      : null;
   if (
     !isUuid(value.id) ||
     typeof value.slug !== "string" ||
@@ -342,6 +357,7 @@ export function parsePublishedAdminRow(value: unknown): PublishedAdminRow | null
     badges: value.badges,
     created_at: value.created_at,
     published_at: publishedAt,
+    updated_at: updatedAt,
     youtube_video_id: youtubeVideoId,
     seo_title: seo.seoTitle,
     seo_description: seo.seoDescription,
@@ -477,6 +493,7 @@ export function projectPublishedAdminProduct(row: unknown): Product | null {
     isBestSeller: parsed.badges.includes("Best Seller"),
     rating: { average: 0, count: 0 },
     createdAt: parsed.published_at ?? parsed.created_at,
+    ...(parsed.updated_at ? { updatedAt: parsed.updated_at } : {}),
     tags: [...parsed.tags],
     ...(apparelSizing ? { sizeGuideId: "tops" } : {}),
   };
@@ -501,6 +518,84 @@ export function mergeStorefrontFeed(
     merged.push(product);
   }
   return merged;
+}
+
+// ------------------------------------------------------------- public categories (M-A)
+
+/**
+ * One row of the public `published_categories` RPC (migration
+ * 20261119001100). SEO fields are lenient — absent/invalid degrades to
+ * nulls and the row is still usable for its updated_at; only a bad id,
+ * slug, name, or non-boolean published flag drops the row.
+ */
+export interface PublishedCategoryRow {
+  id: string;
+  slug: string;
+  name: string;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  published: boolean;
+  updatedAt: string | null;
+}
+
+export function parsePublishedCategoryRow(value: unknown): PublishedCategoryRow | null {
+  if (!isRecord(value)) return null;
+  const name = typeof value.name === "string" ? value.name.trim() : "";
+  // updated_at is lenient: a parsable date survives, anything else
+  // degrades to null (never a reason to drop a category row).
+  const updatedAt =
+    value.updated_at !== undefined &&
+    value.updated_at !== null &&
+    isParsableDate(value.updated_at)
+      ? (value.updated_at as string)
+      : null;
+  const seo = extractRowSeoFields(value, { keywords: false });
+  if (
+    !isUuid(value.id) ||
+    typeof value.slug !== "string" ||
+    !SLUG_PATTERN.test(value.slug) ||
+    name.length < 1 ||
+    name.length > 120 ||
+    typeof value.published !== "boolean"
+  ) {
+    return null;
+  }
+  return {
+    id: value.id,
+    slug: value.slug,
+    name,
+    seoTitle: seo.seoTitle,
+    seoDescription: seo.seoDescription,
+    published: value.published,
+    updatedAt,
+  };
+}
+
+/**
+ * Merge DB category SEO onto the static category config, keyed by exact
+ * slug match. Unpublished DB rows and DB slugs matching no static
+ * category are ignored; a static category with no DB row is returned
+ * unchanged (same object reference). Before migration 20261119001100
+ * is applied the reader returns no rows, so the merge is a no-op and
+ * the catalogue is byte-identical.
+ */
+export function applyPublishedCategorySeo(
+  categories: readonly Category[],
+  rows: readonly PublishedCategoryRow[],
+): Category[] {
+  const bySlug = new Map(
+    rows.filter((row) => row.published).map((row) => [row.slug, row]),
+  );
+  return categories.map((category) => {
+    const row = bySlug.get(category.slug);
+    if (!row) return category;
+    return {
+      ...category,
+      ...(row.seoTitle ? { seoTitle: row.seoTitle } : {}),
+      ...(row.seoDescription ? { seoDescription: row.seoDescription } : {}),
+      ...(row.updatedAt ? { updatedAt: row.updatedAt } : {}),
+    };
+  });
 }
 
 // ------------------------------------------------------------- feed health

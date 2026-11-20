@@ -345,6 +345,26 @@ export function SeoExtendedForm({
           are always included.
         </p>
       </fieldset>
+      <fieldset className={styles.group} style={{ marginTop: "0.75rem" }}>
+        <legend className={styles.groupTitle}>Search Console verification</legend>
+        <div className="aa-field">
+          <label htmlFor="seo-gsc-verification">Google Search Console verification token</label>
+          <input
+            id="seo-gsc-verification"
+            name="google_search_console_verification"
+            spellCheck={false}
+            autoComplete="off"
+            defaultValue={settingString(settings, "google_search_console_verification")}
+            maxLength={500}
+            placeholder="Paste the token from Google Search Console…"
+          />
+          <p className="aa-hint">
+            From Search Console&apos;s HTML-tag method. It renders as a
+            google-site-verification meta tag on the store homepage so
+            Google can verify ownership. Leave empty to remove it.
+          </p>
+        </div>
+      </fieldset>
       <div className="aa-form-actions">
         <SubmitButton>Save extended SEO settings</SubmitButton>
       </div>

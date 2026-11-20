@@ -41,7 +41,7 @@ async function seoBaseUrl(): Promise<string> {
   return resolveSeoBaseUrl(content?.settings, site.url);
 }
 
-/** Organization markup for the homepage. sameAs uses stored social links only (valid http(s) URLs); the static "#" placeholders are never emitted. */
+/** Organization markup for the homepage. sameAs uses stored social links only (valid http(s) URLs); the static "#" placeholders are never emitted. description uses the stored seo_default_description, else the owner-approved site description (brand.ts) — never invented. */
 export async function OrganizationJsonLd() {
   const content = await getStorefrontContent();
   const base = resolveSeoBaseUrl(content?.settings, site.url);
@@ -50,6 +50,8 @@ export async function OrganizationJsonLd() {
     const href = settingText(content?.settings, key);
     if (href !== null && /^https?:\/\//.test(href)) sameAs.push(href);
   }
+  const description =
+    settingText(content?.settings, "seo_default_description") ?? site.description;
   return (
     <JsonLd
       data={organizationJsonLd({
@@ -57,6 +59,7 @@ export async function OrganizationJsonLd() {
         url: canonicalUrl(base, "/"),
         logoUrl: canonicalUrl(base, "/brand/logo-maroon.png"),
         sameAs,
+        description,
       })}
     />
   );

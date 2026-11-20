@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { isProductionStorefront } from "../src/lib/storefront-policy";
 import {
+  AI_SEARCH_BOT_USER_AGENTS,
   buildRobots,
   buildSeoHeaders,
   buildSeoRedirects,
@@ -304,11 +305,21 @@ describe("buildRobots", () => {
 
   it("production + toggle ON yields Allow + private disallows + sitemap ref", () => {
     const robots = buildRobots({ policy: allow, baseUrl: "https://attiresarena.com" });
-    expect(robots.rules).toEqual({
-      userAgent: "*",
-      allow: "/",
-      disallow: [...SEO_PRIVATE_ROBOTS_DISALLOW],
-    });
+    // Rules are now an array: the general group plus an explicit
+    // AI-crawler group (same Allow, same private disallows — the AI
+    // tokens are asserted in seo-followups.check.ts).
+    expect(robots.rules).toEqual([
+      {
+        userAgent: "*",
+        allow: "/",
+        disallow: [...SEO_PRIVATE_ROBOTS_DISALLOW],
+      },
+      {
+        userAgent: [...AI_SEARCH_BOT_USER_AGENTS],
+        allow: "/",
+        disallow: [...SEO_PRIVATE_ROBOTS_DISALLOW],
+      },
+    ]);
     expect(robots.sitemap).toBe("https://attiresarena.com/sitemap.xml");
   });
 

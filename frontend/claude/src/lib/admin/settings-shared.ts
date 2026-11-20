@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseGoogleVerification } from "@/lib/seo";
 
 /**
  * Pure settings helpers and schemas shared by server code, client forms, and
@@ -11,8 +12,9 @@ import { z } from "zod";
  * Setting-key allowlist. The first 17 keys come from migration
  * 20261115000500. The rest are added by migration
  * 20261115001100_admin_v2_marketing_settings.sql, which extends both the
- * public-read policy (public-safe keys only) and admin_set_setting.
- * Deliberately NOT a setting key: the SMS API secret, which lives in the
+ * public-read policy (public-safe keys only) and admin_set_setting, plus
+ * google_search_console_verification from migration 20261119000400
+ * (same two places). Deliberately NOT a setting key: the SMS API secret, which lives in the
  * marketing_secrets table (write-only, never readable) — see settings.ts.
  */
 export const SETTING_KEYS = [
@@ -51,6 +53,8 @@ export const SETTING_KEYS = [
   "seo_canonical_base_url",
   "seo_robots",
   "seo_sitemap",
+  // SEO follow-up M-B (migration 20261119000400).
+  "google_search_console_verification",
   // Admin Panel v2 — general display settings (migration 011).
   "display_currency",
   "display_timezone",
@@ -274,6 +278,21 @@ export const SEO_EXTENDED_SCHEMA = z.object({
   seo_canonical_base_url: HTTP_URL,
   seo_robots: SEO_ROBOTS_SCHEMA,
   seo_sitemap: SEO_SITEMAP_SCHEMA,
+  /**
+   * Search Console verification token (M-B). Same rules as the render
+   * path (parseGoogleVerification in lib/seo): trimmed, <=500 chars, no
+   * whitespace or markup; empty clears it. The DB allowlist enforces
+   * the same rules (migration 20261119000400) — saving fails there
+   * until that migration is applied.
+   */
+  google_search_console_verification: z
+    .string()
+    .trim()
+    .max(500)
+    .refine(
+      (value) => value === "" || parseGoogleVerification(value) !== null,
+      "Enter the Google Search Console verification token (no spaces or markup).",
+    ),
 });
 
 // ---------------------------------------------------------------------------
