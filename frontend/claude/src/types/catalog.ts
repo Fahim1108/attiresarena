@@ -104,15 +104,21 @@ export interface Category {
   description: string;
   /**
    * Stored category SEO overrides (categories.seo_title/seo_description).
-   * Absent today: the storefront reads static category config, never DB
-   * category rows, so these need a new public read path (follow-up).
-   * generateMetadata falls back to name/description.
+   * Read from the DB by the storefront via getPublishedCategories /
+   * mergeDbCategories (src/lib/store-settings.ts); generateMetadata
+   * falls back to name/description when absent.
    */
   seoTitle?: string;
   seoDescription?: string;
   image: ProductImage;
   /** Photo used by the mobile category cards. Falls back to `image`. */
   thumbnail?: ProductImage;
+  /**
+   * Stored category banner (categories.banner_storage_path), shown at
+   * the top of the category listing when set. Absent when the DB row
+   * has no banner.
+   */
+  banner?: ProductImage;
   sortOrder: number;
 }
 
