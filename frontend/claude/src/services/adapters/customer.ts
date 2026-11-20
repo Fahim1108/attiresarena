@@ -1,4 +1,5 @@
 import "server-only";
+import { trackingRpcConfiguration } from "@/lib/checkout/config";
 import {
   deleteCustomerAddressAction,
   registerCustomer,
@@ -16,13 +17,16 @@ import {
 } from "@/lib/customer/session";
 import {
   orderMediaMap,
+  normalizeTrackingPhone,
   parseCustomerOrderNumber,
   readCustomerOrderByNumber,
   readCustomerOrders,
   type CustomerOrderMedia,
 } from "@/lib/customer/orders";
+import { trackGuestOrderByPhone } from "@/lib/customer/tracking";
 import type { Customer } from "@/types";
 import type { StorefrontDataSource } from "../types";
+import { rpcFor } from "../checkout";
 import { publishedShirts } from "./published-thrift";
 
 /**
@@ -32,9 +36,12 @@ import { publishedShirts } from "./published-thrift";
  * stay unavailable.
  *
  * Reads use the customer client (own-row RLS + explicit user_id
- * filters). Mutations delegate to the customer server actions, which
- * validate and authenticate inside themselves. No mock/demo customer
- * data is ever returned here.
+ * filters). The one exception is the guest order lookup in
+ * getOrderByNumber: guests have no session, so it goes through the
+ * server-only tracking function (lib/customer/tracking.ts), which
+ * checks order number + phone itself. Mutations delegate to the
+ * customer server actions, which validate and authenticate inside
+ * themselves. No mock/demo customer data is ever returned here.
  */
 
 async function orderMedia(): Promise<Map<string, CustomerOrderMedia>> {
@@ -74,20 +81,38 @@ export const customerServices = {
   },
 
   /**
-   * Signed-in customers only; the legacy phone parameter is
-   * intentionally not accepted — phone must never authorise access
-   * (decision D14). Unknown numbers and other customers' numbers both
-   * yield null so the detail page answers notFound().
+   * Order lookup by number + phone. Signed-in customers first try
+   * their own order (no phone needed); anything else goes through
+   * the guest path, which requires the phone that matches the order
+   * and returns null without it. The old signed-in-only rule
+   * (decision D14) is superseded by the owner-approved guest
+   * tracking fix (2026-11-19): the phone is a second factor the
+   * customer already knows, checked inside the server-only
+   * tracking function, and a miss never reveals whether the number
+   * or the phone was wrong. Unknown numbers and other customers'
+   * numbers both yield null so the detail page answers notFound().
    */
-  async getOrderByNumber(orderNumber: string) {
-    const session = await customerSession();
-    if (!session) return null;
+  async getOrderByNumber(orderNumber: string, phone?: string) {
     const parsed = parseCustomerOrderNumber(orderNumber);
     if (parsed === null) return null;
-    return readCustomerOrderByNumber(
-      session.client,
-      session.user.id,
+    const session = await customerSession();
+    if (session) {
+      const own = await readCustomerOrderByNumber(
+        session.client,
+        session.user.id,
+        parsed,
+        await orderMedia(),
+      );
+      if (own) return own;
+    }
+    const canonicalPhone = normalizeTrackingPhone(phone ?? "");
+    if (canonicalPhone === null) return null;
+    const config = trackingRpcConfiguration();
+    if (!config) return null;
+    return trackGuestOrderByPhone(
+      rpcFor(config),
       parsed,
+      canonicalPhone,
       await orderMedia(),
     );
   },
