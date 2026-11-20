@@ -1765,9 +1765,11 @@ describe("regression pins (unavailable slices stay unavailable, no mock data)", 
     expect(await dataSource.getOrderByNumber("12345", "01700000000")).toBeNull();
   });
 
-  it("keeps the track-order guest path disabled", async () => {
-    // getOrderByNumber without a session yields null even with a phone
-    // number supplied: there is no guest order lookup.
+  it("fails the guest lookup closed when the tracking credential is unconfigured", async () => {
+    // Without the server tracking credential there is no guest order
+    // lookup: getOrderByNumber with a phone still yields null, with
+    // no database call. The positive guest path (phone match returns
+    // the order) is covered in tests/order-tracking.check.ts.
     expect(await dataSource.getOrderByNumber("12345", "01712345678")).toBeNull();
     expect(queryCalls).toHaveLength(0);
   });
@@ -1783,6 +1785,7 @@ describe("source pins (diff hygiene: no forbidden strings, no secrets, no new ga
     "supabase.ts",
     "session.ts",
     "orders.ts",
+    "tracking.ts",
     "addresses.ts",
     "actions.ts",
   ].map((file) => join(srcDir, "lib", "customer", file));
