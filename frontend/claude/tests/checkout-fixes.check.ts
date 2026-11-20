@@ -172,10 +172,14 @@ describe("Bangla delivery form", () => {
   });
 });
 
-describe("review button relabel", () => {
-  it('reads "Continue shopping" with the unchanged step handler', () => {
+describe("payment step has no continue button", () => {
+  it('removes "Continue shopping": Submit Payment places the order', () => {
+    // Owner 2026-11-20: no Continue shopping button on the payment step.
+    // Submit Payment (onSubmitPayment -> placeOrder) is the only way
+    // forward, straight to the Bangla confirmation screen.
     expect(checkoutForm).not.toContain("Review Order");
-    expect(checkoutForm).toMatch(/onClick=\{next\}[\s\S]{0,200}Continue shopping/);
+    expect(checkoutForm).not.toContain("Continue shopping");
+    expect(checkoutForm).toContain("onSubmitPayment={(data) => placeOrder(data)}");
   });
 
   it("leaves the placed-order Continue Shopping link untouched", () => {

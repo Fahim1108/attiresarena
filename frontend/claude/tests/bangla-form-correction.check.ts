@@ -185,7 +185,9 @@ describe("checkout form wiring", () => {
   it("does not touch the ordering gate or the checkout notice", () => {
     expect(checkoutForm).toContain("canPlaceOrder(orderingEnabled, manualPaymentConfiguration.available)");
     expect(checkoutForm).toContain("Ordering and payment collection are currently unavailable");
-    expect(checkoutForm).toContain('Continue shopping');
+    // Owner 2026-11-20 removed the payment-step "Continue shopping" button;
+    // Submit Payment places the order. The placed-order link stays.
+    expect(checkoutForm).toContain('>Continue Shopping</ButtonLink>');
   });
 });
 

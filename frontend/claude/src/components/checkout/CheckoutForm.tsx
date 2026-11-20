@@ -276,9 +276,6 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
                 <Button variant="ghost" onClick={() => setStep(0)} leftIcon={<ArrowLeft className="h-4 w-4" aria-hidden />}>
                   Back
                 </Button>
-                <Button variant="burgundy" size="lg" onClick={next} rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}>
-                  Continue shopping
-                </Button>
               </div>
             </div>
           )}
