@@ -10,11 +10,13 @@ type PreviewResult =
   | { ok: false; error: string };
 
 /**
- * Manual run for the 3-hour unverified-order rule. No scheduler exists,
- * so this panel is the only way the sweep runs: staff review the dry-run
- * counts in a confirmation dialog, then confirm. The dialog always shows
- * how many orders would be cancelled AND how many would be skipped
- * (already sent to the courier) before anything is written.
+ * Manual run for the 3-hour unverified-order rule. An automatic sweep
+ * also runs every 15 minutes (pg_cron, migration
+ * 20261119000200), so this panel is for an on-demand review: staff
+ * review the dry-run counts in a confirmation dialog, then confirm.
+ * The dialog always shows how many orders would be cancelled AND how
+ * many would be skipped (already sent to the courier) before anything
+ * is written.
  */
 export function StaleOrdersSweepPanel({
   previewAction,
@@ -56,8 +58,8 @@ export function StaleOrdersSweepPanel({
       <p>
         Orders that stay Pending for more than 3 hours hold stock that no
         one else can buy. Reviewing them here cancels the stale ones and
-        returns their items to stock. This runs only when you run it —
-        nothing automatic reviews unverified orders yet.
+        returns their items to stock. An automatic sweep also runs every
+        15 minutes — use this panel to review and run it on demand.
       </p>
       <FormMessage state={dialogOpen ? null : state} />
       {previewError ? (

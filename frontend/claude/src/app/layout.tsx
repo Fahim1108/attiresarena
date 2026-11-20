@@ -7,7 +7,7 @@ import { CartProvider } from "@/context/CartContext";
 import { StorefrontProvider } from "@/context/StorefrontContext";
 import { ToastProvider } from "@/context/ToastContext";
 import { WishlistProvider } from "@/context/WishlistContext";
-import { applyBrandOverride, applyCustomizeOverride, applyFooterLinksOverride, applyFooterOverride, applyNavigationOverride, applySiteNameOverride, getStorefrontContent, parseMarketingSettings, resolveStorefrontMetadata, settingText } from "@/lib/store-settings";
+import { applyAnnouncementOverride, applyBrandOverride, applyCustomizeOverride, applyFooterLinksOverride, applyFooterOverride, applyNavigationOverride, applySiteNameOverride, getStorefrontContent, parseMarketingSettings, resolveStorefrontMetadata, settingText } from "@/lib/store-settings";
 import { brandMediaUrl } from "@/lib/brand-media-delivery";
 import { getInitialCart, getStorefrontSettings, getProducts } from "@/services";
 import "@fontsource-variable/cormorant-garamond";
@@ -50,10 +50,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // 20261119000900 — or the layout read returns empty and the static
   // config is kept). Footer tagline/contact are handled by
   // applyFooterOverride; only the link columns change here.
+  // Stored announcement-bar text/visibility replaces the static bar the
+  // same way; without a stored value the static bar is unchanged.
   const siteName = applySiteNameOverride(settings.siteName, content?.settings ?? null);
   const logo = applyBrandOverride(settings.logo, content?.settings ?? null, siteName);
   const theme = applyCustomizeOverride(settings.theme, content?.layout ?? null);
-  const header = applyNavigationOverride(settings.header, content?.layout ?? null);
+  const header = applyNavigationOverride(applyAnnouncementOverride(settings.header, content?.settings ?? null), content?.layout ?? null);
   const footer = applyFooterLinksOverride(applyFooterOverride(settings.footer, content?.settings ?? null), content?.layout ?? null);
   return (
     <html lang="en" >

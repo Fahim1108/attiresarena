@@ -29,10 +29,10 @@ export default async function BannersPage({
         </PageHeader>
         <LayoutTabs current="hero-slider" />
         <Notice kind="info">
-          Banner order and visibility are stored here. Hero slides on the
-          storefront render through the shared storefront settings, which this
-          module does not modify, so saved banners apply once that wiring is
-          connected.
+          Saved banners apply on the next page load. Hero banners replace
+          the built-in slides and promotional banners replace the built-in
+          promotions; a banner whose image cannot be served is skipped and
+          the built-in content stays.
         </Notice>
         {editing ? (
           <Card>

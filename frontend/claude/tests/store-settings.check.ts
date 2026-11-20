@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { campaignHero } from "../src/config/campaign-banners";
 import { logo } from "../src/config/brand";
@@ -15,8 +15,12 @@ import {
   applyFooterOverride,
   applyHeroOverride,
   applyNavigationOverride,
+  applyPromoOverride,
   applySiteNameOverride,
+  bannerImageRouteUrl,
   parseAnnouncementBar,
+  resolveAboutContent,
+  resolveBannerImageUrls,
   resolvePolicyPage,
   resolveStorefrontMetadata,
   settingText,
@@ -247,6 +251,239 @@ describe("settingText", () => {
     expect(settingText({ store_name: "   " }, "store_name")).toBe(null);
     expect(settingText({ store_name: 42 }, "store_name")).toBe(null);
     expect(settingText(null, "store_name")).toBe(null);
+  });
+});
+
+describe("promo banner merge", () => {
+  const staticPromos = [
+    {
+      id: "promo-tonal",
+      title: "Tonal Essentials",
+      image: { src: "/images/banners/promo-tonal.svg", alt: "Stack of folded neutral shirts" },
+      align: "left" as const,
+      tone: "dark" as const,
+    },
+  ];
+
+  function bannerRow(overrides: Partial<BannerRow>): BannerRow {
+    return {
+      id: "promo-1",
+      title: "Winter Promo",
+      subtitle: "Up to 30% off",
+      image_storage_path: "banners/winter.jpg",
+      link_url: "/shop",
+      sort_position: 0,
+      visible: true,
+      placement: "promo",
+      ...overrides,
+    };
+  }
+
+  it("returns the static promotions unchanged without resolvable banners", () => {
+    expect(applyPromoOverride(staticPromos, null, () => "/x.jpg")).toBe(staticPromos);
+    expect(applyPromoOverride(staticPromos, [], () => "/x.jpg")).toBe(staticPromos);
+    expect(applyPromoOverride(staticPromos, [bannerRow({})], () => null)).toBe(staticPromos);
+    expect(
+      applyPromoOverride(
+        staticPromos,
+        [bannerRow({ visible: false }), bannerRow({ placement: "hero", id: "h1" })],
+        () => "/x.jpg",
+      ),
+    ).toBe(staticPromos);
+  });
+
+  it("replaces promotions with visible promo banners in stored order", () => {
+    const merged = applyPromoOverride(
+      staticPromos,
+      [
+        bannerRow({ id: "first", title: "First", sort_position: 0 }),
+        bannerRow({ id: "second", title: "Second", sort_position: 1, link_url: null, subtitle: null }),
+      ],
+      (path) => `/api/banner-media/${path.split("/")[1]}`,
+    );
+    expect(merged.map((item) => item.id)).toEqual(["first", "second"]);
+    expect(merged[0]?.image.src).toBe("/api/banner-media/winter.jpg");
+    expect(merged[0]?.cta).toEqual({ label: "Shop Now", href: "/shop" });
+    expect(merged[1]?.cta).toBeUndefined();
+    expect(merged[1]?.subtitle).toBeUndefined();
+  });
+});
+
+describe("about content override", () => {
+  function aboutBlock(overrides: Partial<ContentBlockRow>): ContentBlockRow {
+    return {
+      slug: "about",
+      title: "Our story, retold",
+      body: "First paragraph.\n\nSecond paragraph.",
+      image_storage_path: null,
+      sort_position: 0,
+      visible: true,
+      updated_at: "2026-11-15T08:00:00Z",
+      ...overrides,
+    };
+  }
+
+  it("returns null without a visible about block", () => {
+    expect(resolveAboutContent(null)).toBe(null);
+    expect(resolveAboutContent([])).toBe(null);
+    expect(resolveAboutContent([aboutBlock({ visible: false })])).toBe(null);
+    expect(resolveAboutContent([aboutBlock({ slug: "privacy-policy" })])).toBe(null);
+    expect(resolveAboutContent([aboutBlock({ body: "   \n\n  " })])).toBe(null);
+  });
+
+  it("returns the stored title and paragraphs", () => {
+    const resolved = resolveAboutContent([aboutBlock({})]);
+    expect(resolved).toEqual({
+      title: "Our story, retold",
+      paragraphs: ["First paragraph.", "Second paragraph."],
+    });
+  });
+
+  it("keeps the title null when the block has no title", () => {
+    const resolved = resolveAboutContent([aboutBlock({ title: null })]);
+    expect(resolved?.title).toBe(null);
+    expect(resolved?.paragraphs).toEqual(["First paragraph.", "Second paragraph."]);
+  });
+});
+
+describe("banner image URLs", () => {
+  const STAGING_URL = "https://jwccyndyaamodxjtjtfo.supabase.co";
+  const PUBLISHABLE_KEY = "sb_publishable_test_fixture_key";
+  const IMAGE_ID = "66666666-6666-4666-8666-666666666666.jpg";
+  const PATH = `banners/${IMAGE_ID}`;
+
+  function bannerRow(overrides: Partial<BannerRow>): BannerRow {
+    return {
+      id: "banner-1",
+      title: "Winter Sale",
+      subtitle: null,
+      image_storage_path: PATH,
+      link_url: null,
+      sort_position: 0,
+      visible: true,
+      placement: "hero",
+      ...overrides,
+    };
+  }
+
+  function stubFetch(
+    respond: (url: string) => Response | Promise<Response>,
+  ): { calls: string[]; fetchImpl: typeof fetch } {
+    const calls: string[] = [];
+    const fetchImpl = (async (url: string | URL | Request) => {
+      calls.push(String(url));
+      return respond(String(url));
+    }) as unknown as typeof fetch;
+    return { calls, fetchImpl };
+  }
+
+  beforeEach(() => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("SUPABASE_URL", STAGING_URL);
+    vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", PUBLISHABLE_KEY);
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("maps well-formed banner paths to the banner-media route", () => {
+    expect(bannerImageRouteUrl(PATH)).toBe(`/api/banner-media/${IMAGE_ID}`);
+    expect(bannerImageRouteUrl("banners/66666666-6666-4666-8666-666666666666.png")).toBe(
+      "/api/banner-media/66666666-6666-4666-8666-666666666666.png",
+    );
+  });
+
+  it("rejects non-banner paths", () => {
+    expect(bannerImageRouteUrl("55555555-5555-4555-8555-555555555555/66666666-6666-4666-8666-666666666666.jpg")).toBe(null);
+    expect(bannerImageRouteUrl("brand/66666666-6666-4666-8666-666666666666.png")).toBe(null);
+    expect(bannerImageRouteUrl("banners/not-a-uuid.jpg")).toBe(null);
+    expect(bannerImageRouteUrl("banners/66666666-6666-4666-8666-666666666666.gif")).toBe(null);
+    expect(bannerImageRouteUrl("banners/66666666-6666-4666-8666-666666666666.jpg/extra")).toBe(null);
+    expect(bannerImageRouteUrl("")).toBe(null);
+  });
+
+  it("resolves a servable banner image to its route URL", async () => {
+    const { calls, fetchImpl } = stubFetch(
+      () =>
+        new Response("fake-image-bytes", {
+          status: 200,
+          headers: { "content-type": "image/jpeg" },
+        }),
+    );
+    const urls = await resolveBannerImageUrls([bannerRow({})], fetchImpl);
+    expect(urls.get(PATH)).toBe(`/api/banner-media/${IMAGE_ID}`);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toBe(
+      `${STAGING_URL}/storage/v1/object/authenticated/attires-product-drafts/banners/${IMAGE_ID}`,
+    );
+    expect(calls[0]).not.toContain(PUBLISHABLE_KEY);
+  });
+
+  it("skips banners whose image is denied, missing, or the wrong type", async () => {
+    const denied = await resolveBannerImageUrls(
+      [bannerRow({})],
+      stubFetch(() => new Response("denied", { status: 403 })).fetchImpl,
+    );
+    expect(denied.size).toBe(0);
+    const wrongType = await resolveBannerImageUrls(
+      [bannerRow({})],
+      stubFetch(
+        () =>
+          new Response("evil", {
+            status: 200,
+            headers: { "content-type": "text/html" },
+          }),
+      ).fetchImpl,
+    );
+    expect(wrongType.size).toBe(0);
+  });
+
+  it("never fetches for malformed paths or without configuration", async () => {
+    const { calls, fetchImpl } = stubFetch(
+      () =>
+        new Response("fake-image-bytes", {
+          status: 200,
+          headers: { "content-type": "image/jpeg" },
+        }),
+    );
+    const malformed = await resolveBannerImageUrls(
+      [bannerRow({ image_storage_path: "not-a-banner-path" })],
+      fetchImpl,
+    );
+    expect(malformed.size).toBe(0);
+    expect(calls).toHaveLength(0);
+    vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "");
+    const unconfigured = await resolveBannerImageUrls([bannerRow({})], fetchImpl);
+    expect(unconfigured.size).toBe(0);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("skips a banner when the probe throws, and still resolves the others", async () => {
+    const { fetchImpl } = stubFetch((url) => {
+      if (url.includes("66666666")) throw new Error("offline");
+      return new Response("fake-image-bytes", {
+        status: 200,
+        headers: { "content-type": "image/png" },
+      });
+    });
+    const urls = await resolveBannerImageUrls(
+      [
+        bannerRow({}),
+        bannerRow({
+          id: "banner-2",
+          image_storage_path: "banners/77777777-7777-4777-8777-777777777777.png",
+        }),
+      ],
+      fetchImpl,
+    );
+    expect(urls.size).toBe(1);
+    expect(urls.get("banners/77777777-7777-4777-8777-777777777777.png")).toBe(
+      "/api/banner-media/77777777-7777-4777-8777-777777777777.png",
+    );
   });
 });
 
