@@ -371,12 +371,26 @@ export function parseCategoryRow(value: unknown): CategoryRow | null {
   const parentId = value.parent_id ?? null;
   if (parentId !== null && typeof parentId !== "string") return null;
   if (typeof value.published !== "boolean") return null;
-  if (typeof value.description !== "string") return null;
+  // A null description / sort_position is legitimate stored state (the
+  // columns are nullable and admin need not fill them); dropping the
+  // whole row for that silently removed the shirt sub-categories from
+  // the storefront. Coerce nulls to safe defaults instead.
+  if (typeof value.description !== "string" && value.description !== null)
+    return null;
+  const description =
+    typeof value.description === "string" ? value.description : "";
   if (
-    typeof value.sort_position !== "number" ||
+    typeof value.sort_position !== "number" &&
+    value.sort_position !== null
+  )
+    return null;
+  if (
+    typeof value.sort_position === "number" &&
     !Number.isInteger(value.sort_position)
   )
     return null;
+  const sortPosition =
+    typeof value.sort_position === "number" ? value.sort_position : 0;
   const image = value.image_storage_path ?? null;
   const banner = value.banner_storage_path ?? null;
   if (image !== null && typeof image !== "string") return null;
@@ -391,12 +405,12 @@ export function parseCategoryRow(value: unknown): CategoryRow | null {
     name,
     slug,
     published: value.published,
-    description: value.description,
+    description,
     image_storage_path: image,
     banner_storage_path: banner,
     seo_title: seoTitle,
     seo_description: seoDescription,
-    sort_position: value.sort_position,
+    sort_position: sortPosition,
   };
 }
 
@@ -446,7 +460,11 @@ export function categoryMediaUrl(
  *   and photo/banner — but NEVER the static `id`: product filtering
  *   and the size guide key off the static ids, and admin products keep
  *   their DB category UUID as categoryId, so swapping ids would break
- *   /category/* matching (see catalog-publication.ts).
+ *   /category/* matching (see catalog-publication.ts). EXCEPTION: the
+ *   shirt sub-categories (Casual/Formal/Check) take the DB row's id,
+ *   because their products are assigned by DB UUID and keeping the
+ *   static id would orphan them from their sub-category page and zero
+ *   their facet counts (chips fix 2026-11-21).
  * - A DB row with a new slug is appended as a real category with the
  *   DB uuid as id, so products assigned to it can match it in filters.
  *   With no stored photo it uses the generic category illustration
@@ -523,6 +541,12 @@ export function mergeDbCategories(
     if (base) {
       merged.push({
         ...base,
+        // Shirt sub-categories: admin products keep the DB category UUID
+        // as categoryId, so the merged row must carry that UUID — keeping
+        // the static id ("cat-casual-shirt" etc.) would orphan every
+        // product from its sub-category page and zero its facet count.
+        // Every other static slug keeps its static id (existing behaviour).
+        ...(isShirtSubcategory(row) ? { id: row.id } : {}),
         name: row.name,
         description,
         // Hierarchy: a real DB parent_id wins; until the shirt

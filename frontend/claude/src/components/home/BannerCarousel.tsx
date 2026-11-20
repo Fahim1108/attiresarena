@@ -45,10 +45,20 @@ export function BannerCarousel({hero}:{hero:HeroSettings}) {
       onTouchStart={e=>{const t=e.touches[0];if(t)touch.current={x:t.clientX,y:t.clientY};}}
       onTouchEnd={e=>{const t=e.changedTouches[0],start=touch.current;touch.current=null;if(!t||!start)return;const dx=t.clientX-start.x,dy=t.clientY-start.y;if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy))go(dx<0?1:-1);}}
       onTouchCancel={()=>{touch.current=null;}}>
-      {hero.slides.map((slide,i)=><div key={slide.id} role="group" aria-roledescription="slide" aria-label={`${i+1} of ${count}: ${slide.title}`} aria-hidden={i!==active} inert={i!==active}
+      {hero.slides.map((slide,i)=>{
+        // HERO SPEED (Preview 2026-11-21: first banner blank white for
+        // seconds): the banners are already .webp, so routing them
+        // through the image optimizer only adds an on-demand AVIF
+        // transcode that is cold on every fresh Preview deploy — serve
+        // the files directly. Mount only the active slide and the next
+        // one, so first paint fetches one banner, not all three at
+        // once; the next slide stays pre-mounted for smooth autoplay.
+        // A manual jump to a non-next slide loads its image on demand.
+        const showImage=i===active||i===(active+1)%count;
+        return <div key={slide.id} role="group" aria-roledescription="slide" aria-label={`${i+1} of ${count}: ${slide.title}`} aria-hidden={i!==active} inert={i!==active}
         className={`absolute inset-0 transition-[opacity,transform] duration-500 ease-out motion-reduce:transition-none motion-reduce:translate-x-0 ${i===active?'translate-x-0 opacity-100':'pointer-events-none translate-x-[2%] opacity-0'}`}>
-        <SmartImage src={slide.image.src} alt={slide.image.alt} fill sizes="100vw" priority={i===0} loading={i===0?undefined:'lazy'} className="object-contain" />
-      </div>)}
+        {showImage && <SmartImage src={slide.image.src} alt={slide.image.alt} fill sizes="100vw" priority={i===0} loading={i===0?undefined:'lazy'} unoptimized className="object-contain" />}
+      </div>;})}
     </div>
     {count>1&&<div className="flex flex-wrap items-center justify-center gap-2 px-3 py-2 sm:gap-4">
       <button type="button" className={control} aria-label="Previous banner" onClick={()=>go(-1)}><ChevronLeft size={18} aria-hidden/></button>

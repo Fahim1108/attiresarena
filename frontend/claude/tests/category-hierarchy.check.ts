@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { storeCategories } from "../src/config/catalogue";
-import { mergeDbCategories, type CategoryRow } from "../src/lib/store-settings";
+import {
+  mergeDbCategories,
+  parseCategoryRow,
+  type CategoryRow,
+} from "../src/lib/store-settings";
 import { queryProducts } from "../src/lib/catalog-query";
+import { selectableStock } from "../src/lib/product";
 import {
   SHIRT_PARENT_ID,
   isShirtSubcategory,
@@ -159,5 +164,80 @@ describe("shirts listing with sub-category products", () => {
 
   it("never lists shirt products under a non-shirt category", () => {
     expect(queryProducts(products, categories, [], { categorySlugs: ["pants"] }).total).toBe(0);
+  });
+});
+
+describe("chips without DB rows (Preview 2026-11-21 regression)", () => {
+  it("shows Casual/Formal/Check as sub-categories even when the anon categories read returns nothing", () => {
+    // Before the fix the three types existed only as DB rows, so a
+    // silent read/parse failure dropped all three chips at once while
+    // /category/shirts still listed 20 products.
+    const merged = mergeDbCategories(storeCategories, []);
+    expect(shirtSubcategories(merged).map((c) => c.slug)).toEqual([
+      "casual-shirt",
+      "formal-shirt",
+      "check-shirt",
+    ]);
+    expect(topLevelCategories(merged).map((c) => c.slug)).toEqual([
+      "shirts",
+      "pants",
+      "sneakers",
+      "belts",
+      "wallets",
+      "watches",
+    ]);
+  });
+
+  it("keeps the DB uuid as id for a shirt sub-category row, so its products still match", () => {
+    const merged = mergeDbCategories(storeCategories, [
+      row({ id: CASUAL_ID, name: "Casual shirt", slug: "casual-shirt", sort_position: 1 }),
+      row({ id: FORMAL_ID, name: "Formal shirt", slug: "formal-shirt", sort_position: 2 }),
+      row({ id: CHECK_ID, name: "Check shirt", slug: "check-shirt", sort_position: 3 }),
+    ]);
+    expect(merged.find((c) => c.slug === "casual-shirt")?.id).toBe(CASUAL_ID);
+    expect(merged.find((c) => c.slug === "formal-shirt")?.id).toBe(FORMAL_ID);
+    expect(merged.find((c) => c.slug === "check-shirt")?.id).toBe(CHECK_ID);
+    const casualProduct = product({
+      id: "p-casual-db",
+      slug: "casual-db-1",
+      categoryId: CASUAL_ID,
+    });
+    const listed = queryProducts([casualProduct], merged, [], {
+      categorySlugs: ["casual-shirt"],
+    });
+    expect(listed.items.map((p) => p.slug)).toEqual(["casual-db-1"]);
+    expect(
+      listed.facets.categories.find((c) => c.slug === "casual-shirt")?.count,
+    ).toBe(1);
+  });
+
+  it("does not drop a category row for a null description or null sort_position", () => {
+    expect(
+      parseCategoryRow({
+        id: CASUAL_ID,
+        parent_id: null,
+        name: "Casual shirt",
+        slug: "casual-shirt",
+        published: true,
+        description: null,
+        image_storage_path: null,
+        banner_storage_path: null,
+        seo_title: null,
+        seo_description: null,
+        sort_position: null,
+      }),
+    ).toMatchObject({ slug: "casual-shirt", description: "", sort_position: 0 });
+  });
+
+  it("treats an all-zero-stock product as sold out (the maroon badge condition)", () => {
+    const soldOut = product({
+      id: "p-soldout",
+      slug: "sold-out-1",
+      variants: [
+        { id: "p-soldout-v", sku: "p-soldout", colorId: "standard", size: "M", stock: 0 },
+      ],
+    });
+    expect(selectableStock(soldOut)).toBe(0);
+    expect(selectableStock(product({ id: "p-instock", slug: "in-stock-1" }))).toBe(1);
   });
 });
