@@ -81,7 +81,10 @@ it("labels every admin table cell (except the checkbox and empty-state rows)", (
     ["../src/app/admin/(workspace)/sales/coupons/page.tsx", 6, 6],
     ["../src/app/admin/(workspace)/sales/incomplete/page.tsx", 7, 7],
     ["../src/app/admin/(workspace)/catalog/inventory/page.tsx", 13, 11],
-    ["../src/app/admin/(workspace)/analytics/page.tsx", 4, 4],
+    // Analytics renders no tables since the 2026-11-20 dedupe (revenue
+    // graph, delivery-status pie and total visitors only), so both
+    // counts are 0 — there is no table left that could lose a label.
+    ["../src/app/admin/(workspace)/analytics/page.tsx", 0, 0],
     ["../src/app/admin/(workspace)/page.tsx", 9, 9],
     ["../src/app/admin/(workspace)/sales/orders/[id]/page.tsx", 0, 0],
     ["../src/components/admin/sales/OrderInvoice.tsx", 6, 4],
