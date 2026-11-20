@@ -118,6 +118,68 @@
   margin: 1.25rem 0;
 }
 
+/* Marketing settings panels (Meta Pixel / Google Analytics / SMS).
+   One bordered panel per integration so status, ID field and guidance
+   read as a single unit on a phone. Theme tokens only; no raw hex. */
+.panel {
+  border: 1px solid rgb(var(--aa-border));
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 0 0 1rem;
+  min-width: 0;
+}
+
+.panelHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 0.5rem;
+}
+
+.panelTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 0;
+  color: rgb(var(--aa-text));
+}
+
+.panelNote {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: rgb(var(--aa-text-muted));
+  margin: 0 0 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+/* Pixel event rows: event name on one line, plain-language meaning
+   underneath, with a full-row tap target on phones. */
+.eventRow {
+  padding: 0.5rem 0.25rem;
+  border-radius: 6px;
+}
+
+.eventRow > span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.eventRow strong {
+  font-weight: 600;
+  color: rgb(var(--aa-text));
+}
+
+.eventDesc {
+  display: block;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: rgb(var(--aa-text-muted));
+}
+
 .inlineActions {
   display: flex;
   flex-wrap: wrap;
