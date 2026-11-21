@@ -35,7 +35,7 @@ export const footer: FooterSettings = {
   contact: {
     phone: "+880 1XXX-XXXXXX",
     email: "support@attiresarena.com",
-    address: "Dhaka, Bangladesh",
+    address: "Barishal, Bangladesh",
     hours: "Sat – Thu, 10:00 AM – 8:00 PM",
   },
   social: [

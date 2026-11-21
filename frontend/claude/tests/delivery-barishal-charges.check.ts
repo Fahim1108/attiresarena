@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { commerce } from "../src/config/commerce";
+import { footer } from "../src/config/footer";
 import { header } from "../src/config/header";
 import { ManualAdvancePayment } from "../src/components/checkout/ManualAdvancePayment";
 import { deliveryZone, isInsideBarishalCity } from "../src/data/bangladesh";
@@ -67,6 +68,10 @@ describe("Barishal delivery charges (no free delivery)", () => {
     expect(header.announcement.left).not.toContain("2,000");
     expect(header.announcement.left).toContain("৳50");
     expect(header.announcement.left).toContain("৳140");
+  });
+
+  it("footer address is Barishal, not Dhaka", () => {
+    expect(footer.contact.address).toBe("Barishal, Bangladesh");
   });
 
   it("advances exactly the delivery charge — 50 inside, 140 outside — at any order size", () => {
