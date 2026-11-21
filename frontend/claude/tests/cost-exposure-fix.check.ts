@@ -546,7 +546,7 @@ describe("migration 20261117000200 text", () => {
     const files = readdirSync(join(repoRoot, "supabase/migrations"))
       .filter((f) => f.endsWith(".sql"))
       .sort();
-    expect(files).toHaveLength(58); // 53 on live (47 base + tracking 00500 + 20261119000300_visible_banner_media + 20261119001000_published_category_media + 20261119000900_layout_settings_public_safe + 20261119000600 blocked-phone enforcement, 20261119000700 abandoned-checkout sweep, 20261119000800 redirect resolution) + 2 SEO follow-ups (20261119001100 RPC extension, 20261119000400 verification allowlist) + 1 security fix (20261119001200 guest tracking rate limit) + 1 payment-submissions migration (20261121000100) + 1 delivery Barishal charges (20261121000200) — none touches variant cost reads (the loop below proves it).
+    expect(files).toHaveLength(59); // 53 on live (47 base + tracking 00500 + 20261119000300_visible_banner_media + 20261119001000_published_category_media + 20261119000900_layout_settings_public_safe + 20261119000600 blocked-phone enforcement, 20261119000700 abandoned-checkout sweep, 20261119000800 redirect resolution) + 2 SEO follow-ups (20261119001100 RPC extension, 20261119000400 verification allowlist) + 1 security fix (20261119001200 guest tracking rate limit) + 1 payment-submissions migration (20261121000100) + 1 delivery Barishal charges (20261121000200) + 1 merged payment+Barishal (20261121000300, supersedes 20261121000100/20261121000200) — none touches variant cost reads (the loop below proves it).
     const fixIndex = files.indexOf("20261117000200_product_variant_cost_read_fix.sql");
     expect(fixIndex).toBeGreaterThan(-1);
     // Later migrations may call orderable_variant (the cost-safe reader) but
