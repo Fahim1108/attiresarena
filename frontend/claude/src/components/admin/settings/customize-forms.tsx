@@ -29,8 +29,9 @@ function fontLabel(id: FontOptionId): string {
  * the store's already-loaded font families and the maroon theme color;
  * the Bangla preview lines are copied from the storefront's own checkout
  * copy (PaymentInstructions / ManualAdvancePayment), not from any
- * reference material. Saved choices are stored only — the storefront
- * theme is unchanged until a follow-up wires them through CSS variables.
+ * reference material. Saved heading/body fonts and button corner radius
+ * are applied on the storefront through CSS variables; only the button
+ * style (solid/outline) is still stored only.
  */
 export function CustomizeForm({
   initialTypography,

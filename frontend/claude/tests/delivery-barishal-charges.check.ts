@@ -1,10 +1,14 @@
 import { createElement } from "react";
+import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { commerce } from "../src/config/commerce";
+import { commerce, defaultStorefrontSettings } from "../src/config";
 import { footer } from "../src/config/footer";
 import { header } from "../src/config/header";
+import { AnnouncementBar } from "../src/components/layout/AnnouncementBar";
 import { ManualAdvancePayment } from "../src/components/checkout/ManualAdvancePayment";
+import { ProductDeliveryInfo } from "../src/components/product/ProductDeliveryInfo";
+import { StorefrontProvider } from "../src/context/StorefrontContext";
 import { deliveryZone, isInsideBarishalCity } from "../src/data/bangladesh";
 import { advanceBreakdown, manualPaymentBreakdown } from "../src/lib/manual-payment";
 import { previewPaymentConfiguration } from "../src/config/payment-receiving";
@@ -104,5 +108,38 @@ describe("Barishal delivery charges (no free delivery)", () => {
     }));
     expect(outside).toContain("Outside Barishal City");
     expect(outside).toContain("৳140");
+  });
+});
+
+describe("Barishal delivery fixes (Preview 2026-11-21)", () => {
+  it("delivery card shows the Barishal charges on every product page", () => {
+    // The card is a standalone component now, rendered unconditionally by
+    // the product page — it must not depend on the product being real vs a
+    // design-review fixture.
+    const card = renderToStaticMarkup(createElement(ProductDeliveryInfo, {}));
+    expect(card).toContain("Delivery Information");
+    expect(card).toContain("Inside Barishal City");
+    expect(card).toContain("BDT 50");
+    expect(card).toContain("1–2 working days");
+    expect(card).toContain("Outside Barishal City");
+    expect(card).toContain("BDT 140");
+    expect(card).toContain("3–5 working days");
+    expect(card).toContain("Order confirmation");
+    expect(card).not.toMatch(/Dhaka|free delivery/i);
+  });
+
+  it("announcement bar renders the full delivery message without truncation", () => {
+    const bar = renderToStaticMarkup(
+      createElement(
+        StorefrontProvider,
+        { settings: defaultStorefrontSettings } as { settings: typeof defaultStorefrontSettings; children: ReactNode },
+        createElement(AnnouncementBar, {}),
+      ),
+    );
+    // Full message present, not cut off mid-word at the "…৳140 outside" end.
+    expect(bar).toContain("Nationwide delivery: ৳50 inside Barishal City · ৳140 outside");
+    // No truncation anywhere in the bar: no `truncate` class on any line.
+    expect(bar).not.toContain("truncate");
+    expect(bar).not.toMatch(/free/i);
   });
 });

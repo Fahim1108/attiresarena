@@ -27,9 +27,8 @@ export default async function ContentPagesPage() {
           </p>
         </PageHeader>
         <Notice kind="info">
-          Privacy, Terms, Return and Shipping overrides apply on the next page
-          load. The About block is stored but the About page is hard-coded, so
-          its override does not render yet. Contact details are edited under{" "}
+          Privacy, Terms, Return, Shipping and About overrides all apply on
+          the next page load. Contact details are edited under{" "}
           <Link href="/admin/settings/store">Store Settings</Link>.
         </Notice>
         {blocks === null ? (

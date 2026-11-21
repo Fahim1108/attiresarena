@@ -42,6 +42,27 @@ const order = z.object({
   items: items.min(1),
   address,
   paymentMethod: z.literal("cod"),
+  // Advance payment details, validated again by the server action before
+  // they reach placeOrder (see src/services/actions.ts). The service
+  // forwards them as p_payment so the database records a structured
+  // payment_submissions row; the order note line is still written as a
+  // fallback. A missing payment here is not a parse failure — the
+  // action refuses the order before the service ever runs.
+  payment: z
+    .object({
+      provider: z.enum(["bkash", "nagad"]),
+      transactionId: z.string().trim().min(1).max(128),
+      senderNumber: z
+        .string()
+        .trim()
+        .max(40)
+        .transform(normalizePhone)
+        .pipe(z.string().regex(BD_PHONE_REGEX)),
+      idempotencyKey: z
+        .string()
+        .regex(/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i),
+    })
+    .optional(),
   note: z
     .string()
     .trim()

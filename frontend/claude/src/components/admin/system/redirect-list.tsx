@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ConfirmSubmit } from "@/components/admin/ui-client";
+import { ConfirmSubmit, RowActionForm } from "@/components/admin/ui-client";
 import { EmptyState, StatusBadge } from "@/components/admin/ui";
 import {
   deleteRedirect,
@@ -54,16 +54,12 @@ export function RedirectList({
                 >
                   Edit
                 </Link>{" "}
-                <form action={toggleRedirectActive} style={{ display: "inline" }}>
-                  <input type="hidden" name="id" value={redirect.id} />
-                  <button
-                    type="submit"
-                    className="aa-row-action"
-                    aria-label={`${redirect.active ? "Disable" : "Enable"} redirect ${redirect.source_path}`}
-                  >
-                    {redirect.active ? "Disable" : "Enable"}
-                  </button>
-                </form>{" "}
+                <RowActionForm
+                  action={toggleRedirectActive}
+                  fields={{ id: redirect.id }}
+                  buttonLabel={redirect.active ? "Disable" : "Enable"}
+                  ariaLabel={`${redirect.active ? "Disable" : "Enable"} redirect ${redirect.source_path}`}
+                />{" "}
                 <ConfirmSubmit
                   action={deleteRedirect}
                   fields={{ id: redirect.id }}

@@ -10,9 +10,18 @@ import {
   type OrderStatus,
   type PaymentStatus,
 } from "@/lib/admin/constants";
-import { formatDateTime, formatMoney, formatOrderNumber } from "@/lib/admin/format";
+import {
+  formatDateTime,
+  formatMoney,
+  formatOrderNumber,
+  paymentProviderLabel,
+  paymentSubmissionStatusLabel,
+  shortTransactionId,
+} from "@/lib/admin/format";
 import type { ShipmentSummary } from "@/lib/admin/courier";
+import { ProductThumbnail } from "@/components/admin/access/ProductThumbnail";
 import { StatusBadge } from "@/components/design-system/StatusBadge";
+import { Badge } from "@/components/ui/Badge";
 import { FormMessage, SubmitButton } from "@/components/admin/ui-client";
 import { CourierBookingPanel } from "./CourierBookingPanel";
 import { OrderStatusForm } from "./OrderStatusForm";
@@ -35,6 +44,15 @@ export interface OrderListRow {
   total_minor: number;
   placed_at: string;
   updated_at: string;
+  /** Latest advance-payment submission, when one was recorded. */
+  payment?: {
+    provider: string;
+    transaction_id: string;
+    status: string;
+  } | null;
+  /** First ordered item's cover photo (desktop only; mobile cards stay text-only). */
+  coverUrl?: string | null;
+  coverAlt?: string;
 }
 
 function commonTransitions(statuses: readonly OrderStatus[]): OrderStatus[] {
@@ -68,7 +86,7 @@ export function OrdersTable({
   courierConfigured,
 }: {
   rows: OrderListRow[];
-  exportFilters: { q: string; status: string; payment: string; from: string; to: string; sort: string };
+  exportFilters: { q: string; status: string; payment: string; verify?: string; from: string; to: string; sort: string };
   bulkAction: SalesAction;
   exportAction: OrdersExportAction;
   /** Per-order status-change action (transitionOrder), reused by expanded cards. */
@@ -234,13 +252,23 @@ export function OrdersTable({
                     />
                   </span>
                   <span className={styles.cardOrderBlock}>
-                    <Link
-                      href={`/admin/sales/orders/${row.id}`}
-                      className={styles.cardOrder}
-                    >
-                      {label}
-                    </Link>
-                    <span className={styles.cardSub}>{formatDateTime(row.placed_at)}</span>
+                    {row.coverUrl ? (
+                      <span className={styles.cardThumb}>
+                        <ProductThumbnail
+                          url={row.coverUrl}
+                          alt={row.coverAlt ?? "Ordered product"}
+                        />
+                      </span>
+                    ) : null}
+                    <span className={styles.cardOrderText}>
+                      <Link
+                        href={`/admin/sales/orders/${row.id}`}
+                        className={styles.cardOrder}
+                      >
+                        {label}
+                      </Link>
+                      <span className={styles.cardSub}>{formatDateTime(row.placed_at)}</span>
+                    </span>
                   </span>
                   <span className={styles.cardCustomerBlock}>
                     <span className={styles.cardCustomer}>{row.customer_name}</span>
@@ -277,7 +305,34 @@ export function OrdersTable({
                       </div>
                       <div>
                         <dt>Payment</dt>
-                        <dd>{PAYMENT_STATUS_LABELS[row.payment_status] ?? row.payment_status}</dd>
+                        <dd>
+                          {PAYMENT_STATUS_LABELS[row.payment_status] ?? row.payment_status}
+                          {row.payment ? (
+                            <span className={styles.paymentSubmission}>
+                              <span
+                                className={styles.paymentTxid}
+                                title={`${paymentProviderLabel(row.payment.provider)} TxID ${row.payment.transaction_id}`}
+                              >
+                                {paymentProviderLabel(row.payment.provider)} ·{" "}
+                                {shortTransactionId(row.payment.transaction_id)}
+                              </span>
+                              {row.payment_status === "unpaid" &&
+                              row.payment.status === "submitted" ? (
+                                <Badge tone="warning">Needs verification</Badge>
+                              ) : (
+                                <Badge
+                                  tone={
+                                    row.payment.status === "verified"
+                                      ? "success"
+                                      : "neutral"
+                                  }
+                                >
+                                  {paymentSubmissionStatusLabel(row.payment.status)}
+                                </Badge>
+                              )}
+                            </span>
+                          ) : null}
+                        </dd>
                       </div>
                     </dl>
                     <div className={styles.inlineForms}>

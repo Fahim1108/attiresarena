@@ -89,12 +89,17 @@ export interface InvoiceItemRow {
   quantity: number;
   unitPriceMinor: number;
   lineTotalMinor: number;
+  /** First product image (signed URL), or null when the product has none. */
+  imageUrl: string | null;
+  /** Alt text for the image; falls back to the product name. */
+  imageAlt: string;
 }
 
 /**
  * Item rows for the invoice table. Description is the stored product name
  * exactly — order items carry no SKU (the column is never selected), so
- * none can ever appear here.
+ * none can ever appear here. The image rides through untouched so the
+ * invoice can show the ordered shirt next to its name.
  */
 export function invoiceItemRows(
   items: readonly {
@@ -104,6 +109,8 @@ export function invoiceItemRows(
     quantity: number;
     unit_price_minor: number;
     line_total_minor: number;
+    imageUrl?: string | null;
+    imageAlt?: string;
   }[],
 ): InvoiceItemRow[] {
   return items.map((item, index) => ({
@@ -114,6 +121,8 @@ export function invoiceItemRows(
     quantity: item.quantity,
     unitPriceMinor: item.unit_price_minor,
     lineTotalMinor: item.line_total_minor,
+    imageUrl: item.imageUrl ?? null,
+    imageAlt: item.imageAlt || item.product_name,
   }));
 }
 

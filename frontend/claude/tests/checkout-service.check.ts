@@ -95,6 +95,18 @@ describe('checkout input validation', () => {
     expect(parseCheckoutOrder(order({ customer: { fullName: 'Nasrin Akter', phone: '0123456' } }))).toBeNull();
     expect(parseCheckoutOrder(order({ paymentMethod: 'online' }))).toBeNull();
   });
+  it('keeps a valid advance payment, normalises the sender, and rejects bad payment fields', () => {
+    const payment = { provider: 'bkash', transactionId: 'ABC123XYZ', senderNumber: '01712-345678', idempotencyKey: '12345678-1234-4123-8123-123456789012' };
+    const parsed = parseCheckoutOrder(order({ payment }));
+    expect(parsed?.payment).toEqual({ provider: 'bkash', transactionId: 'ABC123XYZ', senderNumber: '01712345678', idempotencyKey: '12345678-1234-4123-8123-123456789012' });
+    expect(parseCheckoutOrder(order({ payment: { ...payment, provider: 'rocket' } }))).toBeNull();
+    expect(parseCheckoutOrder(order({ payment: { ...payment, senderNumber: '0123' } }))).toBeNull();
+    expect(parseCheckoutOrder(order({ payment: { ...payment, idempotencyKey: 'not-a-uuid' } }))).toBeNull();
+    expect(parseCheckoutOrder(order({ payment: { ...payment, transactionId: '' } }))).toBeNull();
+    // No payment at all still parses: the server action refuses the order
+    // before the service runs, so the service never has to.
+    expect(parseCheckoutOrder(order())?.payment).toBeUndefined();
+  });
   it('allows saving progress with an empty cart but still requires a valid contact', () => {
     expect(parseCheckoutProgress({ customer: { fullName: 'Nasrin Akter', phone: '01712345678' }, items: [] })).not.toBeNull();
     expect(parseCheckoutProgress({ customer: { fullName: 'N', phone: '01712345678' }, items: [] })).toBeNull();
@@ -130,6 +142,48 @@ describe('checkout server flow', () => {
     const result = await createCheckoutService(db.rpc, cookies, { clientKey: CLIENT }).placeOrder(order());
     expect(result).toEqual({ ok: true, data: { orderNumber: '10001', total: 2530 } });
     expect(cookies.value()).toBeUndefined();
+  });
+  it('sends the advance payment as p_payment, with no price and no note-line leak', async () => {
+    const db = fakeDatabase(); const cookies = jar();
+    const payment = { provider: 'bkash', transactionId: 'ABC123XYZ', senderNumber: '01712345678', idempotencyKey: '12345678-1234-4123-8123-123456789012' };
+    const result = await createCheckoutService(db.rpc, cookies, { clientKey: CLIENT }).placeOrder(order({ payment }));
+    expect(result).toMatchObject({ ok: true });
+    const place = db.calls.find((c) => c.name === 'place_checkout_order')!;
+    expect(place.args.p_payment).toEqual({ provider: 'bkash', transaction_id: 'ABC123XYZ', sender_number: '01712345678', idempotency_key: '12345678-1234-4123-8123-123456789012' });
+    // The TxID travels only as the structured p_payment argument — it is
+    // not duplicated into any other argument (the note line is added by
+    // the server action, not by this service).
+    expect(String(place.args.order_note ?? '')).not.toContain('ABC123XYZ');
+  });
+  it('places the order without p_payment when the database predates the payment migration', async () => {
+    const db = fakeDatabase(); const cookies = jar();
+    let placeAttempts = 0;
+    const rpc: CheckoutRpc = async (name, args) => {
+      if (name === 'place_checkout_order') {
+        placeAttempts += 1;
+        // First attempt (with p_payment) hits a database without the
+        // eight-argument function; the service retries without it.
+        if (placeAttempts === 1 && 'p_payment' in args) return { ok: false, code: 'PGRST202' };
+      }
+      return db.rpc(name, args);
+    };
+    const payment = { provider: 'nagad', transactionId: 'NAG99', senderNumber: '01812345678', idempotencyKey: '12345678-1234-4123-8123-123456789012' };
+    // No coupon in play (the fixture carries one by default): the retry
+    // must not silently drop a discount.
+    const result = await createCheckoutService(rpc, cookies, { clientKey: CLIENT }).placeOrder(order({ payment, couponCode: '' }));
+    expect(result).toMatchObject({ ok: true, data: { orderNumber: '10001' } });
+    expect(placeAttempts).toBe(2);
+    const place = db.calls.find((c) => c.name === 'place_checkout_order')!;
+    expect('p_payment' in place.args).toBe(false);
+  });
+  it('never silently drops a coupon when falling back, and CK013 explains a reused Transaction ID', async () => {
+    const db = fakeDatabase(); const cookies = jar();
+    const rpc: CheckoutRpc = async (name, args) => (name === 'place_checkout_order' ? { ok: false, code: 'PGRST202' } : db.rpc(name, args));
+    const payment = { provider: 'bkash', transactionId: 'ABC123XYZ', senderNumber: '01712345678', idempotencyKey: '12345678-1234-4123-8123-123456789012' };
+    const result = await createCheckoutService(rpc, cookies, { clientKey: CLIENT }).placeOrder(order({ payment }));
+    expect(result).toMatchObject({ ok: false, reason: 'validation' });
+    if (!result.ok) expect(result.message).toMatch(/Coupons are not available yet/);
+    expect(checkoutMessagesForTests.CK013).toMatch(/Transaction ID has already been used/);
   });
   it('an immediate retry with the same cart returns the original order', async () => {
     const db = fakeDatabase(); const first = jar();
@@ -172,7 +226,7 @@ describe('checkout server flow', () => {
     expect(db.calls.some((c) => c.args.raw_token === '<script>')).toBe(false);
   });
   it('every refusal code maps to a guest message, and no message suggests order tracking', async () => {
-    const codes = ['CK001', 'CK002', 'CK003', 'CK005', 'CK006', 'CK007', 'CK008', 'CK010', 'CK011', 'CK012', 'network', 'PGRST202'];
+    const codes = ['CK001', 'CK002', 'CK003', 'CK005', 'CK006', 'CK007', 'CK008', 'CK010', 'CK011', 'CK012', 'CK013', 'network', 'PGRST202'];
     for (const code of codes) {
       const db = fakeDatabase();
       const rpc: CheckoutRpc = async (name, args) => (name === 'place_checkout_order' ? { ok: false, code } : db.rpc(name, args));

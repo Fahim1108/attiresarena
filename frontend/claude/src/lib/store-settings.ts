@@ -211,8 +211,8 @@ function parseSettings(rows: unknown[]): Record<string, unknown> {
 /**
  * Public-safe layout settings only. Rows for any other key (notably
  * error_404, which getErrorPage404 reads separately, and the
- * staff-only redirect_auto / featured_categories_count) are ignored
- * here even if the policy ever returns them, so a policy change alone
+ * staff-only redirect_auto) are ignored here even if the policy ever
+ * returns them, so a policy change alone
  * can never leak an operational setting into the storefront. Malformed
  * rows are dropped by parseLayoutSetting, never trusted.
  */

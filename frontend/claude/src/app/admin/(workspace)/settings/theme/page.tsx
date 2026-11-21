@@ -119,7 +119,9 @@ export default async function ThemeSettingsPage() {
           <CardHeader>
             <CardTitle headingLevel="h2">Customize</CardTitle>
             <CardDescription>
-              Typography and button style, with a live preview. Stored only — the storefront theme is unchanged until a follow-up wires these values.
+              Typography and button style, with a live preview. Heading and
+              body fonts and button corner radius apply on the next page load;
+              button style (solid/outline) is stored only and not applied yet.
             </CardDescription>
           </CardHeader>
           <CardContent>

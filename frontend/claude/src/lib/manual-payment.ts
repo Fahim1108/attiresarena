@@ -119,6 +119,30 @@ export function buildOrderNote(payment: { provider: AdvanceProvider; transaction
   return `${line}\n${note.slice(0, Math.max(0, maxLength - line.length - 1))}`.trimEnd();
 }
 
+/**
+ * Parses the payment line back out of an order note. Mirrors the SQL
+ * backfill in migration 20261121000100 exactly (same format, same
+ * phone shape): "[Advance payment] bKash TxID <txid>, sender <phone>."
+ * Returns null when the note carries no payment line.
+ */
+export function parsePaymentNoteLine(note: string | null | undefined): {
+  provider: AdvanceProvider;
+  transactionId: string;
+  senderNumber: string;
+} | null {
+  if (!note) return null;
+  const match =
+    /^\[Advance payment\] (bKash|Nagad) TxID ([A-Za-z0-9][A-Za-z0-9._-]*), sender (01[3-9][0-9]{8})/.exec(
+      note.trim(),
+    );
+  if (!match) return null;
+  return {
+    provider: match[1] === "Nagad" ? "nagad" : "bkash",
+    transactionId: match[2] ?? "",
+    senderNumber: match[3] ?? "",
+  };
+}
+
 /** Removes the payment line so it never leaves the store (courier note, third-party payloads). */
 export function stripPaymentNoteLine(note: string | null | undefined): string {
   if (!note) return "";

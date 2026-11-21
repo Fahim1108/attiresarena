@@ -1,13 +1,12 @@
-import { Clock, MapPin, Truck } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ProductDetailClient } from "@/components/product/ProductDetailClient";
+import { ProductDeliveryInfo } from "@/components/product/ProductDeliveryInfo";
 import { ProductSizeProvider, SameSizeRecommendations } from "@/components/product/ProductSizeContext";
 import { ReviewList } from "@/components/product/ReviewList";
 import { ProductJsonLd } from "@/components/seo/JsonLd";
 import { Accordion, Breadcrumbs } from "@/components/ui";
 import { commerce, logo, site } from "@/config";
-import { formatPrice } from "@/lib/format";
 import { readOwnReview } from "@/lib/customer/reviews";
 import { customerSession } from "@/lib/customer/session";
 import { buildPageMetadata, mergeSeoKeywords, resolveDefaultOgImage, resolveEntitySeo, resolveGlobalKeywords, resolveTwitterCard } from "@/lib/seo";
@@ -85,7 +84,8 @@ export default async function ProductPage({ params, searchParams }: { params: Pa
         </div>
 
         {product.reviewOnly&&<section className="mt-8 rounded-card border border-line p-5" aria-labelledby="review-details"><h2 id="review-details" className="font-serif text-2xl">Product details</h2><p className="mt-3 whitespace-pre-line">{product.description}</p>{product.details.length>0&&<ul className="mt-3 list-disc space-y-1 pl-5">{product.details.map(detail=><li key={detail}>{detail}</li>)}</ul>}<p className="mt-3 text-xs text-ink-muted">Preview only. Saving details does not verify or publish this garment.</p></section>}
-        {!product.reviewOnly && <div className="mt-14 grid gap-10 lg:grid-cols-[1.15fr_1fr] lg:gap-14">
+        <div className="mt-14 grid gap-10 lg:grid-cols-[1.15fr_1fr] lg:gap-14">
+          {!product.reviewOnly && (
           <Accordion
             defaultOpen={["description"]}
             items={[
@@ -129,37 +129,9 @@ export default async function ProductPage({ params, searchParams }: { params: Pa
               },
             ]}
           />
-          <section aria-labelledby="delivery-heading" className="rounded-card border border-line p-5 sm:p-6">
-            <h2 id="delivery-heading" className="font-serif text-2xl text-ink">
-              Delivery Information
-            </h2>
-            <ul className="mt-4 space-y-4 text-sm">
-              <li className="flex gap-3">
-                <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-primary" strokeWidth={1.6} aria-hidden />
-                <div>
-                  <p className="font-medium text-ink">Inside Barishal City</p>
-                  <p className="text-ink-muted">1–2 working days · {formatPrice(commerce.deliveryCharges.insideBarishalCity)}</p>
-                </div>
-              </li>
-              <li className="flex gap-3">
-                <Truck className="mt-0.5 h-5 w-5 shrink-0 text-primary" strokeWidth={1.6} aria-hidden />
-                <div>
-                  <p className="font-medium text-ink">Outside Barishal City</p>
-                  <p className="text-ink-muted">3–5 working days · {formatPrice(commerce.deliveryCharges.outsideBarishalCity)}</p>
-                </div>
-              </li>
-              <li className="flex gap-3">
-                <Clock className="mt-0.5 h-5 w-5 shrink-0 text-primary" strokeWidth={1.6} aria-hidden />
-                <div>
-                  <p className="font-medium text-ink">Order confirmation</p>
-                  <p className="text-ink-muted">Our team calls to confirm COD orders before dispatch.</p>
-                </div>
-              </li>
-            </ul>
-          </section>
+          )}
+          <ProductDeliveryInfo className={product.reviewOnly ? "lg:col-start-2" : undefined} />
         </div>
-
-        }
         <div className="mt-16">
           <ReviewList reviews={reviews} signedIn={session !== null} ownReview={ownReview} productId={product.id} />
         </div>

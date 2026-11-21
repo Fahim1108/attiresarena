@@ -483,7 +483,9 @@ describe("advance payment required before order", () => {
   it("fails the order closed on the server: collection gate first, then payment validation, then the note", () => {
     expect(placeOrderActionSource).toContain("if (!configuration.available) {");
     expect(placeOrderActionSource).toContain('validatePaymentDetails({ ...(payload.payment ?? {}), note: "", orderReference: null })');
-    expect(placeOrderActionSource).toContain("return dataSource.placeOrder({ ...payload, note: buildOrderNote(parsed.data, payload.note) });");
+    expect(placeOrderActionSource).toContain(
+      "return dataSource.placeOrder({\n    ...payload,\n    payment: {\n      provider: parsed.data.provider,\n      transactionId: parsed.data.transactionId,\n      senderNumber: parsed.data.senderNumber,\n      idempotencyKey: parsed.data.idempotencyKey,\n    },\n    note: buildOrderNote(parsed.data, payload.note),\n  });",
+    );
   });
 
   it("collects advance payment on production only from owner-set numbers, never the preview number", () => {

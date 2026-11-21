@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ConfirmSubmit } from "@/components/admin/ui-client";
+import { ConfirmSubmit, RowActionForm } from "@/components/admin/ui-client";
 import { EmptyState, StatusBadge } from "@/components/admin/ui";
 import {
   deleteBanner,
@@ -57,36 +57,26 @@ export function BannerList({
                 <Link className="aa-row-action" href={editHref(banner.id)} aria-label={`Edit banner ${banner.title}`}>
                   Edit
                 </Link>{" "}
-                <form action={toggleBannerVisibility} style={{ display: "inline" }}>
-                  <input type="hidden" name="id" value={banner.id} />
-                  <button type="submit" className="aa-row-action" aria-label={`${banner.visible ? "Hide" : "Show"} banner ${banner.title}`}>
-                    {banner.visible ? "Hide" : "Show"}
-                  </button>
-                </form>{" "}
-                <form action={moveBanner} style={{ display: "inline" }}>
-                  <input type="hidden" name="id" value={banner.id} />
-                  <input type="hidden" name="direction" value="up" />
-                  <button
-                    type="submit"
-                    className="aa-row-action"
-                    disabled={index === 0}
-                    aria-label={`Move ${banner.title} up`}
-                  >
-                    ↑ Up
-                  </button>
-                </form>{" "}
-                <form action={moveBanner} style={{ display: "inline" }}>
-                  <input type="hidden" name="id" value={banner.id} />
-                  <input type="hidden" name="direction" value="down" />
-                  <button
-                    type="submit"
-                    className="aa-row-action"
-                    disabled={index === banners.length - 1}
-                    aria-label={`Move ${banner.title} down`}
-                  >
-                    ↓ Down
-                  </button>
-                </form>{" "}
+                <RowActionForm
+                  action={toggleBannerVisibility}
+                  fields={{ id: banner.id }}
+                  buttonLabel={banner.visible ? "Hide" : "Show"}
+                  ariaLabel={`${banner.visible ? "Hide" : "Show"} banner ${banner.title}`}
+                />{" "}
+                <RowActionForm
+                  action={moveBanner}
+                  fields={{ id: banner.id, direction: "up" }}
+                  buttonLabel="↑ Up"
+                  ariaLabel={`Move ${banner.title} up`}
+                  disabled={index === 0}
+                />{" "}
+                <RowActionForm
+                  action={moveBanner}
+                  fields={{ id: banner.id, direction: "down" }}
+                  buttonLabel="↓ Down"
+                  ariaLabel={`Move ${banner.title} down`}
+                  disabled={index === banners.length - 1}
+                />{" "}
                 <ConfirmSubmit
                   action={deleteBanner}
                   fields={{ id: banner.id, image_storage_path: banner.image_storage_path }}

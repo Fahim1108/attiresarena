@@ -127,31 +127,45 @@ export async function saveWidget(
   return actionOk("Widget saved.");
 }
 
-export async function deleteWidget(form: FormData): Promise<void> {
+export async function deleteWidget(
+  _prev: AdminActionResult | null,
+  form: FormData,
+): Promise<AdminActionResult> {
   "use server";
   const session = await requireStaff(areaRoles("content"));
   const id = formText(form, "id");
-  if (!id) return;
-  await session.client.rpc("admin_delete_widget", { p_id: id });
+  if (!id) return actionError("Choose a widget to delete.");
+  const result = await session.client.rpc("admin_delete_widget", { p_id: id });
+  if (result.error) {
+    return actionError(toActionError(result.error, "Widget could not be deleted."));
+  }
   revalidatePath("/admin/content/widgets");
   revalidatePath("/");
+  return actionOk("Widget deleted.");
 }
 
-export async function toggleWidgetActive(form: FormData): Promise<void> {
+export async function toggleWidgetActive(
+  _prev: AdminActionResult | null,
+  form: FormData,
+): Promise<AdminActionResult> {
   "use server";
   const session = await requireStaff(areaRoles("content"));
   const id = formText(form, "id");
-  if (!id) return;
+  if (!id) return actionError("Choose a widget to activate or deactivate.");
   const found = await session.client
     .from("homepage_widgets")
     .select(WIDGET_COLUMNS)
     .eq("id", id)
     .maybeSingle();
-  if (found.error || !found.data) return;
+  if (found.error || !found.data) {
+    return actionError("Widget not found. It may have been deleted.");
+  }
   const parsed = WIDGET_ROW_SCHEMA.safeParse(found.data);
-  if (!parsed.success) return;
+  if (!parsed.success) {
+    return actionError("Widget could not be loaded. Try again.");
+  }
   const widget = parsed.data;
-  await session.client.rpc("admin_save_widget", {
+  const result = await session.client.rpc("admin_save_widget", {
     p_id: widget.id,
     p_title: widget.title,
     p_type: widget.type,
@@ -172,6 +186,12 @@ export async function toggleWidgetActive(form: FormData): Promise<void> {
     p_sort_position: widget.sort_position,
     p_active: !widget.active,
   });
+  if (result.error) {
+    return actionError(
+      toActionError(result.error, "Widget could not be updated."),
+    );
+  }
   revalidatePath("/admin/content/widgets");
   revalidatePath("/");
+  return actionOk(widget.active ? "Widget deactivated." : "Widget activated.");
 }

@@ -300,7 +300,6 @@ describe("getLayoutSettings never throws on rejecting reads", () => {
     };
     const settings = await getLayoutSettings();
     expect(settings).toEqual({
-      featured_categories_count: 6,
       redirect_auto: true,
     });
   });

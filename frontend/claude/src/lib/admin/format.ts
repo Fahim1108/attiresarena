@@ -1,3 +1,39 @@
+/* Advance-payment submission labels (migration 20261121000100).      */
+/* Pure helpers kept here — NOT in orders.ts — so client components    */
+/* (orders list, verification card) can use them without pulling in    */
+/* orders.ts, which holds inline "use server" actions that Next.js     */
+/* refuses to bundle into a client component.                          */
+
+export const PAYMENT_SUBMISSION_STATUSES = ["submitted", "verified", "rejected"] as const;
+
+export type PaymentSubmissionStatus = (typeof PAYMENT_SUBMISSION_STATUSES)[number];
+
+export const PAYMENT_SUBMISSION_STATUS_LABELS: Record<PaymentSubmissionStatus, string> = {
+  submitted: "Needs verification",
+  verified: "Verified",
+  rejected: "Rejected",
+};
+
+export function paymentSubmissionStatusLabel(status: string): string {
+  if (status === "verified") return PAYMENT_SUBMISSION_STATUS_LABELS.verified;
+  if (status === "rejected") return PAYMENT_SUBMISSION_STATUS_LABELS.rejected;
+  return PAYMENT_SUBMISSION_STATUS_LABELS.submitted;
+}
+
+export const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
+  bkash: "bKash",
+  nagad: "Nagad",
+};
+
+export function paymentProviderLabel(provider: string): string {
+  return PAYMENT_PROVIDER_LABELS[provider] ?? provider;
+}
+
+/** Short TxID for tight list cells: first 8 chars + ellipsis, full value on hover. */
+export function shortTransactionId(transactionId: string): string {
+  return transactionId.length > 12 ? `${transactionId.slice(0, 8)}…` : transactionId;
+}
+
 /** Shared formatting helpers for the admin panel (Asia/Dhaka, BDT minor units). */
 
 export function formatMoney(minor: number): string {

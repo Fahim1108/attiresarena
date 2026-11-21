@@ -47,6 +47,7 @@ const messages: Record<string, string> = {
   CK010: "This order has too many items. Please reduce your cart and try again.",
   CK011: "Only one of each item can be ordered.",
   CK012: "Orders cannot be placed from this mobile number right now. Please contact the store if you think this is a mistake.",
+  CK013: "This Transaction ID has already been used for another order. Check the Transaction ID and try again.",
   "22023": "Please check your name, mobile number, delivery address and cart, then try again.",
 };
 const generic = "We could not place your order. Your cart has been kept. Please try again.";
@@ -128,8 +129,8 @@ export function createCheckoutService(
   async function placeOrder(raw: unknown): Promise<ActionResult<PlacedOrder>> {
     const input = parseCheckoutOrder(raw);
     if (!input) return failure("22023");
-    const place = (token: string) =>
-      rpc<OrderRow>("place_checkout_order", {
+    const place = async (token: string) => {
+      const args: Record<string, unknown> = {
         raw_token: token,
         delivery: { division: input.address.division, district: input.address.district, area: input.address.area, address_line: input.address.addressLine },
         payment_method: input.paymentMethod,
@@ -141,7 +142,40 @@ export function createCheckoutService(
         // the six-argument signature. The seventh parameter has a default
         // once the migration is applied.
         ...(input.couponCode ? { p_coupon_code: input.couponCode } : {}),
-      });
+        // The advance-payment receipt is sent the same way, as the
+        // optional eighth parameter, so the database records a
+        // structured payment_submissions row in the same transaction.
+        ...(input.payment
+          ? {
+              p_payment: {
+                provider: input.payment.provider,
+                transaction_id: input.payment.transactionId,
+                sender_number: input.payment.senderNumber,
+                idempotency_key: input.payment.idempotencyKey,
+              },
+            }
+          : {}),
+      };
+      const placed = await rpc<OrderRow>("place_checkout_order", args);
+      if (
+        placed.ok ||
+        !input.payment ||
+        input.couponCode ||
+        (placed.code !== "PGRST202" && placed.code !== "42883")
+      ) {
+        return placed;
+      }
+      // Database predates the payment-submissions migration (it has no
+      // eight-argument place_checkout_order): place without the structured
+      // payment. The order note line still carries the TxID + sender
+      // number, so the shop can verify the advance from the order
+      // detail. No coupon is in play here — a coupon is never silently
+      // dropped, the coupon error path below still refuses the order
+      // when the database cannot apply one.
+      const legacyArgs: Record<string, unknown> = { ...args };
+      delete legacyArgs.p_payment;
+      return rpc<OrderRow>("place_checkout_order", legacyArgs);
+    };
     const done = (row: OrderRow): ActionResult<PlacedOrder> => {
       jar.clear();
       // Notify only a FRESH placement: an idempotent replay returns the same
