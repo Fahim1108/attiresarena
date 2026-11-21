@@ -200,11 +200,49 @@ export function isProductionBuildEnv(env: SeoEnv): boolean {
   return env.VERCEL_ENV === "production";
 }
 
+/**
+ * Content-Security-Policy allowlist, verified against the code that
+ * actually runs (2026-11-21 security fix):
+ * - script-src: Next.js inline bootstrap scripts + the Meta Pixel
+ *   snippet (connect.facebook.net) + Google Analytics (googletagmanager.com).
+ *   'unsafe-inline' is required by Next.js inline scripts and by the
+ *   Pixel/GA bootstrap snippets in MarketingScripts.
+ * - img-src / connect-src: Supabase (*.supabase.co, https + wss) for data
+ *   and media, plus GA (*.google-analytics.com) and Pixel (facebook.com)
+ *   beacons. blob:/data: cover locally-generated images (QR / previews).
+ * - frame-src: the admin same-origin appearance-preview iframe + the
+ *   privacy-enhanced YouTube embed (youtube-nocookie.com) on product
+ *   pages. frame-ancestors 'none' matches the existing X-Frame-Options:
+ *   DENY posture.
+ * - Owner custom code (admin slots) still runs when it is inline;
+ *   third-party hosts it pulls in are blocked unless allowlisted here —
+ *   an owner pasting a chat widget or another tracker must ask for its
+ *   host to be added.
+ */
+export const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https://connect.facebook.net https://www.googletagmanager.com",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https://*.supabase.co https://*.google-analytics.com https://www.facebook.com",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.google-analytics.com https://www.facebook.com https://connect.facebook.net",
+  "font-src 'self' data:",
+  "frame-src 'self' https://www.youtube-nocookie.com",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+].join("; ");
+
 function securityHeaders(): Array<{ key: string; value: string }> {
   return [
     { key: "X-Content-Type-Options", value: "nosniff" },
     { key: "X-Frame-Options", value: "DENY" },
     { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+    { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
+    // No `preload`: the domain is not submitted to the HSTS preload list,
+    // and preload would lock every subdomain into HTTPS permanently.
+    { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+    { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()" },
   ];
 }
 
