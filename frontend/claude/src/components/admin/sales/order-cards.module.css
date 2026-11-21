@@ -82,7 +82,31 @@
 .cardOrderBlock {
   grid-area: order;
   display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+/* First ordered item's photo: desktop only (64rem+, the single-row
+   header breakpoint). Phones stay text-only, exactly as before — the
+   thumb is display:none there, so the text column renders identically
+   to the old stacked block. */
+.cardThumb {
+  display: none;
+  flex: none;
+}
+
+@media (min-width: 64rem) {
+  .cardThumb {
+    display: inline-flex;
+  }
+}
+
+.cardOrderText {
+  display: flex;
   flex-direction: column;
+  flex: 1;
   min-width: 0;
   gap: 0.1rem;
 }
@@ -241,6 +265,24 @@
   color: rgb(var(--admin-text-secondary));
   font-size: 0.9rem;
   line-height: 1.5;
+}
+
+/* Advance-payment indicator inside the expanded Payment fact: a small
+   mono TxID line under the payment status, with a status pill. The
+   truncated TxID never wraps the card — the full value is on hover. */
+.paymentSubmission {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.paymentTxid {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: rgb(var(--admin-text-secondary));
+  overflow-wrap: anywhere;
 }
 
 /* Inline update forms inside an expanded card: status + payment side by

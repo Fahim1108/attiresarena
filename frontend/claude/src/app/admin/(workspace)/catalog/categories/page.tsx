@@ -3,25 +3,16 @@ import {
   buildCategoryTree,
   flattenCategoryOptions,
 } from "@/lib/admin/catalog-variants";
-import { hasAnyRole } from "@/lib/admin/authorization";
 import { staffSession } from "@/lib/admin/access";
-import { areaRoles } from "@/lib/admin/constants";
-import {
-  getLayoutSettings,
-  saveFeaturedCategoriesCount,
-} from "@/lib/admin/layout-settings";
-import { FEATURED_CATEGORIES_COUNT_SCHEMA } from "@/lib/admin/reference-adapt";
 import { resolveDisplayData } from "@/lib/admin/sample-data";
 import { sampleCatalogCategories } from "@/lib/admin/sample-catalogue";
 import { Notice } from "@/components/admin/ui";
 import { SampleBadge } from "@/components/admin/SampleBadge";
 import { CategoryForm } from "@/components/admin/catalog/category-form";
-import { FeaturedCountForm } from "@/components/admin/catalog/featured-count-form";
 import { CategoryList } from "@/components/admin/catalog/category-list";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/design-system/Card";
@@ -31,17 +22,7 @@ export const metadata = { title: "Categories" };
 
 export default async function CatalogCategoriesPage() {
   const live = await listCategories();
-  const [session, layoutSettings] = await Promise.all([
-    staffSession(),
-    getLayoutSettings(),
-  ]);
-  // The count is a settings-area value (owner-only). Catalogue staff
-  // without the settings area never see the card.
-  const canManageSettings = hasAnyRole(session, areaRoles("settings"));
-  const parsedCount = FEATURED_CATEGORIES_COUNT_SCHEMA.safeParse(
-    layoutSettings?.featured_categories_count,
-  );
-  const featuredCount = parsedCount.success ? parsedCount.data : null;
+  await staffSession();
   // Null means UNAVAILABLE (not empty): labelled sample rows with no
   // working mutations, instead of the error boundary. A live empty
   // list stays an honest empty state.
@@ -108,38 +89,6 @@ export default async function CatalogCategoriesPage() {
                 category={null}
                 parentOptions={flattenCategoryOptions(tree, new Set())}
               />
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {canManageSettings && !isSample ? (
-          <Card>
-            <CardHeader>
-              <CardTitle headingLevel="h2">Featured categories</CardTitle>
-              <CardDescription>
-                How many categories the Featured Categories section shows.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {layoutSettings === null ? (
-                <Notice kind="warning">
-                  Layout settings could not be loaded. If the
-                  reference-additions migration has not applied yet, this value
-                  cannot be saved yet.
-                </Notice>
-              ) : (
-                <>
-                  <Notice kind="info">
-                    Stored only: no Featured Categories section reads this
-                    value yet. It is saved for the follow-up that wires the
-                    storefront section to it.
-                  </Notice>
-                  <FeaturedCountForm
-                    initialCount={featuredCount}
-                    action={saveFeaturedCategoriesCount}
-                  />
-                </>
-              )}
             </CardContent>
           </Card>
         ) : null}

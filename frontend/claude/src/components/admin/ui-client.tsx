@@ -1,6 +1,7 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import type { AdminActionResult } from "@/lib/admin/authorization";
 
@@ -41,6 +42,8 @@ export function SubmitButton({
   pendingLabel = "Saving…",
   className = "aa-button",
   danger = false,
+  disabled = false,
+  ariaLabel,
 }: {
   children: React.ReactNode;
   pendingLabel?: string;
@@ -50,14 +53,18 @@ export function SubmitButton({
    * <DangerSubmitButton> variant instead of this boolean.
    */
   danger?: boolean;
+  /** Extra disable reason on top of the pending state (e.g. already first). */
+  disabled?: boolean;
+  ariaLabel?: string;
 }) {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
-      disabled={pending}
+      disabled={pending || disabled}
       className={className}
       data-danger={danger || undefined}
+      aria-label={ariaLabel}
     >
       {pending ? pendingLabel : children}
     </button>
@@ -102,9 +109,60 @@ export function FormMessage({ state }: { state: AdminActionResult | null }) {
   );
 }
 
+/** Shape of every admin Server Action used with useActionState. */
+export type RowAction = (
+  prev: AdminActionResult | null,
+  formData: FormData,
+) => Promise<AdminActionResult>;
+
+/**
+ * One small row action (toggle, move, activate) inside a list table.
+ * Renders its own form plus the action outcome inline, so a failed
+ * action never looks like a successful one. The message stays with
+ * the row until the next action on that row replaces it.
+ */
+export function RowActionForm({
+  action,
+  fields,
+  buttonLabel,
+  ariaLabel,
+  disabled = false,
+  pendingLabel = "Working…",
+}: {
+  action: RowAction;
+  fields: Record<string, string>;
+  buttonLabel: string;
+  ariaLabel?: string;
+  disabled?: boolean;
+  pendingLabel?: string;
+}) {
+  const [state, formAction] = useActionState(action, null);
+  return (
+    <>
+      <form action={formAction} method="post" style={{ display: "inline" }}>
+        {Object.entries(fields).map(([name, value]) => (
+          <input key={name} type="hidden" name={name} value={value} />
+        ))}
+        <SubmitButton
+          pendingLabel={pendingLabel}
+          className="aa-row-action"
+          disabled={disabled}
+          ariaLabel={ariaLabel}
+        >
+          {buttonLabel}
+        </SubmitButton>
+      </form>
+      <FormMessage state={state} />
+    </>
+  );
+}
+
 /**
  * Destructive action guarded by a confirmation dialog. Renders its own form,
- * so it must not be nested inside another <form>.
+ * so it must not be nested inside another <form>. The outcome is shown
+ * inline next to the button once the dialog closes: on failure the row
+ * stays and the error is visible; on success the row usually disappears
+ * with the refresh, which is itself the confirmation.
  */
 export function ConfirmSubmit({
   action,
@@ -116,7 +174,7 @@ export function ConfirmSubmit({
   confirmLabel = "Confirm",
   pendingLabel = "Working…",
 }: {
-  action: (formData: FormData) => void | Promise<void>;
+  action: RowAction;
   fields: Record<string, string>;
   buttonLabel: string;
   ariaLabel?: string;
@@ -128,6 +186,12 @@ export function ConfirmSubmit({
   const dialog = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
   const bodyId = useId();
+  const [state, formAction] = useActionState(action, null);
+  // Close the dialog once the action reports back, so the inline
+  // outcome below the button is visible instead of hidden behind it.
+  useEffect(() => {
+    if (state !== null) dialog.current?.close();
+  }, [state]);
   return (
     <>
       <button
@@ -141,6 +205,7 @@ export function ConfirmSubmit({
       >
         {buttonLabel}
       </button>
+      <FormMessage state={state} />
       <dialog
         ref={dialog}
         className="aa-dialog"
@@ -149,7 +214,7 @@ export function ConfirmSubmit({
         aria-describedby={bodyId}
       >
         {open ? (
-          <form action={action} method="post">
+          <form action={formAction} method="post">
             <h2>{confirmTitle}</h2>
             <p id={bodyId}>{confirmBody}</p>
             {Object.entries(fields).map(([name, value]) => (

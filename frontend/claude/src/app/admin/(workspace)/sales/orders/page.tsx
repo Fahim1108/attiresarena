@@ -136,6 +136,18 @@ export default async function OrdersPage({
                   <input id="orders-to" name="to" type="date" defaultValue={filters.to} />
                 </div>
                 <div className="aa-field">
+                  <label htmlFor="orders-verify">
+                    <input
+                      id="orders-verify"
+                      name="verify"
+                      type="checkbox"
+                      value="awaiting"
+                      defaultChecked={filters.verify === "awaiting"}
+                    />
+                    Awaiting payment verification only
+                  </label>
+                </div>
+                <div className="aa-field">
                   <label htmlFor="orders-sort">Sort</label>
                   <select id="orders-sort" name="sort" defaultValue={filters.sort}>
                     <option value="newest">Newest first</option>
@@ -239,21 +251,35 @@ export default async function OrdersPage({
           </Card>
         ) : (
           <OrdersTable
-            rows={orders.map((order) => ({
-              id: order.id,
-              order_number: order.order_number,
-              customer_name: order.customer_name,
-              phone: order.phone,
-              status: order.status,
-              payment_status: order.payment_status,
-              total_minor: order.total_minor,
-              placed_at: order.placed_at,
-              updated_at: order.updated_at,
-            }))}
+            rows={orders.map((order) => {
+              const payment = result?.payments?.get(order.id) ?? null;
+              const cover = result?.covers?.get(order.id) ?? null;
+              return {
+                id: order.id,
+                order_number: order.order_number,
+                customer_name: order.customer_name,
+                phone: order.phone,
+                status: order.status,
+                payment_status: order.payment_status,
+                total_minor: order.total_minor,
+                placed_at: order.placed_at,
+                updated_at: order.updated_at,
+                payment: payment
+                  ? {
+                      provider: payment.provider,
+                      transaction_id: payment.transaction_id,
+                      status: payment.status,
+                    }
+                  : null,
+                coverUrl: cover?.url ?? null,
+                coverAlt: cover?.alt ?? order.customer_name,
+              };
+            })}
             exportFilters={{
               q: filters.q,
               status: filters.status,
               payment: filters.payment,
+              verify: filters.verify,
               from: filters.from,
               to: filters.to,
               sort: filters.sort,

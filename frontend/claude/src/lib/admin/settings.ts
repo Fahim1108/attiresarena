@@ -17,7 +17,6 @@ import {
   SEO_DEFAULTS_SCHEMA,
   SEO_EXTENDED_SCHEMA,
   SEO_PAGE_SLUGS,
-  SMS_SECRET_SCHEMA,
   STORE_SETTINGS_SCHEMA,
   STORE_SETTINGS_VALIDATED,
   TWITTER_CARDS,
@@ -43,7 +42,6 @@ export {
   SEO_EXTENDED_SCHEMA,
   SEO_PAGE_SLUGS,
   SETTING_KEYS,
-  SMS_SECRET_SCHEMA,
   STORE_SETTINGS_SCHEMA,
   STORE_SETTINGS_VALIDATED,
   TWITTER_CARDS,
@@ -306,35 +304,32 @@ export async function uploadBrandImage(
   return actionOk("Image uploaded and saved.");
 }
 
-export async function clearBrandImage(form: FormData): Promise<void> {
+const BRAND_IMAGE_REMOVED_MESSAGES: Record<string, string> = {
+  logo: "Logo removed.",
+  favicon: "Favicon removed.",
+  social: "Social sharing image removed.",
+};
+
+export async function clearBrandImage(
+  _prev: AdminActionResult | null,
+  form: FormData,
+): Promise<AdminActionResult> {
   "use server";
   const session = await requireStaff(areaRoles("settings"));
   const kind = formText(form, "kind");
   const key = BRAND_IMAGE_KEYS[kind];
-  if (!key) return;
-  await setSetting(session.client, key, "");
+  if (!key) return actionError("Unknown image type.");
+  const saved = await setSetting(session.client, key, "");
+  if (saved.error) return actionError(saved.error);
   revalidatePath("/admin/settings/theme");
   revalidatePath("/admin/marketing/seo");
   revalidateStorefrontLayout();
+  return actionOk(BRAND_IMAGE_REMOVED_MESSAGES[kind] ?? "Image removed.");
 }
 
 // ---------------------------------------------------------------------------
 // Marketing integrations (Admin Panel v2, item 9)
 // ---------------------------------------------------------------------------
-
-/**
- * Whether an SMS API secret is stored. Returns null when the status RPC is
- * unavailable (for example, before migration 011 applies). The secret
- * itself is never read back anywhere.
- */
-export async function getSmsSecretStatus(): Promise<boolean | null> {
-  const session = await requireStaff(areaRoles("settings"));
-  const result = await session.client.rpc("admin_marketing_secret_status", {
-    p_key: "sms_api_secret",
-  });
-  if (result.error || typeof result.data !== "boolean") return null;
-  return result.data;
-}
 
 export async function saveMarketingSettings(
   _prev: AdminActionResult | null,
@@ -356,9 +351,6 @@ export async function saveMarketingSettings(
     meta_pixel_id: formText(form, "meta_pixel_id"),
     meta_pixel_events: events,
     ga_measurement_id: formText(form, "ga_measurement_id"),
-    sms_provider: formText(form, "sms_provider"),
-    sms_sender_id: formText(form, "sms_sender_id"),
-    sms_enabled: form.get("sms_enabled") === "on",
   });
   if (!parsed.success) {
     const first = parsed.error.issues[0];
@@ -370,9 +362,6 @@ export async function saveMarketingSettings(
     ["meta_pixel_id", parsed.data.meta_pixel_id],
     ["meta_pixel_events", parsed.data.meta_pixel_events],
     ["ga_measurement_id", parsed.data.ga_measurement_id],
-    ["sms_provider", parsed.data.sms_provider],
-    ["sms_sender_id", parsed.data.sms_sender_id],
-    ["sms_enabled", parsed.data.sms_enabled],
   ];
   for (const [key, value] of entries) {
     const saved = await setSetting(session.client, key, value);
@@ -381,49 +370,6 @@ export async function saveMarketingSettings(
   revalidatePath("/admin/marketing/promotions");
   revalidateStorefrontLayout();
   return actionOk("Marketing settings saved.");
-}
-
-/**
- * Store the SMS API key/secret (write-only). An empty submission keeps the
- * saved secret unchanged. The secret is never displayed, logged or
- * returned; only its configured/not-configured status is ever shown.
- * No SMS is sent from this panel — storing the secret only prepares a
- * future integration.
- */
-export async function saveSmsSecret(
-  _prev: AdminActionResult | null,
-  form: FormData,
-): Promise<AdminActionResult> {
-  "use server";
-  const session = await requireStaff(areaRoles("settings"));
-  const secret = formText(form, "sms_api_secret");
-  if (secret === "") {
-    return actionOk("Saved SMS secret kept unchanged.");
-  }
-  if (!SMS_SECRET_SCHEMA.safeParse(secret).success) {
-    return actionError("Enter the API key or secret (8–500 characters).");
-  }
-  const result = await session.client.rpc("admin_set_marketing_secret", {
-    p_key: "sms_api_secret",
-    p_secret: secret,
-  });
-  if (result.error) {
-    return actionError(
-      toActionError(result.error, "SMS secret could not be saved."),
-    );
-  }
-  revalidatePath("/admin/marketing/promotions");
-  return actionOk("SMS secret saved. It will never be shown again.");
-}
-
-export async function removeSmsSecret(form: FormData): Promise<void> {
-  "use server";
-  const session = await requireStaff(areaRoles("settings"));
-  void form;
-  await session.client.rpc("admin_delete_marketing_secret", {
-    p_key: "sms_api_secret",
-  });
-  revalidatePath("/admin/marketing/promotions");
 }
 
 /**

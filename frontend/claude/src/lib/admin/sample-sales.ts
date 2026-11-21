@@ -156,6 +156,9 @@ export const SAMPLE_ORDER_DETAIL: OrderDetailData = {
   order: SAMPLE_ORDER_FIRST,
   items: SAMPLE_ORDER_ITEMS,
   history: SAMPLE_ORDER_HISTORY,
+  // Samples carry no payment submission: the verification card shows
+  // its honest empty state, and no sample action can be verified.
+  payment: null,
 };
 
 export const SAMPLE_ORDER_NOTICES: OrderNotice[] = SAMPLE_ORDERS.map((order) => ({

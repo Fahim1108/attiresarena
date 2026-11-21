@@ -119,6 +119,8 @@ describe("invoice item rows", () => {
         quantity: 2,
         unitPriceMinor: 122500,
         lineTotalMinor: 245000,
+        imageUrl: null,
+        imageAlt: "Sample Cotton Shirt",
       },
       {
         sl: "02",
@@ -128,6 +130,8 @@ describe("invoice item rows", () => {
         quantity: 1,
         unitPriceMinor: 49900,
         lineTotalMinor: 49900,
+        imageUrl: null,
+        imageAlt: "Check Shirt",
       },
     ]);
     for (const row of rows) {

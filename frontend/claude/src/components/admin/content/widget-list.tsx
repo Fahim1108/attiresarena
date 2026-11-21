@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ConfirmSubmit } from "@/components/admin/ui-client";
+import { ConfirmSubmit, RowActionForm } from "@/components/admin/ui-client";
 import { EmptyState, StatusBadge } from "@/components/admin/ui";
 import {
   deleteWidget,
@@ -72,16 +72,12 @@ export function WidgetList({
                   >
                     Edit
                   </Link>{" "}
-                  <form action={toggleWidgetActive} style={{ display: "inline" }}>
-                    <input type="hidden" name="id" value={widget.id} />
-                    <button
-                      type="submit"
-                      className="aa-row-action"
-                      aria-label={`${widget.active ? "Deactivate" : "Activate"} widget ${widget.title}`}
-                    >
-                      {widget.active ? "Deactivate" : "Activate"}
-                    </button>
-                  </form>{" "}
+                  <RowActionForm
+                    action={toggleWidgetActive}
+                    fields={{ id: widget.id }}
+                    buttonLabel={widget.active ? "Deactivate" : "Activate"}
+                    ariaLabel={`${widget.active ? "Deactivate" : "Activate"} widget ${widget.title}`}
+                  />{" "}
                   <ConfirmSubmit
                     action={deleteWidget}
                     fields={{ id: widget.id }}

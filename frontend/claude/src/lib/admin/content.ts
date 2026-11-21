@@ -229,14 +229,27 @@ export async function saveContentBlock(
   return actionOk("Content block saved.");
 }
 
-export async function deleteContentBlock(form: FormData): Promise<void> {
+export async function deleteContentBlock(
+  _prev: AdminActionResult | null,
+  form: FormData,
+): Promise<AdminActionResult> {
   "use server";
   const session = await requireStaff(areaRoles("content"));
   const slug = formText(form, "slug");
-  if (!isValidSlug(slug)) return;
-  await session.client.rpc("admin_delete_content_block", { p_slug: slug });
+  if (!isValidSlug(slug)) {
+    return actionError("That page could not be deleted: invalid page name.");
+  }
+  const result = await session.client.rpc("admin_delete_content_block", {
+    p_slug: slug,
+  });
+  if (result.error) {
+    return actionError(
+      toActionError(result.error, "Content block could not be deleted."),
+    );
+  }
   revalidatePath("/admin/content/pages");
   revalidateBlockPage(slug);
+  return actionOk("Content block deleted. The page now shows its built-in text.");
 }
 
 export async function saveBanner(
@@ -296,14 +309,20 @@ export async function saveBanner(
   return actionOk("Banner saved.");
 }
 
-export async function deleteBanner(form: FormData): Promise<void> {
+export async function deleteBanner(
+  _prev: AdminActionResult | null,
+  form: FormData,
+): Promise<AdminActionResult> {
   "use server";
   const session = await requireStaff(areaRoles("content"));
   const id = formText(form, "id");
   const imagePath = formText(form, "image_storage_path");
-  if (!id) return;
+  if (!id) return actionError("Choose a banner to delete.");
   const result = await session.client.rpc("admin_delete_banner", { p_id: id });
-  if (!result.error && imagePath.startsWith("banners/")) {
+  if (result.error) {
+    return actionError(toActionError(result.error, "Banner could not be deleted."));
+  }
+  if (imagePath.startsWith("banners/")) {
     await session.client.storage
       .from(PRODUCT_MEDIA_BUCKET)
       .remove([imagePath]);
@@ -312,48 +331,75 @@ export async function deleteBanner(form: FormData): Promise<void> {
   revalidatePath("/admin/content/homepage");
   revalidatePath("/admin/marketing/promotions");
   revalidateBannerSurfaces();
+  return actionOk("Banner deleted.");
 }
 
-export async function moveBanner(form: FormData): Promise<void> {
+export async function moveBanner(
+  _prev: AdminActionResult | null,
+  form: FormData,
+): Promise<AdminActionResult> {
   "use server";
   const session = await requireStaff(areaRoles("content"));
   const id = formText(form, "id");
   const direction = formText(form, "direction");
-  if (!id || (direction !== "up" && direction !== "down")) return;
+  if (!id || (direction !== "up" && direction !== "down")) {
+    return actionError("Choose a banner and a direction to move it.");
+  }
   const result = await session.client
     .from("banners")
     .select("id, sort_position, created_at")
     .order("sort_position", { ascending: true })
     .order("created_at", { ascending: true });
-  if (result.error) return;
+  if (result.error) {
+    return actionError("Banner order could not be loaded. Try again.");
+  }
   const ids = orderBannerIds(result.data ?? []);
   const index = ids.indexOf(id);
   const swapWith = direction === "up" ? index - 1 : index + 1;
-  if (index < 0 || swapWith < 0 || swapWith >= ids.length) return;
+  if (index < 0 || swapWith < 0 || swapWith >= ids.length) {
+    return actionError(
+      direction === "up"
+        ? "Banner is already at the top."
+        : "Banner is already at the bottom.",
+    );
+  }
   const current = ids[index];
   const other = ids[swapWith];
-  if (current === undefined || other === undefined) return;
+  if (current === undefined || other === undefined) {
+    return actionError("Banner could not be moved. Try again.");
+  }
   ids[index] = other;
   ids[swapWith] = current;
-  await session.client.rpc("admin_reorder_banners", { p_ids: ids });
+  const moved = await session.client.rpc("admin_reorder_banners", {
+    p_ids: ids,
+  });
+  if (moved.error) {
+    return actionError(toActionError(moved.error, "Banner could not be moved."));
+  }
   revalidatePath("/admin/content/banners");
   revalidatePath("/admin/content/homepage");
   revalidatePath("/admin/marketing/promotions");
   revalidateBannerSurfaces();
+  return actionOk(`Banner moved ${direction}.`);
 }
 
-export async function toggleBannerVisibility(form: FormData): Promise<void> {
+export async function toggleBannerVisibility(
+  _prev: AdminActionResult | null,
+  form: FormData,
+): Promise<AdminActionResult> {
   "use server";
   const session = await requireStaff(areaRoles("content"));
   const id = formText(form, "id");
-  if (!id) return;
+  if (!id) return actionError("Choose a banner to show or hide.");
   const found = await session.client
     .from("banners")
     .select("id, title, subtitle, image_storage_path, link_url, sort_position, visible, placement")
     .eq("id", id)
     .maybeSingle();
-  if (found.error || !found.data) return;
-  await session.client.rpc("admin_save_banner", {
+  if (found.error || !found.data) {
+    return actionError("Banner not found. It may have been deleted.");
+  }
+  const result = await session.client.rpc("admin_save_banner", {
     p_id: found.data.id,
     p_title: found.data.title,
     p_subtitle: found.data.subtitle,
@@ -363,8 +409,14 @@ export async function toggleBannerVisibility(form: FormData): Promise<void> {
     p_visible: !found.data.visible,
     p_placement: found.data.placement,
   });
+  if (result.error) {
+    return actionError(
+      toActionError(result.error, "Banner visibility could not be changed."),
+    );
+  }
   revalidatePath("/admin/content/banners");
   revalidatePath("/admin/content/homepage");
   revalidatePath("/admin/marketing/promotions");
   revalidateBannerSurfaces();
+  return actionOk(found.data.visible ? "Banner hidden." : "Banner shown.");
 }

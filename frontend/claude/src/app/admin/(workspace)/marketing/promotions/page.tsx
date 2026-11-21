@@ -5,19 +5,15 @@ import { BannerForm } from "@/components/admin/content/forms";
 import {
   CustomCodeForm,
   MarketingSettingsForm,
-  SmsSecretForm,
 } from "@/components/admin/marketing/forms";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/design-system/Card";
 import { PageHeader } from "@/components/design-system/PageHeader";
 import { getBanners, saveBanner } from "@/lib/admin/content";
 import { isOwner, requireStaff } from "@/lib/admin/authorization";
 import {
-  getSmsSecretStatus,
   getStoreSettingsMap,
-  removeSmsSecret,
   saveCustomCode,
   saveMarketingSettings,
-  saveSmsSecret,
 } from "@/lib/admin/settings";
 
 export default async function PromotionsPage() {
@@ -26,10 +22,9 @@ export default async function PromotionsPage() {
   // Settings loaders require the owner-only settings area and redirect
   // other staff, so they run only for owners; everyone else sees the
   // banner campaigns below. `undefined` = not an owner, `null` = failed.
-  const [banners, settings, smsSecretConfigured] = await Promise.all([
+  const [banners, settings] = await Promise.all([
     getBanners(),
     owner ? getStoreSettingsMap() : Promise.resolve(undefined),
-    owner ? getSmsSecretStatus().catch(() => null) : Promise.resolve(null),
   ]);
   const promos = (banners ?? []).filter((banner) => banner.placement === "promo");
 
@@ -38,7 +33,7 @@ export default async function PromotionsPage() {
       <div className="space-y-6">
         <PageHeader
           title="Promotions"
-          description="Promotional banners, tracking integrations and SMS marketing. Coupon campaigns live under Coupons."
+          description="Promotional banners and tracking integrations. Coupon campaigns live under Coupons."
         >
           <p className="text-[13px] font-medium text-admin-text-secondary">
             Marketing
@@ -59,41 +54,26 @@ export default async function PromotionsPage() {
         </Card>
         {settings === undefined ? (
           <Notice kind="info">
-            Tracking, SMS and custom-code settings can only be changed by the
+            Tracking and custom-code settings can only be changed by the
             owner. Banner campaigns below are available to you.
           </Notice>
         ) : settings === null ? (
           <Notice kind="warning">
             Marketing settings could not be loaded. Banner campaigns below
-            still work; tracking and SMS settings need the settings tables.
+            still work; tracking settings need the settings tables.
             Try again later.
           </Notice>
         ) : (
           <>
             <Card>
               <CardHeader>
-                <CardTitle headingLevel="h2">Tracking and SMS marketing</CardTitle>
+                <CardTitle headingLevel="h2">Tracking</CardTitle>
                 <CardDescription>
-                  Meta Pixel, Google Analytics and SMS provider settings. Tracking code loads only when an ID is saved.
+                  Meta Pixel and Google Analytics settings. Tracking code loads only when an ID is saved.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <MarketingSettingsForm action={saveMarketingSettings} settings={settings} />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle headingLevel="h2">SMS secret</CardTitle>
-                <CardDescription>
-                  The provider API key or secret. Stored write-only and never shown again.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <SmsSecretForm
-                  action={saveSmsSecret}
-                  removeAction={removeSmsSecret}
-                  secretConfigured={smsSecretConfigured}
-                />
               </CardContent>
             </Card>
             <Card>

@@ -32,7 +32,6 @@ import {
   PIXEL_EVENTS,
   SEO_EXTENDED_SCHEMA,
   SETTING_KEYS,
-  SMS_SECRET_SCHEMA,
   isOwnerOnlySettingKey,
   isSettingKey,
   parseLowStockThreshold,
@@ -47,15 +46,12 @@ import {
 } from "../src/lib/store-settings";
 
 describe("v2 setting-key allowlist", () => {
-  it("contains the original 17 keys plus the 19 v2 keys plus the M-B verification key", () => {
-    expect(SETTING_KEYS).toHaveLength(37);
+  it("contains the original 17 keys plus the 16 v2 keys plus the M-B verification key", () => {
+    expect(SETTING_KEYS).toHaveLength(34);
     for (const key of [
       "meta_pixel_id",
       "meta_pixel_events",
       "ga_measurement_id",
-      "sms_provider",
-      "sms_sender_id",
-      "sms_enabled",
       "custom_head_code",
       "custom_body_code",
       "seo_keywords",
@@ -76,8 +72,11 @@ describe("v2 setting-key allowlist", () => {
     }
   });
 
-  it("never treats the SMS secret as a setting key", () => {
+  it("never treats an SMS secret as a setting key", () => {
     expect(isSettingKey("sms_api_secret")).toBe(false);
+    expect(isSettingKey("sms_provider")).toBe(false);
+    expect(isSettingKey("sms_sender_id")).toBe(false);
+    expect(isSettingKey("sms_enabled")).toBe(false);
     expect(isSettingKey("service_role_key")).toBe(false);
     expect(isSettingKey("")).toBe(false);
     expect(isSettingKey(42)).toBe(false);
@@ -104,15 +103,12 @@ describe("marketing settings validation", () => {
     Purchase: false,
   };
 
-  it("accepts a numeric pixel ID, GA ID and SMS config", () => {
+  it("accepts a numeric pixel ID and GA ID", () => {
     expect(
       MARKETING_SETTINGS_SCHEMA.safeParse({
         meta_pixel_id: "123456789012345",
         meta_pixel_events: validEvents,
         ga_measurement_id: "G-ABCDEF1234",
-        sms_provider: "Example SMS",
-        sms_sender_id: "ATTIRES",
-        sms_enabled: false,
       }).success,
     ).toBe(true);
   });
@@ -123,9 +119,6 @@ describe("marketing settings validation", () => {
         meta_pixel_id: "",
         meta_pixel_events: validEvents,
         ga_measurement_id: "",
-        sms_provider: "",
-        sms_sender_id: "",
-        sms_enabled: false,
       }).success,
     ).toBe(true);
     expect(
@@ -133,9 +126,6 @@ describe("marketing settings validation", () => {
         meta_pixel_id: "abc123",
         meta_pixel_events: validEvents,
         ga_measurement_id: "",
-        sms_provider: "",
-        sms_sender_id: "",
-        sms_enabled: false,
       }).success,
     ).toBe(false);
     expect(
@@ -143,9 +133,6 @@ describe("marketing settings validation", () => {
         meta_pixel_id: "",
         meta_pixel_events: validEvents,
         ga_measurement_id: "UA-12345",
-        sms_provider: "",
-        sms_sender_id: "",
-        sms_enabled: false,
       }).success,
     ).toBe(false);
   });
@@ -165,11 +152,6 @@ describe("marketing settings validation", () => {
     expect(parsePixelEvents({ PageView: true })).toBe(null);
     expect(parsePixelEvents("PageView")).toBe(null);
     expect(parsePixelEvents(null)).toBe(null);
-  });
-
-  it("requires a non-trivial SMS secret", () => {
-    expect(SMS_SECRET_SCHEMA.safeParse("short").success).toBe(false);
-    expect(SMS_SECRET_SCHEMA.safeParse("long-enough-secret").success).toBe(true);
   });
 
   it("caps custom code at 20,000 characters per slot", () => {

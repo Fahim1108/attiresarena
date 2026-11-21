@@ -19,7 +19,16 @@ import {
   type OrderStatus,
   type PaymentStatus,
 } from "./constants";
-import { formatDateTime, formatOrderNumber, parsePage, parsePageSize, toCsv } from "./format";
+import {
+  PAYMENT_SUBMISSION_STATUSES,
+  formatDateTime,
+  formatOrderNumber,
+  parsePage,
+  parsePageSize,
+  paymentProviderLabel,
+  paymentSubmissionStatusLabel,
+  toCsv,
+} from "./format";
 
 /* ------------------------------------------------------------------ */
 /* Pure helpers (covered by tests/sales.check.ts)                      */
@@ -118,13 +127,19 @@ export interface OrderCsvRow {
   delivery_charge_minor: number;
   discount_minor: number;
   total_minor: number;
+  /** Advance-payment submission, when one was recorded for the order. */
+  payment?: PaymentSubmission | null;
 }
 
 function minorToDecimal(minor: number): string {
   return (minor / 100).toFixed(2);
 }
 
-/** CSV for order exports. Never includes SKUs or internal ids. */
+/**
+ * CSV for order exports. Never includes SKUs or internal ids. The
+ * payment columns are appended at the end, never inserted between the
+ * existing columns, so older exports keep their column order.
+ */
 export function ordersToCsv(rows: readonly OrderCsvRow[]): string {
   return toCsv(
     [
@@ -138,6 +153,11 @@ export function ordersToCsv(rows: readonly OrderCsvRow[]): string {
       "Delivery (BDT)",
       "Discount (BDT)",
       "Total (BDT)",
+      "Payment provider",
+      "TxID",
+      "Sender number",
+      "Advance (BDT)",
+      "Payment verification",
     ],
     rows.map((row) => [
       row.order_number ?? "",
@@ -150,6 +170,11 @@ export function ordersToCsv(rows: readonly OrderCsvRow[]): string {
       minorToDecimal(row.delivery_charge_minor),
       minorToDecimal(row.discount_minor),
       minorToDecimal(row.total_minor),
+      row.payment ? paymentProviderLabel(row.payment.provider) : "",
+      row.payment?.transaction_id ?? "",
+      row.payment?.sender_number ?? "",
+      row.payment ? minorToDecimal(row.payment.advance_minor) : "",
+      row.payment ? paymentSubmissionStatusLabel(row.payment.status) : "",
     ]),
   );
 }
@@ -204,6 +229,38 @@ export interface OrderItemView extends OrderItemRow {
   imageUrl: string | null;
   imageAlt: string;
 }
+
+/* ------------------------------------------------------------------ */
+/* Advance-payment submissions (migration 20261121000100)              */
+/*                                                                     */
+/* One row per advance payment, recorded by place_checkout_order in    */
+/* the same transaction as the order. Older orders only carry the      */
+/* payment line in their note; the backfill in the migration parses    */
+/* those into rows, so a missing row means "no submission recorded",   */
+/* never "no payment was made".                                        */
+/* ------------------------------------------------------------------ */
+
+/* Submission labels live in ./format (client-safe); orders.ts imports  */
+/* them for the CSV export and the verify form.                          */
+
+export const paymentSubmissionSchema = z.object({
+  id: z.uuid(),
+  order_id: z.uuid(),
+  provider: z.enum(["bkash", "nagad"]),
+  transaction_id: z.string(),
+  sender_number: z.string(),
+  advance_minor: z.number().int(),
+  status: z.enum(PAYMENT_SUBMISSION_STATUSES),
+  submitted_at: z.iso.datetime({ offset: true }),
+  verified_at: z.iso.datetime({ offset: true }).nullable(),
+  verified_by: z.uuid().nullable(),
+  idempotency_key: z.uuid(),
+});
+
+export type PaymentSubmission = z.infer<typeof paymentSubmissionSchema>;
+
+export const PAYMENT_SUBMISSION_COLUMNS =
+  "id,order_id,provider,transaction_id,sender_number,advance_minor,status,submitted_at,verified_at,verified_by,idempotency_key";
 
 const auditChangeSchema = z.object({
   before: z.string().nullish(),
@@ -311,6 +368,8 @@ export interface OrderFilters {
   q: string;
   status: OrderStatus | "";
   payment: "unpaid" | "paid" | "refunded" | "";
+  /** "awaiting" lists only orders with a submitted (unverified) advance payment. */
+  verify: "awaiting" | "";
   from: string;
   to: string;
   sort: OrderSort;
@@ -338,6 +397,7 @@ export function orderFilters(
     typeof params[key] === "string" ? (params[key] as string) : "";
   const status = text("status");
   const payment = text("payment");
+  const verify = text("verify");
   const sort = text("sort");
   const from = text("from").trim();
   const to = text("to").trim();
@@ -349,6 +409,7 @@ export function orderFilters(
     status: isOrderStatus(status) ? status : "",
     payment:
       payment === "unpaid" || payment === "paid" || payment === "refunded" ? payment : "",
+    verify: verify === "awaiting" ? "awaiting" : "",
     from: validFrom,
     to: validTo,
     sort:
@@ -371,13 +432,22 @@ async function searchOrderIds(
 ): Promise<{ ids: string[]; narrowed: boolean } | null> {
   const pattern = escapeLikePattern(q);
   const numeric = /^\d{1,5}$/.test(q) ? Number(q) : null;
-  const [byName, byPhone, byEmail, byNumber] = await Promise.all([
+  const [byName, byPhone, byEmail, byNumber, byTxId] = await Promise.all([
     client.from("orders").select("id").ilike("customer_name", pattern).limit(SEARCH_LIMIT),
     client.from("orders").select("id").ilike("phone", pattern).limit(SEARCH_LIMIT),
     client.from("orders").select("id").ilike("email", pattern).limit(SEARCH_LIMIT),
     numeric === null
       ? Promise.resolve({ data: [], error: null })
       : client.from("orders").select("id").eq("order_number", numeric).limit(SEARCH_LIMIT),
+    // TxID search (migration 20261121000100). A failure here is
+    // tolerated — the table does not exist until the migration is
+    // applied — so name/phone/email/number search keeps working and
+    // the TxID leg simply contributes nothing.
+    client
+      .from("payment_submissions")
+      .select("order_id")
+      .ilike("transaction_id", pattern)
+      .limit(SEARCH_LIMIT),
   ]);
   if (byName.error || byPhone.error || byEmail.error || byNumber.error) {
     // Unavailable (table/RPC missing, query failed): the caller degrades
@@ -391,11 +461,113 @@ async function searchOrderIds(
     if (!parsed.success) return null;
     for (const row of parsed.data) ids.add(row.id);
   }
+  if (!byTxId.error && Array.isArray(byTxId.data)) {
+    const txIdRow = z.object({ order_id: z.uuid() });
+    const parsed = txIdRow.array().safeParse(byTxId.data);
+    if (parsed.success) {
+      for (const row of parsed.data) ids.add(row.order_id);
+    }
+  }
   const narrowed =
-    [byName.data, byPhone.data, byEmail.data, byNumber.data].some(
+    [byName.data, byPhone.data, byEmail.data, byNumber.data, byTxId.data].some(
       (rows) => (rows?.length ?? 0) >= SEARCH_LIMIT,
     ) || ids.size > SEARCH_CAP;
   return { ids: [...ids].slice(0, SEARCH_CAP), narrowed };
+}
+
+/* ------------------------------------------------------------------ */
+/* Payment submissions + first-item covers for the order list          */
+/*                                                                     */
+/* Both reads degrade honestly to "nothing attached" when the          */
+/* payment_submissions table is missing (migration unapplied) or a     */
+/* read fails: the list still renders, just without the indicator or   */
+/* the photo. They never null the whole read — that is reserved for    */
+/* the verify filter below, which cannot answer without the table.     */
+/* ------------------------------------------------------------------ */
+
+/** Latest submission per order id (at most one live submission per order). */
+export async function readPaymentSubmissionsForOrders(
+  client: StaffClient,
+  orderIds: readonly string[],
+): Promise<Map<string, PaymentSubmission>> {
+  const result = new Map<string, PaymentSubmission>();
+  const unique = [...new Set(orderIds)];
+  if (unique.length === 0) return result;
+  const rows = await client
+    .from("payment_submissions")
+    .select(PAYMENT_SUBMISSION_COLUMNS)
+    .in("order_id", unique)
+    .order("submitted_at", { ascending: false })
+    .limit(500);
+  if (rows.error || !Array.isArray(rows.data)) return result;
+  const parsed = paymentSubmissionSchema.array().safeParse(rows.data);
+  if (!parsed.success) return result;
+  for (const row of parsed.data) {
+    if (!result.has(row.order_id)) result.set(row.order_id, row);
+  }
+  return result;
+}
+
+/** Latest submission for one order, or null when none was recorded. */
+export async function readPaymentSubmission(
+  client: StaffClient,
+  orderId: string,
+): Promise<PaymentSubmission | null> {
+  const rows = await client
+    .from("payment_submissions")
+    .select(PAYMENT_SUBMISSION_COLUMNS)
+    .eq("order_id", orderId)
+    .order("submitted_at", { ascending: false })
+    .limit(1);
+  if (rows.error || !Array.isArray(rows.data)) return null;
+  const parsed = paymentSubmissionSchema.array().safeParse(rows.data);
+  return parsed.success && parsed.data.length > 0 ? (parsed.data[0] ?? null) : null;
+}
+
+/** First order item per order, for the list's product photo. */
+export async function readFirstOrderItems(
+  client: StaffClient,
+  orderIds: readonly string[],
+): Promise<Map<string, { product_id: string }>> {
+  const result = new Map<string, { product_id: string }>();
+  const unique = [...new Set(orderIds)];
+  if (unique.length === 0) return result;
+  const rows = await client
+    .from("order_items")
+    .select("order_id,product_id,created_at,id")
+    .in("order_id", unique)
+    .order("order_id", { ascending: true })
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(500);
+  if (rows.error || !Array.isArray(rows.data)) return result;
+  const row = z.object({
+    order_id: z.uuid(),
+    product_id: z.uuid(),
+    created_at: z.iso.datetime({ offset: true }),
+    id: z.uuid(),
+  });
+  const parsed = row.array().safeParse(rows.data);
+  if (!parsed.success) return result;
+  for (const item of parsed.data) {
+    if (!result.has(item.order_id)) result.set(item.order_id, { product_id: item.product_id });
+  }
+  return result;
+}
+
+/** Order ids with a submitted (unverified) advance payment, or null when the table cannot be read. */
+export async function readAwaitingVerificationOrderIds(
+  client: StaffClient,
+): Promise<string[] | null> {
+  const rows = await client
+    .from("payment_submissions")
+    .select("order_id")
+    .eq("status", "submitted")
+    .limit(1000);
+  if (rows.error || !Array.isArray(rows.data)) return null;
+  const parsed = z.object({ order_id: z.uuid() }).array().safeParse(rows.data);
+  if (!parsed.success) return null;
+  return [...new Set(parsed.data.map((row) => row.order_id))];
 }
 
 function applyOrderQuery(
@@ -435,21 +607,61 @@ export async function readOrders(params: Record<string, string | string[] | unde
   const filters = orderFilters(params);
   const scope = filters.q ? await searchOrderIds(session.client, filters.q) : null;
   if (filters.q && scope === null) return null;
-  if (scope && scope.ids.length === 0) {
-    return { orders: [] as OrderRow[], count: 0, filters, narrowed: scope.narrowed };
+  let scopeIds: string[] | null = scope?.ids ?? null;
+  if (filters.verify === "awaiting") {
+    // The filter cannot answer without the payment_submissions table:
+    // an unreadable table degrades the whole read honestly (the page
+    // shows its "live data unavailable" sample state) instead of an
+    // empty list that would look like "nothing needs verification".
+    const awaiting = await readAwaitingVerificationOrderIds(session.client);
+    if (awaiting === null) return null;
+    scopeIds = scopeIds === null ? awaiting : scopeIds.filter((id) => awaiting.includes(id));
   }
-  const result = await applyOrderQuery(session.client, filters, scope?.ids ?? null, {
+  if (scopeIds !== null && scopeIds.length === 0) {
+    return {
+      orders: [] as OrderRow[],
+      count: 0,
+      filters,
+      narrowed: scope?.narrowed ?? false,
+      payments: new Map<string, PaymentSubmission>(),
+      covers: new Map<string, { url: string; alt: string } | null>(),
+    };
+  }
+  const result = await applyOrderQuery(session.client, filters, scopeIds, {
     from: (filters.page - 1) * filters.pageSize,
     to: filters.page * filters.pageSize - 1,
   });
   if (result.error) return null;
   const parsed = orderRowSchema.array().safeParse(result.data);
   if (!parsed.success) return null;
+  const orders = parsed.data;
+  // Payment indicator + first-item photo for the list. Both degrade to
+  // "nothing attached" on their own failures — they never null the list.
+  const [payments, firstItems] = await Promise.all([
+    readPaymentSubmissionsForOrders(
+      session.client,
+      orders.map((order) => order.id),
+    ),
+    readFirstOrderItems(
+      session.client,
+      orders.map((order) => order.id),
+    ),
+  ]);
+  const covers = await productCoverUrls(
+    session.client,
+    [...firstItems.values()].map((item) => item.product_id),
+  );
+  const coverByOrder = new Map<string, { url: string; alt: string } | null>();
+  for (const [orderId, item] of firstItems) {
+    coverByOrder.set(orderId, covers.get(item.product_id) ?? null);
+  }
   return {
-    orders: parsed.data,
+    orders,
     count: result.count ?? 0,
     filters,
     narrowed: scope?.narrowed ?? false,
+    payments,
+    covers: coverByOrder,
   };
 }
 
@@ -487,20 +699,22 @@ export async function readOrderDetail(id: string) {
     return { ...item, imageUrl: cover?.url ?? null, imageAlt: cover?.alt || item.product_name };
   });
 
-  // Status + payment history share the audit log; both actions are read
-  // together (the payment policy in migration 20261116000100 admits
-  // orders.read holders for the payment action, as 003 does for status).
+  // Status + payment history share the audit log; all three actions are
+  // read together (the payment policies in migrations 20261116000100 and
+  // 20261121000100 admit orders.read holders for the payment actions, as
+  // 003 does for status). A payment-verification entry renders as a
+  // payment line ("submitted → verified").
   const historyResult = await session.client
     .from("admin_audit_logs")
     .select("id,action,changes,created_at")
     .eq("target_id", id)
-    .in("action", ["order.status_changed", "order.payment_status_changed"])
+    .in("action", ["order.status_changed", "order.payment_status_changed", "order.payment_verified"])
     .order("created_at", { ascending: false })
     .limit(100);
   if (historyResult.error) return null;
   const historyRow = z.object({
     id: z.uuid(),
-    action: z.enum(["order.status_changed", "order.payment_status_changed"]),
+    action: z.enum(["order.status_changed", "order.payment_status_changed", "order.payment_verified"]),
     changes: z.unknown(),
     created_at: z.iso.datetime({ offset: true }),
   });
@@ -510,14 +724,19 @@ export async function readOrderDetail(id: string) {
     const changes = auditChangeSchema.safeParse(row.changes);
     return {
       id: row.id,
-      kind: row.action === "order.payment_status_changed" ? "payment" : "status",
+      kind: row.action === "order.status_changed" ? "status" : "payment",
       before: changes.success ? (changes.data.before ?? null) : null,
       after: changes.success ? (changes.data.after ?? null) : null,
       created_at: row.created_at,
     };
   });
 
-  return { order, items: itemsWithImages, history };
+  // Latest advance-payment submission, or null when none was recorded
+  // (older orders only carry the payment line in their note). A missing
+  // table (migration unapplied) reads as null, never as a failed page.
+  const payment = await readPaymentSubmission(session.client, id);
+
+  return { order, items: itemsWithImages, history, payment };
 }
 
 /* ------------------------------------------------------------------ */
@@ -658,6 +877,61 @@ export async function setPaymentStatus(
   );
 }
 
+const verifyPaymentSchema = z.object({
+  submission_id: z.uuid(),
+  verdict: z.enum(["verified", "rejected"]),
+});
+
+/**
+ * Verify or reject one advance-payment submission via the
+ * admin_verify_payment_submission RPC (migration 20261121000100).
+ * 'verified' also flips the order's payment_status to paid (only when
+ * it is still unpaid). Always returns a real success/error message —
+ * never a silent void action — and revalidates the list + detail pages.
+ */
+export async function verifyPaymentSubmission(
+  _prev: AdminActionResult | null,
+  formData: FormData,
+): Promise<AdminActionResult> {
+  "use server";
+  const parsed = verifyPaymentSchema.safeParse({
+    submission_id: formData.get("submission_id"),
+    verdict: formData.get("verdict"),
+  });
+  if (!parsed.success) {
+    return actionError("Enter a valid payment submission and verdict. Reload and try again.");
+  }
+  const session = await requireStaff(areaRoles("orders"));
+  const result = await session.client.rpc("admin_verify_payment_submission", {
+    p_submission_id: parsed.data.submission_id,
+    p_verdict: parsed.data.verdict,
+  });
+  if (result.error) {
+    return actionError(
+      toActionError(
+        result.error,
+        "The advance payment could not be verified. Check your access and try again.",
+      ),
+    );
+  }
+  const data = z
+    .object({
+      order_id: z.uuid(),
+      status: z.enum(PAYMENT_SUBMISSION_STATUSES),
+      payment_status: z.enum(PAYMENT_STATUSES),
+    })
+    .safeParse(result.data);
+  revalidatePath("/admin/sales/orders");
+  if (data.success) {
+    revalidatePath(`/admin/sales/orders/${data.data.order_id}`);
+  }
+  return parsed.data.verdict === "verified"
+    ? actionOk(
+        "Advance payment marked verified. The order's payment status is Paid — confirm the order to start packing.",
+      )
+    : actionOk("Advance payment marked rejected. The Transaction ID is free for a corrected re-submission.");
+}
+
 export async function bulkTransitionOrders(
   _prev: AdminActionResult | null,
   formData: FormData,
@@ -766,6 +1040,7 @@ export async function exportOrdersCsv(input: {
   q: string;
   status: string;
   payment: string;
+  verify?: string;
   from: string;
   to: string;
   sort: string;
@@ -777,7 +1052,15 @@ export async function exportOrdersCsv(input: {
   if (filters.q && scope === null) {
     return { ok: false, error: "Orders could not be exported. Try again." };
   }
-  if (scope && scope.ids.length === 0) {
+  let scopeIds: string[] | null = scope?.ids ?? null;
+  if (filters.verify === "awaiting") {
+    const awaiting = await readAwaitingVerificationOrderIds(session.client);
+    if (awaiting === null) {
+      return { ok: false, error: "Orders could not be exported. Try again." };
+    }
+    scopeIds = scopeIds === null ? awaiting : scopeIds.filter((id) => awaiting.includes(id));
+  }
+  if (scopeIds !== null && scopeIds.length === 0) {
     return {
       ok: true,
       csv: ordersToCsv([]),
@@ -786,7 +1069,7 @@ export async function exportOrdersCsv(input: {
       total: 0,
     };
   }
-  const result = await applyOrderQuery(session.client, filters, scope?.ids ?? null, {
+  const result = await applyOrderQuery(session.client, filters, scopeIds, {
     from: 0,
     to: EXPORT_LIMIT - 1,
   });
@@ -800,9 +1083,17 @@ export async function exportOrdersCsv(input: {
   const rows = parsed.data;
   const total = result.count ?? rows.length;
   const date = new Date().toISOString().slice(0, 10);
+  // Payment columns are appended per row; a missing table (migration
+  // unapplied) leaves them blank rather than failing the export.
+  const payments = await readPaymentSubmissionsForOrders(
+    session.client,
+    rows.map((row) => row.id),
+  );
   return {
     ok: true,
-    csv: ordersToCsv(rows),
+    csv: ordersToCsv(
+      rows.map((row) => ({ ...row, payment: payments.get(row.id) ?? null })),
+    ),
     filename: `orders-${date}.csv`,
     truncated: total > rows.length || (scope?.narrowed ?? false),
     total,

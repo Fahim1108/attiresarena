@@ -5,6 +5,7 @@ import {
   ConfirmSubmit,
   FormMessage,
   SubmitButton,
+  type RowAction,
 } from "@/components/admin/ui-client";
 import type { AdminActionResult } from "@/lib/admin/authorization";
 import {
@@ -307,7 +308,7 @@ export function BrandImageForm({
   hasCurrent,
 }: {
   action: FormAction;
-  clearAction: (form: FormData) => void | Promise<void>;
+  clearAction: RowAction;
   kind: "logo" | "favicon" | "social";
   label: string;
   currentUrl: string | null;

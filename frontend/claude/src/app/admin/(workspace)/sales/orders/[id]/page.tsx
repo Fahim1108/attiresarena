@@ -13,7 +13,7 @@ import {
 } from "@/lib/admin/courier";
 import { readCustomerOrderHistory } from "@/lib/admin/customers";
 import { formatDateTime, formatOrderNumber } from "@/lib/admin/format";
-import { readOrderDetail, setPaymentStatus, transitionOrder } from "@/lib/admin/orders";
+import { readOrderDetail, setPaymentStatus, transitionOrder, verifyPaymentSubmission } from "@/lib/admin/orders";
 import { resolveDisplayRecord } from "@/lib/admin/sample-data";
 import { SAMPLE_ORDER_DETAIL } from "@/lib/admin/sample-sales";
 import { Notice } from "@/components/admin/ui";
@@ -23,6 +23,7 @@ import { CustomerOrderHistoryPanel } from "@/components/admin/sales/CustomerOrde
 import { OrderInvoice } from "@/components/admin/sales/OrderInvoice";
 import { OrderStatusForm } from "@/components/admin/sales/OrderStatusForm";
 import { PaymentStatusForm } from "@/components/admin/sales/PaymentStatusForm";
+import { PaymentVerificationCard } from "@/components/admin/sales/PaymentVerificationCard";
 import { PrintInvoiceButton } from "@/components/admin/sales/PrintInvoiceButton";
 import { SalesNav } from "@/components/admin/sales/SalesNav";
 import {
@@ -48,7 +49,7 @@ export default async function OrderDetailPage({
     await readOrderDetail(id),
     SAMPLE_ORDER_DETAIL,
   );
-  const { order, items, history } = record;
+  const { order, items, history, payment } = record;
   const orderLabel = formatOrderNumber(order.order_number);
   // Previous orders + courier state are live-only (samples carry no
   // working actions or detail links). Both reads run in parallel; each
@@ -114,6 +115,12 @@ export default async function OrderDetailPage({
         />
 
         <div className="aa-no-print space-y-6">
+          <PaymentVerificationCard
+            submission={payment}
+            isSample={isSample}
+            verifyAction={verifyPaymentSubmission}
+          />
+
           {isSample ? (
             <Card>
               <CardHeader>
@@ -159,7 +166,7 @@ export default async function OrderDetailPage({
             <Card>
               <CardHeader>
                 <CardTitle headingLevel="h2">Payment status</CardTitle>
-                <CardDescription>Cash on delivery only. Only the payment moves allowed by the payment workflow are offered.</CardDescription>
+                <CardDescription>Advance delivery charge is collected before the order is placed. Only the payment moves allowed by the payment workflow are offered.</CardDescription>
               </CardHeader>
               <CardContent>
                 <PaymentStatusForm

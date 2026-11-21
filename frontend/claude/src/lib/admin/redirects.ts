@@ -81,35 +81,57 @@ export async function saveRedirect(
   return actionOk("Redirect saved.");
 }
 
-export async function deleteRedirect(form: FormData): Promise<void> {
+export async function deleteRedirect(
+  _prev: AdminActionResult | null,
+  form: FormData,
+): Promise<AdminActionResult> {
   "use server";
   const session = await requireStaff(areaRoles("settings"));
   const id = formText(form, "id");
-  if (!id) return;
-  await session.client.rpc("admin_delete_redirect", { p_id: id });
+  if (!id) return actionError("Choose a redirect to delete.");
+  const result = await session.client.rpc("admin_delete_redirect", { p_id: id });
+  if (result.error) {
+    return actionError(
+      toActionError(result.error, "Redirect could not be deleted."),
+    );
+  }
   revalidatePath("/admin/system/redirects");
+  return actionOk("Redirect deleted.");
 }
 
-export async function toggleRedirectActive(form: FormData): Promise<void> {
+export async function toggleRedirectActive(
+  _prev: AdminActionResult | null,
+  form: FormData,
+): Promise<AdminActionResult> {
   "use server";
   const session = await requireStaff(areaRoles("settings"));
   const id = formText(form, "id");
-  if (!id) return;
+  if (!id) return actionError("Choose a redirect to enable or disable.");
   const found = await session.client
     .from("url_redirects")
     .select(REDIRECT_COLUMNS)
     .eq("id", id)
     .maybeSingle();
-  if (found.error || !found.data) return;
+  if (found.error || !found.data) {
+    return actionError("Redirect not found. It may have been deleted.");
+  }
   const parsed = REDIRECT_ROW_SCHEMA.safeParse(found.data);
-  if (!parsed.success) return;
+  if (!parsed.success) {
+    return actionError("Redirect could not be loaded. Try again.");
+  }
   const redirect = parsed.data;
-  await session.client.rpc("admin_save_redirect", {
+  const result = await session.client.rpc("admin_save_redirect", {
     p_id: redirect.id,
     p_source_path: redirect.source_path,
     p_target_path: redirect.target_path,
     p_code: redirect.code,
     p_active: !redirect.active,
   });
+  if (result.error) {
+    return actionError(
+      toActionError(result.error, "Redirect could not be updated."),
+    );
+  }
   revalidatePath("/admin/system/redirects");
+  return actionOk(redirect.active ? "Redirect disabled." : "Redirect enabled.");
 }
