@@ -6,6 +6,7 @@ import { commerce, defaultStorefrontSettings } from "../src/config";
 import { footer } from "../src/config/footer";
 import { header } from "../src/config/header";
 import { AnnouncementBar } from "../src/components/layout/AnnouncementBar";
+import { Footer } from "../src/components/layout/Footer";
 import { ManualAdvancePayment } from "../src/components/checkout/ManualAdvancePayment";
 import { ProductDeliveryInfo } from "../src/components/product/ProductDeliveryInfo";
 import { StorefrontProvider } from "../src/context/StorefrontContext";
@@ -141,5 +142,33 @@ describe("Barishal delivery fixes (Preview 2026-11-21)", () => {
     // No truncation anywhere in the bar: no `truncate` class on any line.
     expect(bar).not.toContain("truncate");
     expect(bar).not.toMatch(/free/i);
+  });
+
+  it("announcement default left text is exactly the Barishal message", () => {
+    // The code default (src/config/header.ts) is the intended bar text.
+    // A stale stored `announcement_bar` DB override replaces it at runtime
+    // (applyAnnouncementOverride) — that value must be fixed in the DB, not
+    // here: on the 2026-11-21 Preview the bar showed a stale fragment
+    // ("out of delivery") from the stored override, not this default.
+    expect(header.announcement.left).toBe(
+      "Nationwide delivery: ৳50 inside Barishal City · ৳140 outside",
+    );
+  });
+
+  it("footer renders the Barishal address line", () => {
+    // Regression (Preview 2026-11-21): the footer showed no address at all
+    // — Footer.tsx never rendered footer.contact, so the ae73a87 config
+    // change (Dhaka -> Barishal) was invisible. Only the address renders;
+    // phone/email stay placeholder values in the config and must not show.
+    const html = renderToStaticMarkup(
+      createElement(
+        StorefrontProvider,
+        { settings: defaultStorefrontSettings } as { settings: typeof defaultStorefrontSettings; children: ReactNode },
+        createElement(Footer, {}),
+      ),
+    );
+    expect(html).toContain("Barishal, Bangladesh");
+    expect(html).not.toContain("Dhaka");
+    expect(html).not.toContain("1XXX");
   });
 });

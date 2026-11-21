@@ -2,6 +2,7 @@
 import {
   Facebook,
   Instagram,
+  MapPin,
   Music2,
   MessageCircle,
   Youtube,
@@ -78,6 +79,18 @@ export function Footer() {
               })}
             </ul>
             </nav>
+            {/* Store address (footer.contact.address, "Barishal, Bangladesh").
+                The Footer never rendered contact details before 2026-11-21,
+                so the ae73a87 config change (Dhaka -> Barishal) was invisible:
+                no address line showed at all. Only the address is shown here
+                — phone/email stay placeholder values in the config and must
+                not render until the owner supplies real ones. */}
+            {footer.contact.address && (
+              <p className={styles.address}>
+                <MapPin className={styles.addressIcon} aria-hidden size={15} />
+                {footer.contact.address}
+              </p>
+            )}
           </div>
           {footer.columns.map((col) => (
             <nav key={col.title} aria-label={col.title}>

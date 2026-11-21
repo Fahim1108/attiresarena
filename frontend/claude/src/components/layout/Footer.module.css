@@ -64,6 +64,22 @@
   background: rgba(255, 255, 255, 0.1);
   transform: translateY(-2px);
 }
+/* Store address line under the social icons (2026-11-21: the footer never
+   rendered contact details, so no address showed at all). */
+.address {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  max-width: 240px;
+  color: #d6c8c8;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.addressIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
 .unconfigured {
   opacity: 1;
 }
