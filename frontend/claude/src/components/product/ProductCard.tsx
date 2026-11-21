@@ -60,7 +60,7 @@ export function ProductCard({ product, brandName, priority, sizes = "(min-width:
             {hover && <SmartImage src={hover.src} alt="" fill sizes={sizes} className="aa-product-secondary object-cover opacity-0 [@media(hover:hover)]:group-hover:opacity-100" />}
           </span>
         </Link>
-        <div className="pointer-events-none absolute left-2.5 top-2.5 flex flex-col items-start gap-1">
+        <div className="pointer-events-none absolute bottom-2.5 left-2.5 flex flex-col items-start gap-1">
           <ProductSizeBadge product={product} />
           {soldOut ? (
             <Badge tone="primary">Sold out</Badge>
@@ -72,16 +72,18 @@ export function ProductCard({ product, brandName, priority, sizes = "(min-width:
             </>
           )}
         </div>
-        {cfg.showWishlist && <WishlistButton productId={product.id} productName={product.name} className="absolute right-2.5 top-2.5" />}
 
       </div>
       <div className="mt-3 space-y-1.5 px-0.5">
         {cfg.showBrand && brandName && <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-ink-muted">{brandName}</p>}
-        <h3 className="line-clamp-1 text-sm text-ink sm:text-[15px]">
-          <Link href={href} title={product.name} className="hover:text-primary">
-            {product.name}
-          </Link>
-        </h3>
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="min-w-0 flex-1 line-clamp-1 text-sm text-ink sm:text-[15px]">
+            <Link href={href} title={product.name} className="hover:text-primary">
+              {product.name}
+            </Link>
+          </h3>
+          {cfg.showWishlist && <WishlistButton productId={product.id} productName={product.name} variant="inline-sm" className="shrink-0" />}
+        </div>
         <Price price={product.price} compareAt={product.compareAtPrice} accent={cfg.showAddToCart} />
         {product.reviewOnly && <p className="text-xs text-ink-muted">In stock · 1 piece</p>}
         {cfg.showRating && product.rating.count > 0 && <Rating value={product.rating.average} count={product.rating.count} />}
