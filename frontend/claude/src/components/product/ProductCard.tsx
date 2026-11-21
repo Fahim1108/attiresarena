@@ -60,7 +60,7 @@ export function ProductCard({ product, brandName, priority, sizes = "(min-width:
             {hover && <SmartImage src={hover.src} alt="" fill sizes={sizes} className="aa-product-secondary object-cover opacity-0 [@media(hover:hover)]:group-hover:opacity-100" />}
           </span>
         </Link>
-        <div className="pointer-events-none absolute bottom-2.5 left-2.5 flex flex-col items-start gap-1">
+        <div className="pointer-events-none absolute left-2.5 top-2.5 flex flex-col items-start gap-1">
           <ProductSizeBadge product={product} />
           {soldOut ? (
             <Badge tone="primary">Sold out</Badge>
