@@ -14,8 +14,9 @@ import { parseGoogleVerification } from "@/lib/seo";
  * 20261115001100_admin_v2_marketing_settings.sql, which extends both the
  * public-read policy (public-safe keys only) and admin_set_setting, plus
  * google_search_console_verification from migration 20261119000400
- * (same two places). Deliberately NOT a setting key: the SMS API secret, which lives in the
- * marketing_secrets table (write-only, never readable) — see settings.ts.
+ * (same two places). SMS settings were removed: no provider was ever
+ * connected and nothing was sent, so sms_provider / sms_sender_id /
+ * sms_enabled are deliberately NOT setting keys any more.
  */
 export const SETTING_KEYS = [
   "announcement_bar",
@@ -39,9 +40,6 @@ export const SETTING_KEYS = [
   "meta_pixel_id",
   "meta_pixel_events",
   "ga_measurement_id",
-  "sms_provider",
-  "sms_sender_id",
-  "sms_enabled",
   "custom_head_code",
   "custom_body_code",
   // Admin Panel v2 — extended SEO (migration 011).
@@ -208,16 +206,7 @@ export const MARKETING_SETTINGS_SCHEMA = z.object({
       (value) => value === "" || GA_MEASUREMENT_ID_PATTERN.test(value),
       "Enter a measurement ID like G-XXXXXXXXXX.",
     ),
-  sms_provider: z.string().trim().max(80),
-  sms_sender_id: z.string().trim().max(20),
-  sms_enabled: z.boolean(),
 });
-
-/** SMS secret rules: write-only, never echoed back, never stored as a setting. */
-export const SMS_SECRET_SCHEMA = z
-  .string()
-  .min(8, "Enter the API key or secret (at least 8 characters).")
-  .max(500);
 
 export const CUSTOM_CODE_SCHEMA = z.object({
   custom_head_code: z.string().max(MAX_CUSTOM_CODE_LENGTH),

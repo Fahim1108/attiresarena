@@ -6,6 +6,7 @@ import {
   buildSeoHeaders,
   buildSeoRedirects,
   canonicalUrl,
+  CONTENT_SECURITY_POLICY,
   isProductionBuildEnv,
   isProductionEnv,
   resolveCanonicalBase,
@@ -150,6 +151,9 @@ describe("buildSeoHeaders", () => {
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "X-Frame-Options", value: "DENY" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
+      { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+      { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()" },
       { key: "X-Robots-Tag", value: "noindex, nofollow" },
     ]);
   });
@@ -183,6 +187,9 @@ describe("buildSeoHeaders", () => {
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "X-Frame-Options", value: "DENY" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
+      { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+      { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()" },
     ]);
     expect(privates.map((entry) => entry.source)).toEqual([...SEO_PRIVATE_HEADER_SOURCES]);
     for (const entry of privates) {

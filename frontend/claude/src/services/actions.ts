@@ -4,10 +4,12 @@
  * Server Actions callable from client components. Each one delegates to the
  * active data source. The customer slice is connected (see
  * src/services/adapters/customer.ts): validation and session checks run
- * inside the customer actions. Newsletter/contact/storefront/media
+ * inside the customer actions. Newsletter/contact/media
  * mutations still return `{ ok: false, reason: "not_connected" }`.
+ * (The old storefront draft/publish actions were removed with the
+ * orphaned Appearance Editor, which could never save anything.)
  */
-import type { Address, CheckoutPayload, Customer, StorefrontSettings } from "@/types";
+import type { Address, CheckoutPayload, Customer } from "@/types";
 import { buildOrderNote, validatePaymentDetails } from "@/lib/manual-payment";
 import { dataSource } from "./adapters";
 import { saveCheckoutProgress } from "./checkout";
@@ -92,14 +94,6 @@ export async function subscribeNewsletterAction(email: string) {
 
 export async function submitContactFormAction(input: { name: string; email: string; phone?: string; subject: string; message: string }) {
   return dataSource.submitContactForm(input);
-}
-
-export async function saveStorefrontDraftAction(settings: StorefrontSettings) {
-  return dataSource.saveStorefrontDraft(settings);
-}
-
-export async function publishStorefrontSettingsAction(settings: StorefrontSettings) {
-  return dataSource.publishStorefrontSettings(settings);
 }
 
 export async function uploadMediaAction(file: { name: string; type: string; size: number }) {

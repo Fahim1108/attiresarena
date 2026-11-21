@@ -382,13 +382,26 @@ export async function setRolePermissions(
   return actionOk("Role access updated.");
 }
 
-export async function removeStaffAccess(form: FormData): Promise<void> {
+export async function removeStaffAccess(
+  _prev: AdminActionResult | null,
+  form: FormData,
+): Promise<AdminActionResult> {
   "use server";
   const session = await requireStaff(areaRoles("users"));
   const userId = formText(form, "user_id");
-  if (!z.uuid().safeParse(userId).success) return;
-  await session.client.rpc("admin_remove_staff", { target_user: userId });
+  if (!z.uuid().safeParse(userId).success) {
+    return actionError("Choose a valid staff member to remove.");
+  }
+  const result = await session.client.rpc("admin_remove_staff", {
+    target_user: userId,
+  });
+  if (result.error) {
+    return actionError(
+      toActionError(result.error, "Staff access could not be removed."),
+    );
+  }
   revalidatePath("/admin/system/users");
+  return actionOk("Staff access removed.");
 }
 
 /**

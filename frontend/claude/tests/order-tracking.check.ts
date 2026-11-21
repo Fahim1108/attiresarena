@@ -427,3 +427,46 @@ describe("guest tracking migration pins (authored-only SQL)", () => {
     expect(sql).not.toContain("'consignment_id',");
   });
 });
+
+describe("guest tracking rate-limit migration pins (authored-only SQL)", () => {
+  const sql = readFileSync(
+    join(
+      dirname(fileURLToPath(import.meta.url)),
+      "..",
+      "..",
+      "..",
+      "supabase",
+      "migrations",
+      "20261119001200_guest_tracking_rate_limit.sql",
+    ),
+    "utf8",
+  );
+
+  it("reuses the checkout rate ledger with a separate 'track' action", () => {
+    expect(sql).toContain("private.consume_checkout_rate('track', 'order:' || p_order_number::text, interval '1 hour', 10)");
+    expect(sql).toContain("private.consume_checkout_rate('track', 'phone:' || v_phone, interval '1 hour', 30)");
+    expect(sql).toContain("check (action in ('start', 'write', 'place', 'track'))");
+  });
+
+  it("keeps the lookup service-role-only with the same payload and null-on-miss behaviour", () => {
+    expect(sql).toContain("create or replace function public.customer_track_order_by_phone(p_order_number integer, p_phone text)");
+    expect(sql).toContain("security definer");
+    expect(sql).toContain("revoke all on function public.customer_track_order_by_phone(integer, text) from public, anon, authenticated");
+    expect(sql).toContain("grant execute on function public.customer_track_order_by_phone(integer, text) to service_role");
+    expect(sql).not.toContain("'note',");
+    expect(sql).not.toContain("'user_id',");
+    expect(sql).not.toContain("'sku',");
+  });
+
+  it("drops STABLE (the rate-limit write is a side effect a STABLE function cannot do)", () => {
+    const fn = sql.slice(sql.indexOf("create or replace function public.customer_track_order_by_phone"));
+    expect(fn).not.toMatch(/returns jsonb language plpgsql stable/i);
+    expect(fn).toMatch(/returns jsonb language plpgsql security definer/i);
+  });
+
+  it("adds no table, no policy, and no other function", () => {
+    expect(sql.match(/create or replace function/gi)).toHaveLength(1);
+    expect(sql).not.toMatch(/create table/i);
+    expect(sql).not.toMatch(/create policy/i);
+  });
+});
