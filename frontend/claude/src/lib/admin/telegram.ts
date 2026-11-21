@@ -131,12 +131,31 @@ export interface OrderNotice {
   paymentMethod: string;
   /** Database payment_status ('unpaid' | 'paid' | 'refunded'). */
   paymentStatus: string;
+  /** Latest advance-payment submission, when one was recorded for the order. */
+  advancePayment?: {
+    provider: string;
+    transactionId: string;
+    senderNumber: string;
+    advanceMinor: number;
+    status: string;
+  } | null;
 }
 
 function paymentStatusLabel(status: string): string {
   if (status === "paid") return "Paid";
   if (status === "refunded") return "Refunded";
   return "Unpaid";
+}
+
+function advancePaymentStatusLabel(status: string): string {
+  if (status === "verified") return "Verified";
+  if (status === "rejected") return "Rejected";
+  return "Needs verification";
+}
+
+function advanceProviderLabel(provider: string): string {
+  if (provider === "nagad") return "Nagad";
+  return "bKash";
 }
 
 /**
@@ -179,6 +198,16 @@ export function buildOrderNoticeMessage(notice: OrderNotice): string {
   lines.push(
     `• Method: ${notice.paymentMethod.toUpperCase()} • ${paymentStatusLabel(notice.paymentStatus)}`,
   );
+  if (notice.advancePayment) {
+    const advance = notice.advancePayment;
+    lines.push("");
+    lines.push("💳 Advance payment");
+    lines.push(`• Method: ${advanceProviderLabel(advance.provider)}`);
+    lines.push(`• TxID: ${advance.transactionId}`);
+    lines.push(`• Sender: ${advance.senderNumber}`);
+    lines.push(`• Advance: ${formatMoneyShort(advance.advanceMinor)}`);
+    lines.push(`• Status: ${advancePaymentStatusLabel(advance.status)}`);
+  }
   return lines.join("\n");
 }
 
@@ -207,6 +236,15 @@ const orderNotificationItemSchema = z.object({
   line_total_minor: z.number().int(),
 });
 
+const orderNotificationPaymentSchema = z.object({
+  provider: z.string(),
+  transaction_id: z.string(),
+  sender_number: z.string(),
+  advance_minor: z.number().int(),
+  status: z.string(),
+  submitted_at: z.string(),
+});
+
 const orderNotificationSchema = z.object({
   id: z.string().uuid(),
   order_number: z.number().int(),
@@ -223,6 +261,9 @@ const orderNotificationSchema = z.object({
   total_minor: z.number().int(),
   payment_method: z.string(),
   payment_status: z.string(),
+  // Null when no submission was recorded; optional so payloads from
+  // databases without migration 20261121000100 still parse.
+  payment_submission: orderNotificationPaymentSchema.nullable().optional(),
   items: z.array(orderNotificationItemSchema),
 });
 
@@ -249,6 +290,15 @@ export function toOrderNotice(data: OrderNotificationData): OrderNotice {
     totalMinor: data.total_minor,
     paymentMethod: data.payment_method,
     paymentStatus: data.payment_status,
+    advancePayment: data.payment_submission
+      ? {
+          provider: data.payment_submission.provider,
+          transactionId: data.payment_submission.transaction_id,
+          senderNumber: data.payment_submission.sender_number,
+          advanceMinor: data.payment_submission.advance_minor,
+          status: data.payment_submission.status,
+        }
+      : null,
   };
 }
 

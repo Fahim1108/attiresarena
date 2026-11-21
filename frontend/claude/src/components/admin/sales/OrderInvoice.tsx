@@ -1,6 +1,7 @@
 import { PAYMENT_METHOD_LABELS, PAYMENT_STATUS_LABELS } from "@/lib/admin/constants";
 import { formatDate, formatMoney, formatOrderNumber } from "@/lib/admin/format";
 import type { OrderItemView, OrderRow } from "@/lib/admin/orders";
+import { ProductThumbnail } from "@/components/admin/access/ProductThumbnail";
 import { InvoiceQrCode } from "./InvoiceQrCode";
 import { TrackingBarcode } from "./TrackingBarcode";
 import {
@@ -147,7 +148,12 @@ export function OrderInvoice({
               rows.map((row) => (
                 <tr key={row.sl}>
                   <td>{row.sl}</td>
-                  <th scope="row">{row.description}</th>
+                  <th scope="row">
+                    <span style={{ display: "inline-flex", gap: "0.6rem", alignItems: "center" }}>
+                      <ProductThumbnail url={row.imageUrl} alt={row.imageAlt} />
+                      <span className="aa-cell-main">{row.description}</span>
+                    </span>
+                  </th>
                   <td data-label="Size">
                     {row.size}
                     {row.color.trim() ? (
