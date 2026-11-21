@@ -450,3 +450,69 @@ describe("review mode with real staging rows (plural + mis-slugged)", () => {
     expect(top).not.toContain("staging-category-f7a3f419-40c8-42aa-a39c-cad87677c4c7");
   });
 });
+
+describe("duplicate shirt chips dedupe (Preview 2026-11-21, deployment BE9vxDT4)", () => {
+  // /category/shirts showed 6 chips — All Shirts (20), Casual shirt
+  // (1), Formal shirt (1), Formal shirts (1), check shirt (0),
+  // Casual shirt (1) again — because the chip list was built from
+  // the merged rows, and the merged list carries both the static
+  // rows and the messy DB rows. The Casual chip even linked to the
+  // garbage slug "staging-category-f7a3f419-…". Chips are now one
+  // per canonical type, with canonical slug/name, and their counts
+  // come from the canonical sub-page query (facets count the same
+  // product under every duplicate row for a type, so summing them
+  // would double-count Formal as 1+1=2).
+  const FORMAL_SHIRTS_ID = "22566784-0723-4cef-8e1e-7007084306d9";
+  const CASUAL_STAGING_ID = "f7a3f419-40c8-42aa-a39c-cad87677c4c7";
+  const CHECK_ID_REAL = "83e0f4a6-7f24-4cc2-adab-f067a0427f7a";
+  const messyRows = [
+    row({ id: FORMAL_SHIRTS_ID, name: "Formal shirts", slug: "formal-shirts", description: "", sort_position: 1 }),
+    row({ id: CASUAL_STAGING_ID, name: "Casual shirt", slug: "staging-category-f7a3f419-40c8-42aa-a39c-cad87677c4c7", description: "", sort_position: 2 }),
+    row({ id: CHECK_ID_REAL, name: "check shirt", slug: "check-shirt", description: "", sort_position: 3 }),
+  ];
+  const merged = mergeDbCategories(storeCategories, messyRows);
+
+  it("shows exactly one chip per shirt type, canonical slug + name, no garbage slug", () => {
+    const subs = shirtSubcategories(merged);
+    expect(subs.map((c) => c.slug)).toEqual(["casual-shirt", "formal-shirt", "check-shirt"]);
+    expect(subs.map((c) => c.name)).toEqual(["Casual shirt", "Formal shirt", "Check shirt"]);
+    expect(subs.map((c) => c.slug)).not.toContain("staging-category-f7a3f419-40c8-42aa-a39c-cad87677c4c7");
+    expect(subs.map((c) => c.slug)).not.toContain("formal-shirts");
+  });
+
+  it("gives each sub-category the canonical listing description, never 'Coming soon.'", () => {
+    expect(merged.find((c) => c.slug === "formal-shirts")?.description).toBe(
+      "Formal shirts for work and occasions.",
+    );
+    expect(
+      merged.find((c) => c.slug === "staging-category-f7a3f419-40c8-42aa-a39c-cad87677c4c7")?.description,
+    ).toBe("Everyday casual shirts.");
+    expect(merged.find((c) => c.slug === "check-shirt")?.description).toBe("Check-pattern shirts.");
+    expect(merged.find((c) => c.slug === "casual-shirt")?.description).toBe("Everyday casual shirts.");
+  });
+
+  it("keeps 'Coming soon.' for a genuinely future category with a blank stored description", () => {
+    const withPants = mergeDbCategories(storeCategories, [
+      row({ id: "70000000-0000-4000-8000-000000000001", name: "Pants", slug: "pants", description: "", sort_position: 1 }),
+    ]);
+    expect(withPants.find((c) => c.slug === "pants")?.description).toBe("Coming soon.");
+  });
+
+  it("counts each canonical type once — the chip count equals its sub-page total", () => {
+    const products = [
+      product({ id: "p-formal-staging", slug: "formal-staging-1", categoryId: FORMAL_SHIRTS_ID }),
+      product({ id: "p-casual-staging", slug: "casual-staging-1", categoryId: CASUAL_STAGING_ID }),
+    ];
+    expect(queryProducts(products, merged, [], { categorySlugs: ["formal-shirt"] }).total).toBe(1);
+    expect(queryProducts(products, merged, [], { categorySlugs: ["casual-shirt"] }).total).toBe(1);
+    expect(queryProducts(products, merged, [], { categorySlugs: ["check-shirt"] }).total).toBe(0);
+    // Facets alone would double-count Formal (1 under formal-shirt
+    // AND 1 under formal-shirts) — that is why the page must not
+    // sum facet counts per type.
+    const shirts = queryProducts(products, merged, [], { categorySlugs: ["shirts"] });
+    expect(
+      (shirts.facets.categories.find((c) => c.slug === "formal-shirt")?.count ?? 0) +
+        (shirts.facets.categories.find((c) => c.slug === "formal-shirts")?.count ?? 0),
+    ).toBe(2);
+  });
+});

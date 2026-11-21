@@ -82,7 +82,22 @@ export default async function CategoryPage({ params, searchParams }: { params: P
   // Shirts" chip leads back to the full Shirts listing.
   const showShirtTypes = slug === "shirts" || isShirtSubcategory(category);
   const subs = showShirtTypes ? shirtSubcategories(allCategories) : [];
-  const subCount = (s: string) => result.facets.categories.find((c) => c.slug === s)?.count ?? 0;
+  // Chip counts come from the canonical sub-page query itself, not
+  // the facets: facets count the same product under every duplicate
+  // DB row for a type (raw id match + canonical-key match), so
+  // summing them would double-count (Formal 1+1=2 on Preview
+  // 2026-11-21). One in-memory query per type over the already
+  // memoized feed (no extra Supabase round-trip); the chip count
+  // then always equals what the chip links to, on every shirts
+  // page — facets on a sub page are computed over the sub-filtered
+  // base and would show the other types as 0.
+  const subTotals = showShirtTypes
+    ? await Promise.all(
+        subs.map((s) =>
+          getProducts({ categorySlugs: [s.slug], pageSize: 1 }).then((r) => r.total),
+        ),
+      )
+    : [];
   // "All Shirts" leads the chips on EVERY shirts page (it was missing
   // on /category/shirts itself). Its count is the full Shirts total:
   // on a sub-category page the facets are computed over the
@@ -96,7 +111,7 @@ export default async function CategoryPage({ params, searchParams }: { params: P
   const subcategories = showShirtTypes
     ? [
         { slug: "shirts", name: "All Shirts", count: shirtsTotal },
-        ...subs.map((s) => ({ slug: s.slug, name: s.name, count: subCount(s.slug) })),
+        ...subs.map((s, i) => ({ slug: s.slug, name: s.name, count: subTotals[i] ?? 0 })),
       ]
     : undefined;
   return (

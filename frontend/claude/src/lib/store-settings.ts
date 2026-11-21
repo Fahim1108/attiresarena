@@ -50,7 +50,9 @@ import { PRODUCT_MEDIA_BUCKET } from "./admin/constants";
 import { isCatalogStoragePath } from "./admin/catalog-variants";
 import {
   SHIRT_PARENT_ID,
+  canonicalShirtSubcategory,
   isShirtSubcategory,
+  shirtSubKey,
 } from "./category-hierarchy";
 import { brandMediaUrl } from "./brand-media-delivery";
 
@@ -479,7 +481,10 @@ export function categoryMediaUrl(
  *   until a photo is added in admin.
  * - Description: the stored text wins when non-blank; otherwise the
  *   previous storefront wording is kept ("Individual thrift shirts…"
- *   for Shirts, "Coming soon." for everything else).
+ *   for Shirts, the canonical type text for a shirt sub-category,
+ *   "Coming soon." for everything else — shirt sub-categories are
+ *   real listing pages, so a blank stored description must never
+ *   render as "Coming soon." under their heading).
  * - Order is depth-first by parent (top-level rows by sort_position,
  *   each followed by its children); a row whose parent is not among
  *   the published rows is treated as top-level. Static categories
@@ -537,11 +542,19 @@ export function mergeDbCategories(
     if (usedSlugs.has(row.slug)) continue;
     usedSlugs.add(row.slug);
     const base = staticCategories.find((c) => c.slug === row.slug);
+    // Shirt sub-categories are real listing pages: a blank stored
+    // description falls back to the canonical type text, never
+    // "Coming soon." (Preview 2026-11-21: "Coming soon." sat under
+    // every sub-category heading, including the honestly-empty Check
+    // page). Genuinely future categories keep "Coming soon.".
+    const subKey = shirtSubKey(row);
     const description =
       nonBlankText(row.description) ??
       (row.slug === "shirts"
         ? "Individual thrift shirts, carefully selected."
-        : "Coming soon.");
+        : subKey
+          ? (canonicalShirtSubcategory(subKey)?.description ?? "Coming soon.")
+          : "Coming soon.");
     const imageUrl = categoryMediaUrl(row.image_storage_path);
     const bannerUrl = categoryMediaUrl(row.banner_storage_path);
     const seoTitle = nonBlankText(row.seo_title);

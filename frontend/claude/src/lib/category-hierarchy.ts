@@ -49,6 +49,33 @@ const SHIRT_SUBCATEGORY_NAMES = new Set([
  */
 export type ShirtSubKey = "casual" | "formal" | "check";
 
+/**
+ * The canonical shirt types, in chip order. One entry per type — the
+ * single source for the chip slug, display name and listing
+ * description. The DB rows are messy (see shirtSubKey): besides the
+ * three proper rows there is a "Formal shirts" plural duplicate and
+ * a "Casual shirt" row whose slug is garbage, so building the chip
+ * list from DB rows produced 6 chips on Preview 2026-11-21
+ * (Casual, Formal, Formal shirts, check, Casual again, all with
+ * mixed casing) and the Casual chip linked to the garbage slug.
+ * Chips are built from this list instead, so there is exactly one
+ * chip per type, with the canonical name and slug.
+ */
+export const SHIRT_SUBCATEGORY_INFO: readonly {
+  key: ShirtSubKey;
+  slug: string;
+  name: string;
+  description: string;
+}[] = [
+  { key: "casual", slug: "casual-shirt", name: "Casual shirt", description: "Everyday casual shirts." },
+  { key: "formal", slug: "formal-shirt", name: "Formal shirt", description: "Formal shirts for work and occasions." },
+  { key: "check", slug: "check-shirt", name: "Check shirt", description: "Check-pattern shirts." },
+];
+
+export function canonicalShirtSubcategory(key: ShirtSubKey) {
+  return SHIRT_SUBCATEGORY_INFO.find((info) => info.key === key) ?? null;
+}
+
 export function shirtSubKey(category: {
   slug: string;
   name: string;
@@ -80,11 +107,34 @@ export function isShirtSubcategory(category: {
   );
 }
 
-/** The three shirt types, in list order — shown inside Shirts. */
+/**
+ * The three shirt types, in list order — shown inside Shirts.
+ * Deduplicated by canonical shirt key: the merged category list
+ * carries both the static rows and the messy DB rows (a "Formal
+ * shirts" plural duplicate, a "Casual shirt" row with a garbage
+ * slug), so filtering it raw produced one chip per ROW — 5 sub
+ * chips on Preview 2026-11-21, with "Casual shirt" twice and the
+ * Casual chip linking to the garbage slug. Each returned row keeps
+ * the first matching DB row's id/photo (so its products still
+ * match) but carries the canonical slug, name and description, in
+ * canonical order. A type with no row at all is omitted.
+ */
 export function shirtSubcategories(
   categories: readonly Category[],
 ): Category[] {
-  return categories.filter(isShirtSubcategory);
+  const out: Category[] = [];
+  for (const info of SHIRT_SUBCATEGORY_INFO) {
+    const row = categories.find((c) => shirtSubKey(c) === info.key);
+    if (!row) continue;
+    out.push({
+      ...row,
+      slug: info.slug,
+      name: info.name,
+      description: info.description,
+      parentId: row.parentId ?? SHIRT_PARENT_ID,
+    });
+  }
+  return out;
 }
 
 /** Everything except the shirt sub-categories — the top-level browse list. */
