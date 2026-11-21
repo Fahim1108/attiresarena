@@ -29,6 +29,9 @@
  * union keeps the app's "Companiganj" spelling, not the dataset's
  * "Companigonj" variant.
  */
+
+import type { DeliveryZone } from "@/types";
+
 export const DIVISIONS: Record<string, string[]> = {
   Dhaka: ["Dhaka", "Faridpur", "Gazipur", "Gopalganj", "Kishoreganj", "Madaripur", "Manikganj", "Munshiganj", "Narayanganj", "Narsingdi", "Rajbari", "Shariatpur", "Tangail"],
   Chattogram: ["Bandarban", "Brahmanbaria", "Chandpur", "Chattogram", "Cox's Bazar", "Cumilla", "Feni", "Khagrachhari", "Lakshmipur", "Noakhali", "Rangamati"],
@@ -538,7 +541,11 @@ export function areasOf(district: string): string[] {
   return AREAS[district] ?? [];
 }
 
-/** Delivery is "inside Dhaka" only for Dhaka district. */
-export function isInsideDhaka(district: string): boolean {
-  return district === "Dhaka";
+/** "Inside Barishal City" is only Barishal Sadar upazila of Barishal district. Everywhere else is outside. */
+export function isInsideBarishalCity(division: string, district: string, area: string): boolean {
+  return division === "Barishal" && district === "Barishal" && area === "Barishal Sadar";
+}
+
+export function deliveryZone(division: string, district: string, area: string): DeliveryZone {
+  return isInsideBarishalCity(division, district, area) ? "inside-barishal-city" : "outside-barishal-city";
 }

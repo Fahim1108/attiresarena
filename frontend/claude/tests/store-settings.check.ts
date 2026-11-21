@@ -91,10 +91,10 @@ describe("announcement bar merge", () => {
 
   it("applies stored text and visibility, keeping the rest static", () => {
     const merged = applyAnnouncementOverride(header, {
-      announcement_bar: { text: "Free delivery over ৳2,000", visible: false },
+      announcement_bar: { text: "Winter Sale!", visible: false },
     });
     expect(merged.announcement.enabled).toBe(false);
-    expect(merged.announcement.left).toBe("Free delivery over ৳2,000");
+    expect(merged.announcement.left).toBe("Winter Sale!");
     expect(merged.announcement.items).toBe(header.announcement.items);
     expect(merged.navigation).toBe(header.navigation);
   });

@@ -23,8 +23,8 @@ export const policyPages: Record<string, PolicyPage> = {
     intro: "We deliver across all 64 districts of Bangladesh through trusted courier partners.",
     updated: "2026-10-01",
     sections: [
-      { heading: "Delivery charges", list: ["Inside Dhaka: ৳80", "Outside Dhaka: ৳130", "Free delivery on orders over ৳2,000"] },
-      { heading: "Delivery time", list: ["Inside Dhaka: 1–2 working days", "Outside Dhaka: 3–5 working days", "Delivery may take longer during Eid, public holidays, hartals or severe weather."] },
+      { heading: "Delivery charges", list: ["Inside Barishal City: ৳50", "Outside Barishal City: ৳140"] },
+      { heading: "Delivery time", list: ["Inside Barishal City: 1–2 working days", "Outside Barishal City: 3–5 working days", "Delivery may take longer during Eid, public holidays, hartals or severe weather."] },
       { heading: "Order confirmation", body: ["For Cash on Delivery orders, our team calls the number you provide to confirm the order before dispatch. Orders that cannot be confirmed after two attempts may be cancelled."] },
       { heading: "Checking your parcel", body: ["You may check the product in front of the delivery rider before paying. If something is wrong, you can refuse the parcel and pay only the delivery charge."] },
     ],
@@ -92,16 +92,16 @@ export const faqs: { category: string; items: { q: string; a: string }[] }[] = [
   {
     category: "Delivery",
     items: [
-      { q: "How long does delivery take?", a: "1–2 working days inside Dhaka and 3–5 working days outside Dhaka." },
-      { q: "How much is delivery?", a: "৳80 inside Dhaka and ৳130 outside Dhaka. Delivery is free on orders over ৳2,000." },
+      { q: "How long does delivery take?", a: "1–2 working days inside Barishal City and 3–5 working days outside Barishal City." },
+      { q: "How much is delivery?", a: "৳50 inside Barishal City and ৳140 outside Barishal City." },
       { q: "Can I check the product before paying?", a: "Yes. You can inspect your parcel in front of the rider before paying." },
       // Owner target phrase (Fahim, 2026-11-19): "best thrift shirt in
       // Barishal". No shop location is claimed — the answer states the
       // verifiable fact: Barishal division is in the checkout address
       // data (src/data/bangladesh.ts DIVISIONS), so its districts can be
-      // selected at checkout; time/cost are the existing outside-Dhaka
-      // figures from this same FAQ group.
-      { q: "Can I order a thrift shirt in Barishal?", a: "Yes. We deliver across Bangladesh, including Barishal division — Barguna, Barishal, Bhola, Jhalokati, Patuakhali and Pirojpur districts can be selected in the checkout address form. Delivery outside Dhaka takes 3–5 working days and costs ৳130, with Cash on Delivery available." },
+      // selected at checkout; time/cost are the Barishal City figures
+      // from this same FAQ group.
+      { q: "Can I order a thrift shirt in Barishal?", a: "Yes. We deliver across Bangladesh, including Barishal division — Barguna, Barishal, Bhola, Jhalokati, Patuakhali and Pirojpur districts can be selected in the checkout address form. Delivery inside Barishal City (Barishal Sadar) takes 1–2 working days and costs ৳50; everywhere else takes 3–5 working days and costs ৳140, with Cash on Delivery available." },
     ],
   },
   {

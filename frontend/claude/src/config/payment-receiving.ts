@@ -36,7 +36,7 @@ export function previewPaymentConfiguration(receiving = previewReceivingConfigur
   if (receiving.bkashAuthorized && isValidBdPhone(normalizePhone(receiving.bkashNumber))) destinations.push({ provider: "bkash", recipientNumber: normalizePhone(receiving.bkashNumber), accountType: "personal", transferInstructions: "" });
   if (receiving.nagadAuthorized && isValidBdPhone(normalizePhone(receiving.nagadNumber))) destinations.push({ provider: "nagad", recipientNumber: normalizePhone(receiving.nagadNumber), accountType: "personal", transferInstructions: "" });
   // Recipient approval is NOT an authorization to collect, persist or verify.
-  return { available: false, destinations, policy: { insideDhakaMinor: 7000, outsideDhakaMinor: 13000, credit: "against-order-total" } };
+  return { available: false, destinations, policy: { insideBarishalCityMinor: 5000, outsideBarishalCityMinor: 14000, credit: "against-order-total" } };
 }
 
 /**

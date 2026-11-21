@@ -28,8 +28,6 @@ export function CartView() {
       />
     );
 
-  const remaining = commerce.freeDeliveryThreshold - summary.subtotal;
-
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_380px] lg:gap-12 [&>*]:min-w-0">
       <section aria-label="Cart items">
@@ -52,8 +50,7 @@ export function CartView() {
       <aside className="lg:sticky lg:top-28 lg:self-start">
         <div className="space-y-5 rounded-card border border-line p-5 sm:p-6">
           <CouponField />
-          <OrderSummary summary={summary} deliveryNote={`Inside Dhaka shown. Outside Dhaka: ${formatPrice(commerce.deliveryCharges.outsideDhaka)} — calculated at checkout.`} />
-          {remaining > 0 && <p className="rounded-control border border-line bg-white px-3 py-2 text-xs text-primary">Add {formatPrice(remaining)} more for free delivery.</p>}
+          <OrderSummary summary={summary} deliveryNote={`Inside Barishal City shown (${formatPrice(commerce.deliveryCharges.insideBarishalCity)}). Outside Barishal City: ${formatPrice(commerce.deliveryCharges.outsideBarishalCity)} — calculated at checkout.`} />
           <ButtonLink href="/checkout" size="lg" fullWidth rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}>
             Proceed to Checkout
           </ButtonLink>

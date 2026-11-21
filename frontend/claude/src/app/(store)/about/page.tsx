@@ -23,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
 const values = [
   { Icon: Gem, title: "Considered quality", text: "Fabrics and finishes chosen to last through Bangladesh's heat, humidity and monsoon." },
   { Icon: HeartHandshake, title: "Honest pricing", text: "Premium style without inflated mark-ups. What you see is what you pay." },
-  { Icon: Truck, title: "Nationwide delivery", text: "Delivered to all 64 districts, with free delivery on orders over ৳2,000." },
+  { Icon: Truck, title: "Nationwide delivery", text: "Delivered to all 64 districts — ৳50 inside Barishal City, ৳140 everywhere else." },
   { Icon: Banknote, title: "Pay on delivery", text: "Check your parcel first, then pay the rider. Simple and safe." },
 ];
 

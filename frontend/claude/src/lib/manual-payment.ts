@@ -1,18 +1,20 @@
-import { DIVISIONS } from "@/data/bangladesh";
+import { areasOf, DIVISIONS } from "@/data/bangladesh";
 import { isValidBdPhone, normalizePhone } from "./validation";
 import type { AdvancePolicy, AdvanceProvider, PaymentSubmissionInput, VerifiedAdvanceOrder } from "@/types/manual-payment";
 
-export function classifyAdvanceLocation(division: string, district: string) {
+export function classifyAdvanceLocation(division: string, district: string, area: string) {
   if (!DIVISIONS[division]?.includes(district)) return null;
-  // Explicit preview policy: Dhaka district (including its listed thanas),
-  // rather than a customer-controlled "inside" label. Live zones need approval.
-  return division === "Dhaka" && district === "Dhaka" ? "inside-dhaka" : "outside-dhaka";
+  if (!areasOf(district).includes(area)) return null;
+  // Explicit preview policy: Barishal City is Barishal Sadar upazila of
+  // Barishal district, rather than a customer-controlled "inside" label.
+  // Live zones need approval.
+  return division === "Barishal" && district === "Barishal" && area === "Barishal Sadar" ? "inside-barishal-city" : "outside-barishal-city";
 }
 
-export function advanceBreakdown(totalMinor: number, division: string, district: string, policy: AdvancePolicy) {
-  const zone = classifyAdvanceLocation(division, district);
+export function advanceBreakdown(totalMinor: number, division: string, district: string, area: string, policy: AdvancePolicy) {
+  const zone = classifyAdvanceLocation(division, district, area);
   if (!zone || !Number.isSafeInteger(totalMinor) || totalMinor < 0 || policy.credit !== "against-order-total") return null;
-  const advanceMinor = zone === "inside-dhaka" ? policy.insideDhakaMinor : policy.outsideDhakaMinor;
+  const advanceMinor = zone === "inside-barishal-city" ? policy.insideBarishalCityMinor : policy.outsideBarishalCityMinor;
   if (!Number.isSafeInteger(advanceMinor) || advanceMinor < 0 || advanceMinor > totalMinor) return null;
   return { zone, totalMinor, advanceMinor, remainingMinor: totalMinor - advanceMinor };
 }
@@ -22,12 +24,12 @@ export function formatPaymentAmount(minor: number) {
   return `৳${new Intl.NumberFormat("en-BD", { minimumFractionDigits: minor % 100 ? 2 : 0, maximumFractionDigits: 2 }).format(minor / 100)}`;
 }
 
-export function manualPaymentBreakdown(mode: "cod" | "online", totalMinor: number, division: string, district: string, policy: AdvancePolicy) {
+export function manualPaymentBreakdown(mode: "cod" | "online", totalMinor: number, division: string, district: string, area: string, policy: AdvancePolicy) {
   if (mode === "cod") {
-    const advance = advanceBreakdown(totalMinor, division, district, policy);
+    const advance = advanceBreakdown(totalMinor, division, district, area, policy);
     return advance ? { ...advance, amountDueMinor: advance.advanceMinor } : null;
   }
-  const zone = classifyAdvanceLocation(division, district);
+  const zone = classifyAdvanceLocation(division, district, area);
   if (!zone || !Number.isSafeInteger(totalMinor) || totalMinor <= 0) return null;
   return { zone, totalMinor, amountDueMinor: totalMinor, remainingMinor: 0 };
 }

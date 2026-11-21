@@ -7,7 +7,7 @@ import { CouponField } from "@/components/cart/CouponField";
 import { OrderSummary } from "@/components/cart/OrderSummary";
 import { Button, ButtonLink, Checkbox, DemoNotice, EmptyState, Input, Modal, Select, CheckoutSkeleton, SmartImage, Textarea } from "@/components/ui";
 import { useCart } from "@/context/CartContext";
-import { areaLabel, areasOf, districtLabel, districtsOf, divisionLabel, divisionNames, isInsideDhaka } from "@/data/bangladesh";
+import { areaLabel, areasOf, districtLabel, districtsOf, divisionLabel, divisionNames, isInsideBarishalCity } from "@/data/bangladesh";
 import { canPlaceOrder } from "@/lib/checkout/gate";
 import { toMinorUnits } from "@/lib/checkout/coupons";
 import { formatOrderNumber } from "@/lib/admin/format";
@@ -59,11 +59,11 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
   // The coupon phone: a valid normalized number, else null. Shared by the
   // summary (coupon freshness) and the coupon field (per-customer counting).
   const couponPhone = isValidBdPhone(form.phone) ? normalizePhone(form.phone) : null;
-  const summary = getSummary(form.district || undefined, couponPhone);
+  const summary = getSummary(form.division || undefined, form.district || undefined, form.area || undefined, couponPhone);
   // Totals can hold fractional taka once a percent discount applies; round
   // to minor units instead of multiplying, which can leave float residue
   // that the payment helpers reject.
-  const advance = payment === "cod" ? advanceBreakdown(toMinorUnits(summary.total), form.division, form.district, manualPaymentConfiguration.policy) : null;
+  const advance = payment === "cod" ? advanceBreakdown(toMinorUnits(summary.total), form.division, form.district, form.area, manualPaymentConfiguration.policy) : null;
   const districts = useMemo(() => districtsOf(form.division), [form.division]);
   const areas = useMemo(() => areasOf(form.district), [form.district]);
 
@@ -198,7 +198,15 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
   if (!items.length)
     return <EmptyState icon={<ShoppingBag className="h-7 w-7" aria-hidden />} title="Your cart is empty" description="Add products to your cart before checking out." action={<ButtonLink href="/shop">Browse Products</ButtonLink>} />;
 
-  const deliveryLabel = form.district ? (isInsideDhaka(form.district) ? "Inside Dhaka" : "Outside Dhaka") : "Select a district to calculate delivery";
+  // Barishal City is decided by the area (Barishal Sadar), so until an area
+  // is picked for Barishal district the zone is not known yet.
+  const deliveryLabel = !form.district
+    ? "Select a district to calculate delivery"
+    : form.district === "Barishal" && !form.area
+      ? "Select an area to calculate delivery"
+      : isInsideBarishalCity(form.division, form.district, form.area)
+        ? "Inside Barishal City"
+        : "Outside Barishal City";
 
   // The notice must name the environment honestly. On production with
   // ordering enabled this is a real store, so no demo notice renders at
@@ -269,7 +277,7 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
             <div className="space-y-6">
               <h2 tabIndex={-1} className="font-serif text-2xl text-ink">Payment</h2>
               <PaymentMethodSelector value={payment} onChange={setPayment} onlineEnabled={manualPaymentConfiguration.available} previewEnabled isProduction={isProduction} />
-              <ManualAdvancePayment mode={payment} configuration={manualPaymentConfiguration} totalMinor={toMinorUnits(summary.total)} division={form.division} district={form.district} onDetailsChange={handlePaymentDetailsChange} onSubmitPayment={(data) => placeOrder(data)} submitting={pending} isProduction={isProduction} />
+              <ManualAdvancePayment mode={payment} configuration={manualPaymentConfiguration} totalMinor={toMinorUnits(summary.total)} division={form.division} district={form.district} area={form.area} onDetailsChange={handlePaymentDetailsChange} onSubmitPayment={(data) => placeOrder(data)} submitting={pending} isProduction={isProduction} />
               {paymentError && <p role="alert" className="text-sm leading-relaxed text-primary">{paymentError}</p>}
               <Textarea label="Order note (optional)" placeholder="Anything we should know? e.g. preferred delivery time" value={note} onChange={(e) => setNote(e.target.value)} className="min-h-[80px]" />
               <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">

@@ -2,8 +2,8 @@ import type { ActionResult } from "./commerce";
 
 export type AdvanceProvider = "bkash" | "nagad";
 export interface AdvancePolicy {
-  insideDhakaMinor: number;
-  outsideDhakaMinor: number;
+  insideBarishalCityMinor: number;
+  outsideBarishalCityMinor: number;
   credit: "against-order-total";
 }
 export interface PaymentDestination {

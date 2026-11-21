@@ -13,12 +13,13 @@ import { paymentBrands } from "@/config/payment-brands";
 import type { PaymentMethod } from "@/types";
 const names = { bkash: paymentBrands.bkash.name, nagad: paymentBrands.nagad.name };
 
-export function ManualAdvancePayment({ configuration, totalMinor, division, district, orderReference = null, mode = "cod", onDetailsChange, onSubmitPayment, submitting = false, isProduction = false }: {
+export function ManualAdvancePayment({ configuration, totalMinor, division, district, area, orderReference = null, mode = "cod", onDetailsChange, onSubmitPayment, submitting = false, isProduction = false }: {
   mode?: PaymentMethod;
   configuration: ManualPaymentConfiguration;
   totalMinor: number;
   division: string;
   district: string;
+  area: string;
   orderReference?: string | null;
   /** Checkout mode: report every edit so the parent can require the details before placing the order. */
   onDetailsChange?: (details: { provider: AdvanceProvider; transactionId: string; senderNumber: string }) => void;
@@ -41,7 +42,7 @@ export function ManualAdvancePayment({ configuration, totalMinor, division, dist
   const inFlight = useRef(false);
   const submissionKey = useRef<{ fingerprint: string; key: string } | null>(null);
   const destination = configuration.destinations.find(d => d.provider === provider);
-  const breakdown = manualPaymentBreakdown(mode, totalMinor, division, district, configuration.policy);
+  const breakdown = manualPaymentBreakdown(mode, totalMinor, division, district, area, configuration.policy);
   // Standalone mode (order already exists): the live submission needs the
   // collection gate + an order reference. Checkout mode (no order yet): the
   // details go to the parent with the order, and the server is the real gate.
@@ -100,7 +101,7 @@ export function ManualAdvancePayment({ configuration, totalMinor, division, dist
         <div className="flex justify-between gap-4 font-semibold text-primary"><dt>{mode === "cod" ? "Required advance" : "Full payment amount"}</dt><dd data-required-advance>{breakdown ? formatPaymentAmount(breakdown.amountDueMinor) : "Select location"}</dd></div>
         <div className="flex justify-between gap-4 border-t border-line pt-2"><dt>Remaining on delivery</dt><dd data-remaining-balance>{breakdown ? formatPaymentAmount(breakdown.remainingMinor) : "—"}</dd></div>
       </dl>
-      {breakdown && mode === "cod" && <p className="text-sm text-ink-muted">{breakdown.zone === "inside-dhaka" ? "Inside Dhaka district" : "Outside Dhaka district"}: {formatPaymentAmount(breakdown.amountDueMinor)} advance required to confirm COD. Amounts shown are estimates until a secure order quote is available.</p>}
+      {breakdown && mode === "cod" && <p className="text-sm text-ink-muted">{breakdown.zone === "inside-barishal-city" ? "Inside Barishal City" : "Outside Barishal City"}: {formatPaymentAmount(breakdown.amountDueMinor)} advance required to confirm COD. Amounts shown are estimates until a secure order quote is available.</p>}
       <div role="tablist" aria-label="Personal payment method" className="grid grid-cols-2 gap-2">
         {(["bkash", "nagad"] as const).map((method, index) => (
           <button key={method} id={`${id}-${method}`} type="button" role="tab" aria-label={`Personal ${names[method]}`} aria-selected={provider === method}

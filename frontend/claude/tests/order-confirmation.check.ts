@@ -5,13 +5,13 @@ import {AdvanceOrderConfirmation} from '@/components/checkout/AdvanceOrderConfir
 import {canDisplayConfirmedOrder} from '@/lib/manual-payment';
 import type {VerifiedAdvanceOrder} from '@/types/manual-payment';
 
-const receipt:VerifiedAdvanceOrder={orderId:'private-internal-uuid',orderReference:'48271',createdAt:'2026-10-27T00:00:00Z',orderStatus:'confirmed',advanceStatus:'advance_verified',provider:'bkash',totalMinor:110000,advanceMinor:7000,remainingMinor:103000};
+const receipt:VerifiedAdvanceOrder={orderId:'private-internal-uuid',orderReference:'48271',createdAt:'2026-10-27T00:00:00Z',orderStatus:'confirmed',advanceStatus:'advance_verified',provider:'bkash',totalMinor:110000,advanceMinor:5000,remainingMinor:105000};
 const render=(order:VerifiedAdvanceOrder|null)=>renderToStaticMarkup(createElement(AdvanceOrderConfirmation,{order}));
 it('shows the real customer reference and verified totals without exposing the internal UUID',()=>{
   const html=render(receipt);expect(html).toContain('Your Order Is Confirmed!');expect(html).toContain('Thanks for your Order');expect(html).toContain('48271');expect(html).toContain('Advance verified');expect(html).not.toContain('private-internal-uuid');expect(html).not.toContain('Purchased items');expect(html).not.toContain('Delivery information');
 });
 it('renders supplied immutable item and delivery snapshots only',()=>{
-  const html=render({...receipt,subtotalMinor:103000,deliveryMinor:7000,discountMinor:0,items:[{name:'Purchased thrift shirt',quantity:2,unitPriceMinor:51500,lineTotalMinor:103000,size:'M',color:'White'}],delivery:{recipientName:'Test customer',addressLines:['Verified street address'],district:'Dhaka',division:'Dhaka',zoneLabel:'Inside Dhaka',estimatedDelivery:'Confirmed courier estimate'}});
+  const html=render({...receipt,subtotalMinor:105000,deliveryMinor:5000,discountMinor:0,items:[{name:'Purchased thrift shirt',quantity:2,unitPriceMinor:52500,lineTotalMinor:105000,size:'M',color:'White'}],delivery:{recipientName:'Test customer',addressLines:['Verified street address'],district:'Barishal',division:'Barishal',zoneLabel:'Inside Barishal City',estimatedDelivery:'Confirmed courier estimate'}});
   expect(html).toContain('Purchased thrift shirt');expect(html).toContain('Qty 2');expect(html).toContain('M · White');expect(html).toContain('Verified street address');expect(html).toContain('Confirmed courier estimate');expect(html).toContain('Delivery cost');expect(html).not.toContain('private-internal-uuid');
 });
 it('does not accept pending/unverified receipts or malformed optional snapshots',()=>{

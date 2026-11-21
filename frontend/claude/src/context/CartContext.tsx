@@ -6,7 +6,7 @@ import { applyCartAdd, applyCartQuantity, cartUnitCount, MAX_UNITS_PER_ORDER, ty
 import { fromMinorUnits, isCouponFresh, toMinorUnits } from "@/lib/checkout/coupons";
 import type {Product} from "@/types";
 import { commerce } from "@/config";
-import { isInsideDhaka } from "@/data/bangladesh";
+import { deliveryZone } from "@/data/bangladesh";
 import { readStorage, STORAGE_KEYS, writeStorage } from "@/lib/storage";
 import type { CartItem, Coupon, OrderSummary } from "@/types";
 
@@ -33,8 +33,8 @@ interface CartContextValue {
   /** Store a coupon the server already validated (via the coupon action). */
   applyCoupon: (coupon: Coupon) => void;
   removeCoupon: () => void;
-  /** Summary for a given delivery district and phone (both defaulted). The phone decides coupon freshness. */
-  getSummary: (district?: string, phone?: string | null) => OrderSummary;
+  /** Summary for a given delivery address and phone (all defaulted). The phone decides coupon freshness. */
+  getSummary: (division?: string, district?: string, area?: string, phone?: string | null) => OrderSummary;
   isDrawerOpen: boolean;
   openDrawer: () => void;
   closeDrawer: () => void;
@@ -144,7 +144,7 @@ export function CartProvider({ children, initialItems = [], approvedVariantIds =
   const removeCoupon = useCallback(() => setCoupon(undefined), []);
 
   const getSummary = useCallback(
-    (district?: string, phone?: string | null): OrderSummary => {
+    (division?: string, district?: string, area?: string, phone?: string | null): OrderSummary => {
       const itemCount = items.reduce((n, i) => n + i.quantity, 0);
       // The discount applies only while the subtotal AND phone are exactly
       // the ones the server validated it against. A stale coupon shows no
@@ -152,9 +152,12 @@ export function CartProvider({ children, initialItems = [], approvedVariantIds =
       // never sends a code the server has not validated for this cart.
       const freshCoupon = isCouponFresh(coupon, toMinorUnits(subtotal), phone ?? null) ? coupon : undefined;
       const discount = freshCoupon ? Math.min(fromMinorUnits(freshCoupon.discountMinor), subtotal) : 0;
-      const baseDelivery = district && !isInsideDhaka(district) ? commerce.deliveryCharges.outsideDhaka : commerce.deliveryCharges.insideDhaka;
-      const free = subtotal >= commerce.freeDeliveryThreshold;
-      const deliveryCharge = itemCount === 0 || free ? 0 : baseDelivery;
+      // No free delivery: every order pays the zone charge. Without an
+      // address yet the summary shows the inside-Barishal-City charge as
+      // the estimate; checkout confirms the real charge for the address.
+      const zone = !district ? "inside-barishal-city" : deliveryZone(division ?? "", district, area ?? "");
+      const baseDelivery = zone === "inside-barishal-city" ? commerce.deliveryCharges.insideBarishalCity : commerce.deliveryCharges.outsideBarishalCity;
+      const deliveryCharge = itemCount === 0 ? 0 : baseDelivery;
       return { itemCount, subtotal, discount, deliveryCharge, total: Math.max(0, subtotal - discount + deliveryCharge), coupon: freshCoupon };
     },
     [items, coupon, subtotal],

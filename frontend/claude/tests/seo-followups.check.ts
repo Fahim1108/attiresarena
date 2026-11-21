@@ -486,7 +486,8 @@ describe("owner target search phrases (Fahim, 2026-11-19)", () => {
     const barishal = find("Can I order a thrift shirt in Barishal?");
     expect(barishal).toContain("We deliver across Bangladesh");
     expect(barishal).toContain("3–5 working days");
-    expect(barishal).toContain("৳130");
+    expect(barishal).toContain("৳140");
+    expect(barishal).toContain("৳50");
     // No answer asserts "best" as a verified fact; the word appears
     // only in the collection question targeting the search intent.
     for (const answer of [collection, price, barishal]) {

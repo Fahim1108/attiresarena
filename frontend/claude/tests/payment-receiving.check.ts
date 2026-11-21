@@ -87,14 +87,14 @@ describe("central personal recipient configuration", () => {
 describe("one payment panel for advance and full payment", () => {
   const policy = previewPaymentConfiguration().policy;
   it("uses the COD advance with a remaining balance", () => {
-    expect(manualPaymentBreakdown("cod", 200000, "Dhaka", "Dhaka", policy)).toMatchObject({ amountDueMinor: 7000, remainingMinor: 193000 });
-    expect(manualPaymentBreakdown("cod", 200000, "Dhaka", "Gazipur", policy)).toMatchObject({ amountDueMinor: 13000, remainingMinor: 187000 });
+    expect(manualPaymentBreakdown("cod", 200000, "Barishal", "Barishal", "Barishal Sadar", policy)).toMatchObject({ amountDueMinor: 5000, remainingMinor: 195000 });
+    expect(manualPaymentBreakdown("cod", 200000, "Dhaka", "Gazipur", "Gazipur Sadar", policy)).toMatchObject({ amountDueMinor: 14000, remainingMinor: 186000 });
   });
   it("uses exactly the full total with no remaining COD balance for online preview", () => {
-    expect(manualPaymentBreakdown("online", 200050, "Dhaka", "Dhaka", policy)).toEqual({ zone: "inside-dhaka", totalMinor: 200050, amountDueMinor: 200050, remainingMinor: 0 });
+    expect(manualPaymentBreakdown("online", 200050, "Barishal", "Barishal", "Barishal Sadar", policy)).toEqual({ zone: "inside-barishal-city", totalMinor: 200050, amountDueMinor: 200050, remainingMinor: 0 });
   });
   it("does not invent a full-payment quote for missing locations or invalid totals", () => {
-    expect(manualPaymentBreakdown("online", 200000, "", "", policy)).toBeNull();
-    expect(manualPaymentBreakdown("online", -1, "Dhaka", "Dhaka", policy)).toBeNull();
+    expect(manualPaymentBreakdown("online", 200000, "", "", "", policy)).toBeNull();
+    expect(manualPaymentBreakdown("online", -1, "Barishal", "Barishal", "Barishal Sadar", policy)).toBeNull();
   });
 });

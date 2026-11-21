@@ -1,4 +1,4 @@
-import { Clock, MapPin, PackageCheck, Truck } from "lucide-react";
+import { Clock, MapPin, Truck } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ProductDetailClient } from "@/components/product/ProductDetailClient";
@@ -137,22 +137,15 @@ export default async function ProductPage({ params, searchParams }: { params: Pa
               <li className="flex gap-3">
                 <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-primary" strokeWidth={1.6} aria-hidden />
                 <div>
-                  <p className="font-medium text-ink">Inside Dhaka</p>
-                  <p className="text-ink-muted">1–2 working days · {formatPrice(commerce.deliveryCharges.insideDhaka)}</p>
+                  <p className="font-medium text-ink">Inside Barishal City</p>
+                  <p className="text-ink-muted">1–2 working days · {formatPrice(commerce.deliveryCharges.insideBarishalCity)}</p>
                 </div>
               </li>
               <li className="flex gap-3">
                 <Truck className="mt-0.5 h-5 w-5 shrink-0 text-primary" strokeWidth={1.6} aria-hidden />
                 <div>
-                  <p className="font-medium text-ink">Outside Dhaka</p>
-                  <p className="text-ink-muted">3–5 working days · {formatPrice(commerce.deliveryCharges.outsideDhaka)}</p>
-                </div>
-              </li>
-              <li className="flex gap-3">
-                <PackageCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" strokeWidth={1.6} aria-hidden />
-                <div>
-                  <p className="font-medium text-ink">Free delivery</p>
-                  <p className="text-ink-muted">On orders over {formatPrice(commerce.freeDeliveryThreshold)}</p>
+                  <p className="font-medium text-ink">Outside Barishal City</p>
+                  <p className="text-ink-muted">3–5 working days · {formatPrice(commerce.deliveryCharges.outsideBarishalCity)}</p>
                 </div>
               </li>
               <li className="flex gap-3">

@@ -3,29 +3,31 @@ import { advanceBreakdown, buildOrderNote, canDisplayConfirmedOrder, classifyAdv
 import { submitManualPaymentAction } from "../src/services/manual-payment-actions";
 import { mockDataSource } from "../src/services/adapters/mock";
 
-const policy = { insideDhakaMinor: 7000, outsideDhakaMinor: 13000, credit: "against-order-total" as const };
+const policy = { insideBarishalCityMinor: 5000, outsideBarishalCityMinor: 14000, credit: "against-order-total" as const };
 const input = { provider: "bkash", transactionId: " AbC-123 ", senderNumber: " +880 1700-000000 ", note: " Test note ", idempotencyKey: "11111111-1111-4111-8111-111111111111", orderReference: null };
 afterEach(() => vi.restoreAllMocks());
 
 describe("location and precision-safe advance breakdown", () => {
-  it("credits 70 inside Dhaka against the total, without adding delivery again", () => {
-    expect(advanceBreakdown(200000, "Dhaka", "Dhaka", policy)).toEqual({ zone: "inside-dhaka", totalMinor: 200000, advanceMinor: 7000, remainingMinor: 193000 });
+  it("credits 50 inside Barishal City against the total, without adding delivery again", () => {
+    expect(advanceBreakdown(200000, "Barishal", "Barishal", "Barishal Sadar", policy)).toEqual({ zone: "inside-barishal-city", totalMinor: 200000, advanceMinor: 5000, remainingMinor: 195000 });
   });
-  it("credits 130 outside Dhaka and includes 64-district classification", () => {
-    expect(advanceBreakdown(200000, "Chattogram", "Cumilla", policy)?.remainingMinor).toBe(187000);
-    expect(classifyAdvanceLocation("Dhaka", "Gazipur")).toBe("outside-dhaka");
+  it("credits 140 outside Barishal City and includes 64-district classification", () => {
+    expect(advanceBreakdown(200000, "Dhaka", "Gazipur", "Gazipur Sadar", policy)?.remainingMinor).toBe(186000);
+    expect(classifyAdvanceLocation("Barishal", "Barishal", "Babuganj")).toBe("outside-barishal-city");
+    expect(classifyAdvanceLocation("Barishal", "Barguna", "Barguna Sadar")).toBe("outside-barishal-city");
+    expect(classifyAdvanceLocation("Dhaka", "Dhaka", "Mirpur")).toBe("outside-barishal-city");
   });
   it("rejects mismatched, missing, invented and arbitrary inside/outside labels", () => {
-    for (const [division, district] of [["", ""], ["Dhaka", "inside-dhaka"], ["Sylhet", "Dhaka"], ["Unknown", "Dhaka"]] as const) expect(advanceBreakdown(200000, division, district, policy)).toBeNull();
+    for (const [division, district, area] of [["", "", ""], ["Barishal", "inside-barishal-city", "Barishal Sadar"], ["Sylhet", "Barishal", "Barishal Sadar"], ["Unknown", "Barishal", "Barishal Sadar"], ["Barishal", "Barishal", "Not an area"], ["Barishal", "Barishal", ""]] as const) expect(advanceBreakdown(200000, division, district, area, policy)).toBeNull();
   });
   it("rejects unsafe or insufficient totals and invalid policies", () => {
-    for (const total of [-1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, 6000]) expect(advanceBreakdown(total, "Dhaka", "Dhaka", policy)).toBeNull();
-    expect(advanceBreakdown(200000, "Dhaka", "Dhaka", { ...policy, insideDhakaMinor: -1 })).toBeNull();
+    for (const total of [-1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, 4000]) expect(advanceBreakdown(total, "Barishal", "Barishal", "Barishal Sadar", policy)).toBeNull();
+    expect(advanceBreakdown(200000, "Barishal", "Barishal", "Barishal Sadar", { ...policy, insideBarishalCityMinor: -1 })).toBeNull();
   });
   it("uses integer minor units for fractional BDT too", () => {
-    expect(advanceBreakdown(200050, "Dhaka", "Dhaka", policy)?.remainingMinor).toBe(193050);
-    expect(formatPaymentAmount(7000)).toBe("৳70");
-    expect(formatPaymentAmount(7050)).toBe("৳70.50");
+    expect(advanceBreakdown(200050, "Barishal", "Barishal", "Barishal Sadar", policy)?.remainingMinor).toBe(195050);
+    expect(formatPaymentAmount(5000)).toBe("৳50");
+    expect(formatPaymentAmount(5050)).toBe("৳50.50");
   });
 });
 
@@ -89,7 +91,7 @@ describe("payment reference on the order note", () => {
 });
 
 describe("order outcome consistency", () => {
-  const receipt = { orderId: "test-order", orderReference: "test-reference", createdAt: "2026-10-25T00:00:00Z", orderStatus: "confirmed", advanceStatus: "advance_verified", provider: "bkash", totalMinor: 200000, advanceMinor: 7000, remainingMinor: 193000 };
+  const receipt = { orderId: "test-order", orderReference: "test-reference", createdAt: "2026-10-25T00:00:00Z", orderStatus: "confirmed", advanceStatus: "advance_verified", provider: "bkash", totalMinor: 200000, advanceMinor: 5000, remainingMinor: 195000 };
   it("permits only a consistent verified confirmation receipt", () => expect(canDisplayConfirmedOrder(receipt)).toBe(true));
   it("does not confirm submitted, reviewed, unverified or inconsistent orders", () => {
     for (const value of [null, {}, { ...receipt, orderStatus: "pending_payment" }, { ...receipt, advanceStatus: "submitted" }, { ...receipt, advanceStatus: "under_review" }, { ...receipt, remainingMinor: 200000 }, { ...receipt, orderId: "" }, { ...receipt, createdAt: "bad" }, { ...receipt, advanceMinor: 0 }, { ...receipt, provider: "unknown" }]) expect(canDisplayConfirmedOrder(value)).toBe(false);

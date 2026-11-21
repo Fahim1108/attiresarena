@@ -171,13 +171,12 @@ export interface CommerceSettings {
   currencySymbol: string;
   currencyCode: string;
   locale: string;
-  deliveryCharges: { insideDhaka: number; outsideDhaka: number };
-  freeDeliveryThreshold: number;
+  deliveryCharges: { insideBarishalCity: number; outsideBarishalCity: number };
   returnWindowDays: number;
   codEnabled: boolean;
   onlinePaymentEnabled: boolean;
   /** Sample coupons accepted by the local cart demo. */
-  demoCoupons: { code: string; type: "percent" | "fixed" | "free-shipping"; value: number; description: string; minSubtotal?: number }[];
+  demoCoupons: { code: string; type: "percent" | "fixed"; value: number; description: string; minSubtotal?: number }[];
 }
 
 export interface DemoSettings {

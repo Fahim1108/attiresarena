@@ -147,7 +147,7 @@ describe("Bangla delivery form", () => {
     // this list: the final owner spec keeps them in English. Only the
     // placeholders, the helper hint and the validation errors are Bangla,
     // so their pre-checkout-fixes English forms must be gone. The delivery
-    // label ("Inside Dhaka" / "Outside Dhaka" / "Select a district to
+    // label ("Inside Barishal City" / "Outside Barishal City" / "Select a district to
     // calculate delivery") renders outside the delivery form and likewise
     // stays in English.
     for (const text of [
@@ -232,7 +232,7 @@ describe("coupon helpers", () => {
   });
 
   it("passes the coupon phone to the summary and the coupon field", () => {
-    expect(checkoutForm).toContain("getSummary(form.district || undefined, couponPhone)");
+    expect(checkoutForm).toContain("getSummary(form.division || undefined, form.district || undefined, form.area || undefined, couponPhone)");
     expect(checkoutForm).toContain("<CouponField phone={couponPhone} />");
   });
 
