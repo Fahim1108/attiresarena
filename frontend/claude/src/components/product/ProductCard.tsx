@@ -63,7 +63,7 @@ export function ProductCard({ product, brandName, priority, sizes = "(min-width:
         <div className="pointer-events-none absolute left-2.5 top-2.5 flex flex-col items-start gap-1">
           <ProductSizeBadge product={product} />
           {soldOut ? (
-            <Badge tone="dark">Sold out</Badge>
+            <Badge tone="primary">Sold out</Badge>
           ) : (
             <>
               {cfg.showDiscountBadge && off > 0 && <Badge>{off}% off</Badge>}

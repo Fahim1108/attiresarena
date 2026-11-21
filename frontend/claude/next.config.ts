@@ -26,6 +26,10 @@ const nextConfig: NextConfig = {
     contentDispositionType: "attachment",
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
     remotePatterns: [],
+    // SPEED: local raster photos (hero, banners, thrift intake JPGs) go
+    // through the optimizer; serve modern formats when the browser
+    // supports them so the same photo costs fewer bytes.
+    formats: ["image/avif", "image/webp"],
   },
 };
 

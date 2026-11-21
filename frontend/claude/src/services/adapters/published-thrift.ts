@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { publicSupabaseConfiguration } from "@/lib/supabase-public";
 import { extractRowSeoFields } from "@/lib/seo";
 import { isProductionStorefront } from "@/lib/storefront-policy";
@@ -244,9 +245,13 @@ export async function readThriftFeed(
   return { products, ok: true, error: null };
 }
 
-/** Legacy entry point: same products as before, failures now logged by readThriftFeed. */
+/** Legacy entry point: same products as before, failures now logged by readThriftFeed.
+ * Per-request memo (see readPublishedFeed below): getStorefrontSettings
+ * calls this on top of every feed read, so without it the allowlist RPC
+ * runs once more per page load for no new data. */
+const readThriftFeedCached = cache(async () => readThriftFeed());
 export async function publishedShirts(): Promise<Product[]> {
-  return (await readThriftFeed()).products;
+  return (await readThriftFeedCached()).products;
 }
 
 /**
@@ -314,10 +319,14 @@ export interface PublishedFeedRead extends StorefrontFeedHealth {
 }
 
 /** Both feed sources in parallel, with per-source health and the merged visible count. Never throws. */
-export async function readPublishedFeed(): Promise<PublishedFeedRead> {
+const readPublishedFeedUncached = async (): Promise<PublishedFeedRead> => {
   const configuration = publicSupabaseConfiguration();
+  // SPEED (round 2): the allowlist RPC ran TWICE per request — once
+  // here and once via publishedShirts() (getStorefrontSettings), which
+  // uses its own readThriftFeedCached. Both now share that one cached
+  // read, so the homepage pays for one allowlist RPC, not two.
   const [allowlist, published] = await Promise.all([
-    readThriftFeed(configuration),
+    readThriftFeedCached(),
     readAdminFeed(configuration),
   ]);
   const health: StorefrontFeedHealth = {
@@ -337,6 +346,21 @@ export async function readPublishedFeed(): Promise<PublishedFeedRead> {
     published: published.products,
     feedUnavailable: deriveFeedUnavailable(health),
   };
+};
+
+/**
+ * SPEED: per-request memo of the published feed. The homepage alone
+ * reads the feed 5+ times per load (root layout + page + two
+ * collections + categories + settings), each read being two Supabase
+ * RPC round-trips. React cache() dedupes within ONE request only —
+ * the next request re-fetches — so publish/unpublish still shows
+ * immediately, and no cross-request stale data is possible. The feed
+ * is anonymous public data (no cookies/user input), so sharing it
+ * inside one request is safe.
+ */
+const readPublishedFeedCached = cache(readPublishedFeedUncached);
+export async function readPublishedFeed(): Promise<PublishedFeedRead> {
+  return readPublishedFeedCached();
 }
 
 /**

@@ -15,6 +15,7 @@ import {toMerchandisingCandidates} from '@/lib/merchandising';
 import {storeCategories} from '@/config/catalogue';
 import {defaultStorefrontSettings} from '@/config';
 import {queryProducts} from '@/lib/catalog-query';
+import {isShirtSubcategory} from '@/lib/category-hierarchy';
 import {getPublishedCategories,mergeDbCategories} from '@/lib/store-settings';
 import {availableShirtTypes,publishedAvailable} from '@/lib/catalogue-dimensions';
 import type {Category,Product} from '@/types';
@@ -38,16 +39,29 @@ export async function browsableShirtsWithStatus(options:{liveReview?:boolean}={}
 export async function browsableShirts(options:{liveReview?:boolean}={}){
  return (await browsableShirtsWithStatus(options)).products;
 }
-const categories=storeCategories.map(c=>({...c,available:c.slug==='shirts',description:c.slug==='shirts'?'Individual thrift shirts, carefully selected.':'Coming soon.',...(c.slug==='shirts'?{image:{src:'/images/mockup/category-shirts-check.svg',alt:'Check shirts in white and maroon'},thumbnail:{src:'/images/mockup/category-shirts-check.svg',alt:'Check shirts in white and maroon'}}:{})}));
-
-/** DB-driven categories: published rows override the static config (name, description, photo, banner, SEO, order); the static config is the fallback when the read fails. Static ids are kept by the merge — product filtering keys off them. */
+/** DB-driven categories: published rows override the static config (name, description, photo, banner, SEO, order); the static config is the fallback when the read fails. Static ids are kept by the merge — product filtering keys off them.
+ * ROUND-2 FIX (Preview 2026-11-21: chips (0) + sub-pages "Coming Soon"):
+ * the old static `categories` const (available ONLY for shirts) was
+ * returned verbatim in review mode (every Vercel Preview: vercel.json
+ * sets CLAUDE_DESIGN_PREVIEW=1), so getCategories() marked Casual /
+ * Formal / Check available=false and getProducts() faceted against
+ * the static ids (cat-casual-shirt…) while admin products carry DB
+ * UUIDs — zero matches, zero counts. Review mode now uses the same
+ * DB-merged list + availability as production; the merge still falls
+ * back to the static config when the read fails, and
+ * applyCategoryAvailability keeps every non-shirt category
+ * "coming soon" by design. */
 async function liveCategories():Promise<Category[]>{
  return mergeDbCategories(storeCategories,await getPublishedCategories());
 }
 
-/** Shirts-only availability + the Shirts photo override, applied on top of the merged list. The adapter photo override always wins for Shirts, even when the DB row has a stored photo. The override image must match the promoted Shirts photo (check-shirts mockup, b994a81) — do not revert it to the old portrait. */
+/** Shirts-only availability + the Shirts photo override, applied on top of the merged list. The adapter photo override always wins for Shirts, even when the DB row has a stored photo. The override image must match the promoted Shirts photo (check-shirts mockup, b994a81) — do not revert it to the old portrait.
+ * Hierarchy (2026-11-20): the shirt sub-categories (Casual/Formal/
+ * Check) are available too — they render as sub-options inside Shirts
+ * and as their own listing pages — while every other non-shirt
+ * category stays "coming soon" by design. */
 function applyCategoryAvailability(cats:Category[],hasPublished:boolean,catalogueUnavailable:boolean):Category[]{
- return cats.map(c=>({...c,available:c.slug==='shirts'&&hasPublished,catalogueUnavailable,...(c.slug==='shirts'?{image:{src:'/images/mockup/category-shirts-check.svg',alt:'Check shirts in white and maroon'},thumbnail:{src:'/images/mockup/category-shirts-check.svg',alt:'Check shirts in white and maroon'}}:{})}));
+ return cats.map(c=>({...c,available:(c.slug==='shirts'||isShirtSubcategory(c))&&hasPublished,catalogueUnavailable,...(c.slug==='shirts'?{image:{src:'/images/mockup/category-shirts-check.svg',alt:'Check shirts in white and maroon'},thumbnail:{src:'/images/mockup/category-shirts-check.svg',alt:'Check shirts in white and maroon'}}:{})}));
 }
 
 /** Explicit owner inventory curation. Source order is not represented as a publication timestamp. Real publications sort newest-first by createdAt (the projector's published_at); design-review fixtures keep slug order after them. Featured prefers products badged "Featured Product" in admin; the fixture preview slice remains only when nothing is flagged. */
@@ -80,7 +94,7 @@ export const ownerCatalogue:StorefrontDataSource={...unavailableServices,...cust
   // Category facets resolve slugs through the same DB-driven list the
   // category pages use, so a published DB-only category appears as a
   // filter option. Review mode keeps the static taxonomy (fixtures).
-  const cats=reviewInventoryEnabled()?categories:await liveCategories();
+  const cats=await liveCategories();
   // Provisional preview sizes and visually proposed metadata never satisfy verified facets.
   const requiresVerified=Boolean(query.sizes?.length||query.shirtType||query.collection);
   const verified=products.filter(p=>!p.reviewOnly&&publishedAvailable(p));
@@ -103,7 +117,12 @@ export const ownerCatalogue:StorefrontDataSource={...unavailableServices,...cust
   return mergeStorefrontFeed(feed.allowlist,feed.published).some(p=>p.id===id)?approvedReviews(id):[];
  },async getInitialCart(){return [];},
  async getCategories(){
-  if(reviewInventoryEnabled())return categories;
+  // No review-mode shortcut: the old early return served the static
+  // list with only Shirts available, which rendered every shirt
+  // sub-category page as "Coming Soon" on Preview (see liveCategories
+  // note above). The live path below applies the same availability
+  // in review and production; with no DB rows the merge falls back
+  // to the static config unchanged.
   // Shirts availability reflects the whole browsable catalogue
   // (allowlist UNION admin-published), the same list /shop and the
   // homepage render — not the allowlist alone. The allowlist is empty

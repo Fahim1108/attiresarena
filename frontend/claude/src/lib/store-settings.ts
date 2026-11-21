@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 
 import type { Metadata } from "next";
 import type { PolicyPage } from "@/content/policies";
@@ -47,6 +48,12 @@ import type {
 import { publicSupabaseConfiguration } from "./supabase-public";
 import { PRODUCT_MEDIA_BUCKET } from "./admin/constants";
 import { isCatalogStoragePath } from "./admin/catalog-variants";
+import {
+  SHIRT_PARENT_ID,
+  canonicalShirtSubcategory,
+  isShirtSubcategory,
+  shirtSubKey,
+} from "./category-hierarchy";
 import { brandMediaUrl } from "./brand-media-delivery";
 
 /**
@@ -230,7 +237,7 @@ function parseLayoutSettings(
   return layout;
 }
 
-export async function getStorefrontContent(): Promise<StorefrontContent | null> {
+const getStorefrontContentUncached = async (): Promise<StorefrontContent | null> => {
   if (!publicSupabaseConfiguration()) return null;
   const [settingRows, blockRows, bannerRows, layoutRows] = await Promise.all([
     readRows("/rest/v1/store_settings?select=key,value"),
@@ -248,6 +255,19 @@ export async function getStorefrontContent(): Promise<StorefrontContent | null> 
     banners: parseBanners(bannerRows),
     layout: parseLayoutSettings(layoutRows),
   };
+};
+
+/**
+ * SPEED: per-request memo. The homepage reads store content 3 times
+ * per load (root layout + page metadata + page), each read being four
+ * parallel Supabase queries. React cache() dedupes within ONE request
+ * only; the next request re-fetches, so admin setting changes still
+ * show immediately. Anonymous public settings only (no cookies/user
+ * input), so sharing inside one request is safe.
+ */
+const getStorefrontContentCached = cache(getStorefrontContentUncached);
+export async function getStorefrontContent(): Promise<StorefrontContent | null> {
+  return getStorefrontContentCached();
 }
 
 /** Visible content blocks only (used by the policy pages). Empty on failure. */
@@ -353,12 +373,26 @@ export function parseCategoryRow(value: unknown): CategoryRow | null {
   const parentId = value.parent_id ?? null;
   if (parentId !== null && typeof parentId !== "string") return null;
   if (typeof value.published !== "boolean") return null;
-  if (typeof value.description !== "string") return null;
+  // A null description / sort_position is legitimate stored state (the
+  // columns are nullable and admin need not fill them); dropping the
+  // whole row for that silently removed the shirt sub-categories from
+  // the storefront. Coerce nulls to safe defaults instead.
+  if (typeof value.description !== "string" && value.description !== null)
+    return null;
+  const description =
+    typeof value.description === "string" ? value.description : "";
   if (
-    typeof value.sort_position !== "number" ||
+    typeof value.sort_position !== "number" &&
+    value.sort_position !== null
+  )
+    return null;
+  if (
+    typeof value.sort_position === "number" &&
     !Number.isInteger(value.sort_position)
   )
     return null;
+  const sortPosition =
+    typeof value.sort_position === "number" ? value.sort_position : 0;
   const image = value.image_storage_path ?? null;
   const banner = value.banner_storage_path ?? null;
   if (image !== null && typeof image !== "string") return null;
@@ -373,12 +407,12 @@ export function parseCategoryRow(value: unknown): CategoryRow | null {
     name,
     slug,
     published: value.published,
-    description: value.description,
+    description,
     image_storage_path: image,
     banner_storage_path: banner,
     seo_title: seoTitle,
     seo_description: seoDescription,
-    sort_position: value.sort_position,
+    sort_position: sortPosition,
   };
 }
 
@@ -394,12 +428,20 @@ export function parseCategoryRows(rows: unknown[]): CategoryRow[] {
 /**
  * Published categories for the storefront. Empty on any failure, so the
  * caller falls back to the static config unchanged.
+ * SPEED (round 2): per-request memo — the homepage and every category
+ * page read categories twice (getCategories + getProducts, each via
+ * liveCategories); without this the categories REST read ran twice.
+ * React cache() dedupes within ONE request only.
  */
-export async function getPublishedCategories(): Promise<CategoryRow[]> {
+const getPublishedCategoriesUncached = async (): Promise<CategoryRow[]> => {
   const rows = await readRows(
     "/rest/v1/categories?select=id,parent_id,name,slug,published,description,image_storage_path,banner_storage_path,seo_title,seo_description,sort_position&published=eq.true&order=sort_position.asc,created_at.asc",
   );
   return parseCategoryRows(rows).filter((row) => row.published);
+};
+const getPublishedCategoriesCached = cache(getPublishedCategoriesUncached);
+export async function getPublishedCategories(): Promise<CategoryRow[]> {
+  return getPublishedCategoriesCached();
 }
 
 /**
@@ -428,14 +470,21 @@ export function categoryMediaUrl(
  *   and photo/banner — but NEVER the static `id`: product filtering
  *   and the size guide key off the static ids, and admin products keep
  *   their DB category UUID as categoryId, so swapping ids would break
- *   /category/* matching (see catalog-publication.ts).
+ *   /category/* matching (see catalog-publication.ts). EXCEPTION: the
+ *   shirt sub-categories (Casual/Formal/Check) take the DB row's id,
+ *   because their products are assigned by DB UUID and keeping the
+ *   static id would orphan them from their sub-category page and zero
+ *   their facet counts (chips fix 2026-11-21).
  * - A DB row with a new slug is appended as a real category with the
  *   DB uuid as id, so products assigned to it can match it in filters.
  *   With no stored photo it uses the generic category illustration
  *   until a photo is added in admin.
  * - Description: the stored text wins when non-blank; otherwise the
  *   previous storefront wording is kept ("Individual thrift shirts…"
- *   for Shirts, "Coming soon." for everything else).
+ *   for Shirts, the canonical type text for a shirt sub-category,
+ *   "Coming soon." for everything else — shirt sub-categories are
+ *   real listing pages, so a blank stored description must never
+ *   render as "Coming soon." under their heading).
  * - Order is depth-first by parent (top-level rows by sort_position,
  *   each followed by its children); a row whose parent is not among
  *   the published rows is treated as top-level. Static categories
@@ -493,11 +542,19 @@ export function mergeDbCategories(
     if (usedSlugs.has(row.slug)) continue;
     usedSlugs.add(row.slug);
     const base = staticCategories.find((c) => c.slug === row.slug);
+    // Shirt sub-categories are real listing pages: a blank stored
+    // description falls back to the canonical type text, never
+    // "Coming soon." (Preview 2026-11-21: "Coming soon." sat under
+    // every sub-category heading, including the honestly-empty Check
+    // page). Genuinely future categories keep "Coming soon.".
+    const subKey = shirtSubKey(row);
     const description =
       nonBlankText(row.description) ??
       (row.slug === "shirts"
         ? "Individual thrift shirts, carefully selected."
-        : "Coming soon.");
+        : subKey
+          ? (canonicalShirtSubcategory(subKey)?.description ?? "Coming soon.")
+          : "Coming soon.");
     const imageUrl = categoryMediaUrl(row.image_storage_path);
     const bannerUrl = categoryMediaUrl(row.banner_storage_path);
     const seoTitle = nonBlankText(row.seo_title);
@@ -505,8 +562,19 @@ export function mergeDbCategories(
     if (base) {
       merged.push({
         ...base,
+        // Shirt sub-categories: admin products keep the DB category UUID
+        // as categoryId, so the merged row must carry that UUID — keeping
+        // the static id ("cat-casual-shirt" etc.) would orphan every
+        // product from its sub-category page and zero its facet count.
+        // Every other static slug keeps its static id (existing behaviour).
+        ...(isShirtSubcategory(row) ? { id: row.id } : {}),
         name: row.name,
         description,
+        // Hierarchy: a real DB parent_id wins; until the shirt
+        // sub-categories are given a parent in admin, they map to
+        // Shirts (see lib/category-hierarchy.ts).
+        parentId:
+          row.parent_id ?? (isShirtSubcategory(row) ? SHIRT_PARENT_ID : null),
         ...(seoTitle ? { seoTitle } : { seoTitle: undefined }),
         ...(seoDescription ? { seoDescription } : { seoDescription: undefined }),
         ...(imageUrl
@@ -526,6 +594,11 @@ export function mergeDbCategories(
         slug: row.slug,
         name: row.name,
         description,
+        // Hierarchy: a real DB parent_id wins; until the shirt
+        // sub-categories are given a parent in admin, they map to
+        // Shirts (see lib/category-hierarchy.ts).
+        parentId:
+          row.parent_id ?? (isShirtSubcategory(row) ? SHIRT_PARENT_ID : null),
         ...(seoTitle ? { seoTitle } : {}),
         ...(seoDescription ? { seoDescription } : {}),
         image: imageUrl

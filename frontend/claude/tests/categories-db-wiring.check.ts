@@ -149,12 +149,15 @@ describe("mergeDbCategories", () => {
       "overshirts",
       "pants",
       "hoodies",
+      "casual-shirt",
+      "formal-shirt",
+      "check-shirt",
       "sneakers",
       "belts",
       "wallets",
       "watches",
     ]);
-    expect(merged.map((c) => c.sortOrder)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(merged.map((c) => c.sortOrder)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
     const hoodiesResult = merged.find((c) => c.slug === "hoodies")!;
     expect(hoodiesResult.id).toBe("22222222-2222-4222-8222-222222222222");
     expect(hoodiesResult.description).toBe("Warm hoodies.");

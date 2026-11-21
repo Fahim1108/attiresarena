@@ -59,6 +59,9 @@ describe("selectable stock", () => {
       "XL",
       "2XL",
       "3XL",
+      "4XL",
+      "5XL",
+      "6XL",
       "Over Size",
     ]);
   });

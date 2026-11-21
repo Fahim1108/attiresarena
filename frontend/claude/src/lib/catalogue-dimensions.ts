@@ -1,9 +1,9 @@
 import type { Product } from '@/types';
-export const APPAREL_SIZES=['S','M','L','XL','2XL','3XL','Over Size'] as const;
+export const APPAREL_SIZES=['S','M','L','XL','2XL','3XL','4XL','5XL','6XL','Over Size'] as const;
 export type ApparelSize=typeof APPAREL_SIZES[number];
 export function canonicalSize(value:string):ApparelSize|undefined {
  const normalized=value.trim().toLowerCase().replace(/[-_\s]+/g,' ');
- return ({s:'S',m:'M',l:'L',xl:'XL',xxl:'2XL','2xl':'2XL',xxxl:'3XL','3xl':'3XL','over size':'Over Size',oversize:'Over Size',oversized:'Over Size'} as Record<string,ApparelSize>)[normalized];
+ return ({s:'S',m:'M',l:'L',xl:'XL',xxl:'2XL','2xl':'2XL',xxxl:'3XL','3xl':'3XL',xxxxl:'4XL','4xl':'4XL',xxxxxl:'5XL','5xl':'5XL',xxxxxxl:'6XL','6xl':'6XL','over size':'Over Size',oversize:'Over Size',oversized:'Over Size'} as Record<string,ApparelSize>)[normalized];
 }
 export const SHIRT_CLASSIFICATIONS=[
  ['pattern','solid','Solid'],['pattern','striped','Striped'],['pattern','checked','Checked / Plaid'],['pattern','printed','Printed'],
