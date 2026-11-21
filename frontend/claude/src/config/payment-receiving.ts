@@ -1,21 +1,40 @@
 import { isValidBdPhone, normalizePhone } from "@/lib/validation";
 import type { AdvancePolicy, ManualPaymentConfiguration } from "@/types/manual-payment";
 
-// Temporary editable configuration for the isolated Preview. These are public
-// receiving details, not gateway credentials. Replace with an authorized DAL.
-const temporaryReceivingNumber = "01635706962";
-export const paymentReceiving = {
-  bkashNumber: temporaryReceivingNumber,
-  nagadNumber: temporaryReceivingNumber,
-  // Confirmed by the store owner in this session, not a gateway verification.
-  bkashAuthorized: true,
-  nagadAuthorized: true,
-};
+export interface PaymentReceivingConfig {
+  bkashNumber: string;
+  nagadNumber: string;
+  bkashAuthorized: boolean;
+  nagadAuthorized: boolean;
+}
 
-export function previewPaymentConfiguration(receiving = paymentReceiving): ManualPaymentConfiguration {
+/**
+ * Receiving details for the isolated Preview / design-review adapter.
+ * They come ONLY from owner-set env vars (MANUAL_PAYMENT_BKASH_NUMBER /
+ * MANUAL_PAYMENT_NAGAD_NUMBER) — the same vars production collects
+ * from. No receiving number is hardcoded in the repo: a temporary
+ * preview number was removed after the 2026-11-21 security audit (a
+ * live payment number must never sit in git). With no numbers set, the
+ * preview shows no destinations ("Awaiting account authorisation").
+ * Collection is NEVER enabled from this config (available: false): the
+ * preview only displays what production would show; placing an order
+ * still goes through the production path.
+ */
+export function previewReceivingConfiguration(): PaymentReceivingConfig {
+  const bkash = normalizePhone(process.env.MANUAL_PAYMENT_BKASH_NUMBER ?? "");
+  const nagad = normalizePhone(process.env.MANUAL_PAYMENT_NAGAD_NUMBER ?? "");
+  return {
+    bkashNumber: bkash,
+    nagadNumber: nagad,
+    bkashAuthorized: isValidBdPhone(bkash),
+    nagadAuthorized: isValidBdPhone(nagad),
+  };
+}
+
+export function previewPaymentConfiguration(receiving = previewReceivingConfiguration()): ManualPaymentConfiguration {
   const destinations: ManualPaymentConfiguration["destinations"] = [];
-  if (receiving.bkashAuthorized) destinations.push({ provider: "bkash", recipientNumber: receiving.bkashNumber, accountType: "personal", transferInstructions: "" });
-  if (receiving.nagadAuthorized) destinations.push({ provider: "nagad", recipientNumber: receiving.nagadNumber, accountType: "personal", transferInstructions: "" });
+  if (receiving.bkashAuthorized && isValidBdPhone(normalizePhone(receiving.bkashNumber))) destinations.push({ provider: "bkash", recipientNumber: normalizePhone(receiving.bkashNumber), accountType: "personal", transferInstructions: "" });
+  if (receiving.nagadAuthorized && isValidBdPhone(normalizePhone(receiving.nagadNumber))) destinations.push({ provider: "nagad", recipientNumber: normalizePhone(receiving.nagadNumber), accountType: "personal", transferInstructions: "" });
   // Recipient approval is NOT an authorization to collect, persist or verify.
   return { available: false, destinations, policy: { insideDhakaMinor: 7000, outsideDhakaMinor: 13000, credit: "against-order-total" } };
 }
@@ -23,8 +42,7 @@ export function previewPaymentConfiguration(receiving = paymentReceiving): Manua
 /**
  * Production collection, authorized ONLY by server env vars the owner sets
  * (MANUAL_PAYMENT_BKASH_NUMBER / MANUAL_PAYMENT_NAGAD_NUMBER, Vercel env
- * vars, never in code). The hardcoded preview number above is never a live
- * receiving account. A provider is collectable only when its number is set
+ * vars, never in code). A provider is collectable only when its number is set
  * and a valid Bangladeshi mobile number; with no numbers set, collection
  * stays off and no order can be placed (fail closed).
  */

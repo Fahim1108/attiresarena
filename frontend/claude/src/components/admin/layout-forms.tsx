@@ -396,7 +396,8 @@ export function ErrorPageForm({
             spellCheck={false}
           />
           <p className="aa-hint">
-            Stored only: no error page renders an image yet.
+            Shown on the 404 page, above the message, when set. Leave empty
+            for no image.
           </p>
         </div>
       </div>

@@ -54,8 +54,8 @@ export async function verifyRefinement(page,{origin,width,directory,extended=tru
   await expect(panel.getByText('২. আপনার bKash/Nagad অ্যাপ খুলে Send Money অপশনে যান।',{exact:true})).toBeVisible();
   for(const method of ['bKash','Nagad']){
    await panel.getByRole('tab',{name:'Personal '+method,exact:true}).click();
-   await expect(panel.locator('[data-recipient-number]')).toHaveText('01635706962');
-   await expect(panel.getByRole('button',{name:'Copy Number',exact:true})).toBeEnabled();
+   await expect(panel.locator('[data-recipient-number]')).toHaveText('Awaiting account authorisation');
+   await expect(panel.getByRole('button',{name:'Copy Number',exact:true})).toBeDisabled();
    await expect(panel.getByRole('button',{name:'Submit Payment',exact:true})).toBeDisabled();
   }
   await expect(panel.getByText('Not created yet',{exact:true})).toBeVisible();await noOverflow();

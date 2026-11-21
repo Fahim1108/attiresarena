@@ -15,8 +15,6 @@ import {
   saveLayoutSettingJson,
 } from "@/lib/admin/layout-settings";
 import {
-  DEFAULT_ERROR_403,
-  ERROR_PAGE_SCHEMA,
   FOOTER_LINKS_SCHEMA,
   NAV_LINKS_SCHEMA,
   resolveErrorPage,
@@ -35,8 +33,6 @@ export default async function AppearanceLayoutPage() {
   const parsedFooter = FOOTER_LINKS_SCHEMA.safeParse(settings?.footer_links);
   const footerLinks = parsedFooter.success ? parsedFooter.data : [];
   const error404 = resolveErrorPage(settings?.error_404);
-  const parsed403 = ERROR_PAGE_SCHEMA.safeParse(settings?.error_403);
-  const error403 = parsed403.success ? parsed403.data : DEFAULT_ERROR_403;
 
   return (
     <main id="main" tabIndex={-1} className="aa-main aa-main--ds">
@@ -54,7 +50,7 @@ export default async function AppearanceLayoutPage() {
           Homepage section order and visibility are defined in the storefront
           code and shown read-only under Homepage Sections. Hero slides are
           managed under Hero Slider. This page stores navigation, footer and
-          error-page content; only the 404 title and subtitle render on the
+          error-page content; only the 404 title, subtitle and image render on the
           storefront today — the rest is stored until its storefront wiring
           is built, and each section below says so.
         </Notice>
@@ -118,8 +114,7 @@ export default async function AppearanceLayoutPage() {
             </CardHeader>
             <CardContent>
               <Notice kind="info">
-                The 404 title and subtitle apply on the next page load. The
-                image URL is stored only: no error page renders an image yet.
+                The 404 title, subtitle and image apply on the next page load.
               </Notice>
               <ErrorPageForm
                 storageKey="error_404"
@@ -137,14 +132,9 @@ export default async function AppearanceLayoutPage() {
             </CardHeader>
             <CardContent>
               <Notice kind="info">
-                Stored only: no 403 page exists in the storefront yet, so these
-                values do nothing until one is built.
+                No 403 page exists on the storefront yet, so there is nothing
+                to edit here. The form will return when a 403 page is built.
               </Notice>
-              <ErrorPageForm
-                storageKey="error_403"
-                initial={error403}
-                action={saveErrorPage}
-              />
             </CardContent>
           </Card>
         </div>

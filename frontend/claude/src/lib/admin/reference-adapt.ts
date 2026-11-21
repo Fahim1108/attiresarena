@@ -432,7 +432,6 @@ export type Redirect = z.infer<typeof REDIRECT_ROW_SCHEMA>;
 
 export const LAYOUT_SETTING_KEYS = [
   "redirect_auto",
-  "featured_categories_count",
   "navigation_links",
   "footer_links",
   "error_404",
@@ -456,7 +455,6 @@ export const LAYOUT_SETTING_AREAS: Record<LayoutSettingKey, "content" | "setting
   error_404: "content",
   error_403: "content",
   redirect_auto: "settings",
-  featured_categories_count: "settings",
   customize_typography: "settings",
   customize_buttons: "settings",
 };
@@ -593,12 +591,6 @@ export const DEFAULT_CUSTOMIZE_BUTTONS: CustomizeButtons = {
   radius_px: 6,
 };
 
-export const FEATURED_CATEGORIES_COUNT_SCHEMA = z
-  .number()
-  .int()
-  .min(1, "Enter a number from 1 to 24.")
-  .max(24, "Enter a number from 1 to 24.");
-
 /** Parse one stored layout-settings value; null when absent or malformed. */
 export function parseLayoutSetting(
   key: LayoutSettingKey,
@@ -608,10 +600,6 @@ export function parseLayoutSetting(
   switch (key) {
     case "redirect_auto": {
       const parsed = z.boolean().safeParse(value);
-      return parsed.success ? parsed.data : null;
-    }
-    case "featured_categories_count": {
-      const parsed = FEATURED_CATEGORIES_COUNT_SCHEMA.safeParse(value);
       return parsed.success ? parsed.data : null;
     }
     case "navigation_links": {

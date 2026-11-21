@@ -2,11 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { StatusBadge } from "@/components/admin/ui";
-import {
-  ConfirmSubmit,
-  FormMessage,
-  SubmitButton,
-} from "@/components/admin/ui-client";
+import { FormMessage, SubmitButton } from "@/components/admin/ui-client";
 import type { AdminActionResult } from "@/lib/admin/authorization";
 import { robotsPreview } from "@/lib/admin/reference-adapt";
 import {
@@ -373,10 +369,12 @@ export function SeoExtendedForm({
 }
 
 /**
- * Meta Pixel, Google Analytics and SMS marketing configuration. Tracking
+ * Meta Pixel and Google Analytics configuration. Tracking
  * scripts load only when their ID is saved; with no ID saved, no
- * third-party tracking code loads at all. SMS settings prepare a future
- * integration — no provider is connected and no message is sent.
+ * third-party tracking code loads at all. SMS is not connected:
+ * no provider is set up and no message is sent from this panel,
+ * so the SMS fields were removed rather than left to imply a
+ * working feature.
  */
 export function MarketingSettingsForm({
   action,
@@ -395,7 +393,6 @@ export function MarketingSettingsForm({
     InitiateCheckout: false,
     Purchase: false,
   };
-  const smsEnabled = settings["sms_enabled"] === true;
   return (
     <form action={formAction}>
       <FormMessage state={state} />
@@ -508,56 +505,11 @@ export function MarketingSettingsForm({
           </div>
         </div>
       </section>
-      <section
-        className={styles.panel}
-        aria-labelledby="marketing-sms-heading"
-      >
-        <div className={styles.panelHeader}>
-          <h3 id="marketing-sms-heading" className={styles.panelTitle}>
-            SMS marketing
-          </h3>
-          <StatusBadge tone="neutral">Not connected</StatusBadge>
-        </div>
-        <p className={styles.panelNote}>
-          No SMS provider is connected and no message is sent from this
-          panel. These fields only record which provider to use later.
-        </p>
-      <div className="aa-form-grid">
-        <div className="aa-field">
-          <label htmlFor="sms-provider">Provider name</label>
-          <input
-            id="sms-provider"
-            name="sms_provider"
-            autoComplete="off"
-            defaultValue={settingString(settings, "sms_provider")}
-            maxLength={80}
-            placeholder="Provider name…"
-          />
-        </div>
-        <div className="aa-field">
-          <label htmlFor="sms-sender">Sender ID</label>
-          <input
-            id="sms-sender"
-            name="sms_sender_id"
-            spellCheck={false}
-            autoComplete="off"
-            defaultValue={settingString(settings, "sms_sender_id")}
-            maxLength={20}
-            placeholder="Sender ID…"
-          />
-        </div>
-      </div>
-      <div className="aa-check-row" style={{ marginTop: "0.75rem" }}>
-        <label>
-          <input
-            type="checkbox"
-            name="sms_enabled"
-            defaultChecked={smsEnabled}
-          />{" "}
-          SMS marketing enabled (has no effect until a provider is connected)
-        </label>
-      </div>
-      </section>
+      <p className="aa-hint" role="note">
+        SMS is not connected: no provider is set up and no message is
+        sent from this panel. SMS settings will return when a provider
+        is added.
+      </p>
       <p className="aa-hint" style={{ marginTop: "0.25rem" }}>
         Saving applies on the next page load — tracking code starts or stops
         loading then.
@@ -566,68 +518,6 @@ export function MarketingSettingsForm({
         <SubmitButton>Save marketing settings</SubmitButton>
       </div>
     </form>
-  );
-}
-
-/** Write-only SMS secret: saved once, never displayed or read back. */
-export function SmsSecretForm({
-  action,
-  removeAction,
-  secretConfigured,
-}: {
-  action: FormAction;
-  removeAction: (form: FormData) => void | Promise<void>;
-  secretConfigured: boolean | null;
-}) {
-  const [state, formAction] = useActionState(action, null);
-  return (
-    <div>
-      <div className={styles.statusLine}>
-        <strong>API key / secret</strong>
-        {secretConfigured === null ? (
-          <StatusBadge tone="warning">Status unknown</StatusBadge>
-        ) : secretConfigured ? (
-          <StatusBadge tone="success">Secret saved</StatusBadge>
-        ) : (
-          <StatusBadge tone="neutral">No secret saved</StatusBadge>
-        )}
-      </div>
-      <form action={formAction}>
-        <FormMessage state={state} />
-        <div className="aa-form-grid">
-          <div className="aa-field">
-            <label htmlFor="sms-api-secret">API key or secret</label>
-            <input
-              id="sms-api-secret"
-              name="sms_api_secret"
-              type="password"
-              autoComplete="new-password"
-              spellCheck={false}
-              maxLength={500}
-            />
-            <p className="aa-hint">
-              Leave empty to keep the saved secret. A saved secret is never
-              shown again — not even to you.
-            </p>
-          </div>
-        </div>
-        <div className="aa-form-actions">
-          <SubmitButton>Save SMS secret</SubmitButton>
-        </div>
-      </form>
-      {secretConfigured ? (
-        <div className={styles.inlineActions}>
-          <ConfirmSubmit
-            action={removeAction}
-            fields={{}}
-            buttonLabel="Remove saved SMS secret"
-            confirmTitle="Remove the saved SMS secret?"
-            confirmBody="The stored API key or secret is deleted. SMS settings above are kept. You will need to enter the secret again to reconnect a provider later."
-            confirmLabel="Remove secret"
-          />
-        </div>
-      ) : null}
-    </div>
   );
 }
 

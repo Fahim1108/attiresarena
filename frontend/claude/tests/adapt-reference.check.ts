@@ -10,12 +10,12 @@ import {
   DEFAULT_CUSTOMIZE_BUTTONS,
   DEFAULT_CUSTOMIZE_TYPOGRAPHY,
   DEFAULT_ERROR_404,
-  FEATURED_CATEGORIES_COUNT_SCHEMA,
   FONT_STACKS,
   REDIRECT_SCHEMA,
   WIDGET_SCHEMA,
   activeWidgets,
   countdownParts,
+  isLayoutSettingKey,
   isMatrixRole,
   isSiteHref,
   matrixGrantViolations,
@@ -290,9 +290,9 @@ describe("layout settings", () => {
   it("parses each key and rejects malformed values", () => {
     expect(parseLayoutSetting("redirect_auto", true)).toBe(true);
     expect(parseLayoutSetting("redirect_auto", "yes")).toBeNull();
-    expect(parseLayoutSetting("featured_categories_count", 6)).toBe(6);
-    expect(parseLayoutSetting("featured_categories_count", 0)).toBeNull();
-    expect(parseLayoutSetting("featured_categories_count", 25)).toBeNull();
+    // The featured-categories count was removed: no storefront section
+    // ever read it, so the key is no longer recognised.
+    expect(isLayoutSettingKey("featured_categories_count")).toBe(false);
     expect(
       parseLayoutSetting("navigation_links", [
         { label: "Shop", href: "/shop", children: [] },
@@ -356,8 +356,6 @@ describe("layout settings", () => {
       children: [],
     }));
     expect(parseLayoutSetting("navigation_links", many)).toBeNull();
-    expect(FEATURED_CATEGORIES_COUNT_SCHEMA.safeParse(1).success).toBe(true);
-    expect(FEATURED_CATEGORIES_COUNT_SCHEMA.safeParse(24).success).toBe(true);
   });
 
   it("returns the built-in 404 copy by reference when nothing is stored", () => {

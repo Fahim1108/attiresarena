@@ -13,7 +13,6 @@ import {
   CUSTOMIZE_BUTTONS_SCHEMA,
   CUSTOMIZE_TYPOGRAPHY_SCHEMA,
   ERROR_PAGE_SCHEMA,
-  FEATURED_CATEGORIES_COUNT_SCHEMA,
   LAYOUT_SETTING_AREAS,
   isLayoutSettingKey,
   parseLayoutSetting,
@@ -141,29 +140,6 @@ export async function saveErrorPage(
   const written = await writeLayoutSetting(session.client, key, parsed.data);
   if (!written.ok) return actionError(written.error);
   return actionOk("Error page saved.");
-}
-
-/** Featured-categories count card on the categories page. */
-export async function saveFeaturedCategoriesCount(
-  _prev: AdminActionResult | null,
-  form: FormData,
-): Promise<AdminActionResult> {
-  "use server";
-  const session = await requireStaff(areaRoles("settings"));
-  const raw = formText(form, "count").trim();
-  const parsed = FEATURED_CATEGORIES_COUNT_SCHEMA.safeParse(
-    raw === "" ? Number.NaN : Number(raw),
-  );
-  if (!parsed.success) {
-    return actionError("Enter a whole number from 1 to 24.");
-  }
-  const written = await writeLayoutSetting(
-    session.client,
-    "featured_categories_count",
-    parsed.data,
-  );
-  if (!written.ok) return actionError(written.error);
-  return actionOk("Featured categories count saved.");
 }
 
 /** Redirect auto-toggle: the button submits value "true" or "false". */
