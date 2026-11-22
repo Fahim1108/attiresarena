@@ -16,12 +16,18 @@ export function CategoryCard({ category, variant = "tile", productCount }: { cat
       </Link>
     );
   }
+  // Feature tiles (the /categories page) show the same photo as the
+  // homepage "Shop by Categories" cards: thumbnail ?? image. The
+  // category `image` is a flat vector illustration (public/images/categories),
+  // which is why the phone Categories page showed drawings while the
+  // homepage showed photos. Circle/tile variants keep the illustration.
+  const featureImage = category.thumbnail ?? category.image;
   return (
     <Link href={`/category/${category.slug}`} className="aa-press group block">
       <div className={cn("relative overflow-hidden rounded-card bg-[#F4F2F0]", variant === "feature" ? "aspect-[4/5]" : "aspect-[8/9]")}>
         {/* alt="" is intentional: the link's visible text names the category (overlay/caption), so a descriptive alt would be announced redundantly. */}
-        <SmartImage src={category.image.src} alt="" fill sizes="(min-width:1024px) 16vw, 33vw" className="object-cover transition-transform duration-[var(--motion-slow)] ease-out group-hover:scale-[1.03]" />
-        {variant === "feature" && <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-ink/40 to-transparent" />}
+        <SmartImage src={(variant === "feature" ? featureImage : category.image).src} alt="" fill sizes="(min-width:1024px) 16vw, 33vw" className="object-cover transition-transform duration-[var(--motion-slow)] ease-out group-hover:scale-[1.03]" />
+        {variant === "feature" && <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-ink/65 via-ink/25 to-transparent" />}
         {variant === "feature" && (
           <div className="absolute inset-x-0 bottom-0 p-4 text-white">
             <p className="flex items-center gap-1.5 font-serif text-2xl">
