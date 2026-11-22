@@ -3,10 +3,12 @@ import { notFound } from "next/navigation";
 import { ProductDetailClient } from "@/components/product/ProductDetailClient";
 import { ProductDeliveryInfo } from "@/components/product/ProductDeliveryInfo";
 import { ProductSizeProvider, SameSizeRecommendations } from "@/components/product/ProductSizeContext";
+import { SizeGuideTable } from "@/components/product/SizeGuideTable";
 import { ReviewList } from "@/components/product/ReviewList";
 import { ProductJsonLd } from "@/components/seo/JsonLd";
 import { Accordion, Breadcrumbs } from "@/components/ui";
 import { commerce, logo, site } from "@/config";
+import { officialShirtSizeGuide } from "@/config/shirt-size-guide";
 import { readOwnReview } from "@/lib/customer/reviews";
 import { customerSession } from "@/lib/customer/session";
 import { buildPageMetadata, mergeSeoKeywords, resolveDefaultOgImage, resolveEntitySeo, resolveGlobalKeywords, resolveTwitterCard } from "@/lib/seo";
@@ -66,6 +68,9 @@ export default async function ProductPage({ params, searchParams }: { params: Pa
   const reviewRating={average:reviews.length?reviews.reduce((sum,r)=>sum+r.rating,0)/reviews.length:0,count:reviews.length};
   const brand = brands.find((b) => b.id === product.brandId);
   const category = categories.find((c) => c.id === product.categoryId);
+  // Size guide shown inline in the Details section below — no button, no modal.
+  // Stored guide wins; shirts fall back to the official shirt guide.
+  const effectiveSizeGuide = sizeGuide ?? (product.categoryId === "cat-shirts" ? officialShirtSizeGuide : null);
   const breadcrumbItems = [
     { label: "Home", href: "/" },
     ...(category ? [{ label: category.name, href: `/category/${category.slug}` }] : []),
@@ -80,10 +85,10 @@ export default async function ProductPage({ params, searchParams }: { params: Pa
           items={breadcrumbItems}
         />
         <div className="mt-5">
-          <ProductDetailClient product={{...product,rating:reviewRating}} brandName={brand?.name} sizeGuide={sizeGuide} initialColorId={typeof sp.color === "string" ? sp.color : undefined} />
+          <ProductDetailClient product={{...product,rating:reviewRating}} brandName={brand?.name} initialColorId={typeof sp.color === "string" ? sp.color : undefined} />
         </div>
 
-        {product.reviewOnly&&<section className="mt-8 rounded-card border border-line p-5" aria-labelledby="review-details"><h2 id="review-details" className="font-serif text-2xl">Product details</h2><p className="mt-3 whitespace-pre-line">{product.description}</p>{product.details.length>0&&<ul className="mt-3 list-disc space-y-1 pl-5">{product.details.map(detail=><li key={detail}>{detail}</li>)}</ul>}<p className="mt-3 text-xs text-ink-muted">Preview only. Saving details does not verify or publish this garment.</p></section>}
+        {product.reviewOnly&&<section className="mt-8 rounded-card border border-line p-5" aria-labelledby="review-details"><h2 id="review-details" className="font-serif text-2xl">Product details</h2><p className="mt-3 whitespace-pre-line">{product.description}</p>{product.details.length>0&&<ul className="mt-3 list-disc space-y-1 pl-5">{product.details.map(detail=><li key={detail}>{detail}</li>)}</ul>}{effectiveSizeGuide&&<div className="mt-4"><SizeGuideTable guide={effectiveSizeGuide} /></div>}<p className="mt-3 text-xs text-ink-muted">Preview only. Saving details does not verify or publish this garment.</p></section>}
         <div className="mt-14 grid gap-10 lg:grid-cols-[1.15fr_1fr] lg:gap-14">
           {!product.reviewOnly && (
           <Accordion
@@ -115,6 +120,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pa
                         </ul>
                       </div>
                     )}
+                    {effectiveSizeGuide && <SizeGuideTable guide={effectiveSizeGuide} />}
                   </div>
                 ),
               },
