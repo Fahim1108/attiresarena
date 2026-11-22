@@ -139,7 +139,7 @@ export const AREAS: Record<string, string[]> = {
  * (Bhuapur, Tetulia, Dhupchanchia, Burhanuddin, Osmani Nagar,
  * Lakshmichhari, Cumilla Sadar Dakshin, Goalandaghat). Two renamed
  * upazilas keep the Bangla rendering of the STORED English value,
- * not the new name: Zianagar (জিয়ানগর, now Indurkani) and Dakshin
+ * not the new name: Zianagar (জিয়ানগর, now Indurkani) and Dakshin
  * Sunamganj (দক্ষিণ সুনামগঞ্জ, now Shantiganj). Coverage is asserted
  * by tests: 8 divisions, 64 districts, 560 areas, no gaps.
  */
@@ -166,10 +166,10 @@ export const DISTRICT_BN: Record<string, string> = {
   Narayanganj: "নারায়ণগঞ্জ",
   Narsingdi: "নরসিংদী",
   Rajbari: "রাজবাড়ী",
-  Shariatpur: "শরীয়তপুর",
+  Shariatpur: "শরীয়তপুর",
   Tangail: "টাঙ্গাইল",
   Bandarban: "বান্দরবান",
-  Brahmanbaria: "ব্রাহ্মণবাড়িয়া",
+  Brahmanbaria: "ব্রাহ্মণবাড়িয়া",
   Chandpur: "চাঁদপুর",
   Chattogram: "চট্টগ্রাম",
   "Cox's Bazar": "কক্সবাজার",
@@ -177,7 +177,7 @@ export const DISTRICT_BN: Record<string, string> = {
   Feni: "ফেনী",
   Khagrachhari: "খাগড়াছড়ি",
   Lakshmipur: "লক্ষ্মীপুর",
-  Noakhali: "নোয়াখালী",
+  Noakhali: "নোয়াখালী",
   Rangamati: "রাঙ্গামাটি",
   Bogura: "বগুড়া",
   "Chapai Nawabganj": "চাঁপাইনবাবগঞ্জ",
@@ -195,7 +195,7 @@ export const DISTRICT_BN: Record<string, string> = {
   Kushtia: "কুষ্টিয়া",
   Magura: "মাগুরা",
   Meherpur: "মেহেরপুর",
-  Narail: "নড়াইল",
+  Narail: "নড়াইল",
   Satkhira: "সাতক্ষীরা",
   Barguna: "বরগুনা",
   Barishal: "বরিশাল",
@@ -212,7 +212,7 @@ export const DISTRICT_BN: Record<string, string> = {
   Kurigram: "কুড়িগ্রাম",
   Lalmonirhat: "লালমনিরহাট",
   Nilphamari: "নীলফামারী",
-  Panchagarh: "পঞ্চগড়",
+  Panchagarh: "পঞ্চগড়",
   Rangpur: "রংপুর",
   Thakurgaon: "ঠাকুরগাঁও",
   Jamalpur: "জামালপুর",
@@ -226,13 +226,13 @@ export const AREA_BN: Record<string, Record<string, string>> = {
   Dhaka: {
     Adabor: "আদাবর", Badda: "বাড্ডা", Banani: "বনানী", Bangshal: "বংশাল", Cantonment: "ক্যান্টনমেন্ট",
     Dakshinkhan: "দক্ষিণখান", Demra: "ডেমরা", Dhamrai: "ধামরাই", Dhanmondi: "ধানমন্ডি", Dohar: "দোহার",
-    Gulshan: "গুলশান", Hazaribagh: "হাজারীবাগ", Jatrabari: "যাত্রাবাড়ী", Kadamtali: "কদমতলী", Kafrul: "কাফরুল",
+    Gulshan: "গুলশান", Hazaribagh: "হাজারীবাগ", Jatrabari: "যাত্রাবাড়ী", Kadamtali: "কদমতলী", Kafrul: "কাফরুল",
     Kalabagan: "কলাবাগান", Kamrangirchar: "কামরাঙ্গীরচর", Keraniganj: "কেরাণীগঞ্জ", Khilgaon: "খিলগাঁও",
-    Khilkhet: "খিলক্ষেত", Kotwali: "কোতোয়ালী", Lalbagh: "লালবাগ", Mirpur: "মিরপুর", Mohammadpur: "মোহাম্মদপুর",
+    Khilkhet: "খিলক্ষেত", Kotwali: "কোতোয়ালী", Lalbagh: "লালবাগ", Mirpur: "মিরপুর", Mohammadpur: "মোহাম্মদপুর",
     Motijheel: "মতিঝিল", Nawabganj: "নবাবগঞ্জ", "New Market": "নিউ মার্কেট", Pallabi: "পল্লবী", Paltan: "পল্টন",
     Ramna: "রমনা", Rampura: "রামপুরা", Sabujbagh: "সবুজবাগ", Savar: "সাভার", "Shah Ali": "শাহ আলী",
     Shahbagh: "শাহবাগ", "Sher-e-Bangla Nagar": "শেরে বাংলা নগর", Shyampur: "শ্যামপুর", Sutrapur: "সূত্রাপুর",
-    Tejgaon: "তেজগাঁও", Turag: "তুরাগ", Uttara: "উত্তরা", Uttarkhan: "উত্তরখান", Wari: "ওয়ারী",
+    Tejgaon: "তেজগাঁও", Turag: "তুরাগ", Uttara: "উত্তরা", Uttarkhan: "উত্তরখান", Wari: "ওয়ারী",
   },
   Faridpur: {
     Alfadanga: "আলফাডাঙ্গা", Bhanga: "ভাঙ্গা", Boalmari: "বোয়ালমারী", Charbhadrasan: "চরভদ্রাসন",
@@ -244,8 +244,8 @@ export const AREA_BN: Record<string, Record<string, string>> = {
     Sreepur: "শ্রীপুর", Tongi: "টঙ্গী",
   },
   Gopalganj: {
-    "Gopalganj Sadar": "গোপালগঞ্জ সদর", Kashiani: "কাশিয়ানী", Kotalipara: "কোটালীপাড়া", Muksudpur: "মুকসুদপুর",
-    Tungipara: "টুংগীপাড়া",
+    "Gopalganj Sadar": "গোপালগঞ্জ সদর", Kashiani: "কাশিয়ানী", Kotalipara: "কোটালীপাড়া", Muksudpur: "মুকসুদপুর",
+    Tungipara: "টুংগীপাড়া",
   },
   Kishoreganj: {
     Austagram: "অষ্টগ্রাম", Bajitpur: "বাজিতপুর", Bhairab: "ভৈরব", Hossainpur: "হোসেনপুর", Itna: "ইটনা",
@@ -264,23 +264,23 @@ export const AREA_BN: Record<string, Record<string, string>> = {
     Sreenagar: "শ্রীনগর", Tongibari: "টংগীবাড়ি",
   },
   Narayanganj: {
-    Araihazar: "আড়াইহাজার", Bandar: "বন্দর", Fatullah: "ফতুল্লা", "Narayanganj Sadar": "নারায়নগঞ্জ সদর",
+    Araihazar: "আড়াইহাজার", Bandar: "বন্দর", Fatullah: "ফতুল্লা", "Narayanganj Sadar": "নারায়নগঞ্জ সদর",
     Rupganj: "রূপগঞ্জ", Siddhirganj: "সিদ্ধিরগঞ্জ", Sonargaon: "সোনারগাঁ",
   },
   Narsingdi: {
-    Belabo: "বেলাবো", Monohardi: "মনোহরদী", "Narsingdi Sadar": "নরসিংদী সদর", Palash: "পলাশ", Raipura: "রায়পুরা",
+    Belabo: "বেলাবো", Monohardi: "মনোহরদী", "Narsingdi Sadar": "নরসিংদী সদর", Palash: "পলাশ", Raipura: "রায়পুরা",
     Shibpur: "শিবপুর",
   },
   Rajbari: {
-    Baliakandi: "বালিয়াকান্দি", Goalandaghat: "গোয়ালন্দ ঘাট", Kalukhali: "কালুখালী", Pangsha: "পাংশা",
-    "Rajbari Sadar": "রাজবাড়ী সদর",
+    Baliakandi: "বালিয়াকান্দি", Goalandaghat: "গোয়ালন্দ ঘাট", Kalukhali: "কালুখালী", Pangsha: "পাংশা",
+    "Rajbari Sadar": "রাজবাড়ী সদর",
   },
   Shariatpur: {
     Bhedarganj: "ভেদরগঞ্জ", Damudya: "ডামুড্যা", Gosairhat: "গোসাইরহাট", Naria: "নড়িয়া", Shakhipur: "সখিপুর",
     "Shariatpur Sadar": "শরিয়তপুর সদর", Zajira: "জাজিরা",
   },
   Tangail: {
-    Basail: "বাসাইল", Bhuapur: "ভূঞাপুর", Delduar: "দেলদুয়ার", Dhanbari: "ধনবাড়ী", Ghatail: "ঘাটাইল",
+    Basail: "বাসাইল", Bhuapur: "ভূঞাপুর", Delduar: "দেলদুয়ার", Dhanbari: "ধনবাড়ী", Ghatail: "ঘাটাইল",
     Gopalpur: "গোপালপুর", Kalihati: "কালিহাতী", Madhupur: "মধুপুর", Mirzapur: "মির্জাপুর", Nagarpur: "নাগরপুর",
     Sakhipur: "সখিপুর", "Tangail Sadar": "টাঙ্গাইল সদর",
   },
@@ -296,14 +296,14 @@ export const AREA_BN: Record<string, Record<string, string>> = {
   },
   Chandpur: {
     "Chandpur Sadar": "চাঁদপুর সদর", Faridganj: "ফরিদগঞ্জ", Haimchar: "হাইমচর", Haziganj: "হাজীগঞ্জ",
-    Kachua: "কচুয়া", "Matlab Dakshin": "মতলব দক্ষিণ", "Matlab Uttar": "মতলব উত্তর", Shahrasti: "শাহরাস্তি",
+    Kachua: "কচুয়া", "Matlab Dakshin": "মতলব দক্ষিণ", "Matlab Uttar": "মতলব উত্তর", Shahrasti: "শাহরাস্তি",
   },
   Chattogram: {
-    Agrabad: "আগ্রাবাদ", Anwara: "আনোয়ারা", Bakalia: "বাকলিয়া", Bandar: "বন্দর", Banshkhali: "বাঁশখালী",
-    Bayazid: "বায়েজিদ", Bhujpur: "ভূজপুর", Boalkhali: "বোয়ালখালী", Chandanaish: "চন্দনাইশ", Chandgaon: "চান্দগাঁও",
+    Agrabad: "আগ্রাবাদ", Anwara: "আনোয়ারা", Bakalia: "বাকলিয়া", Bandar: "বন্দর", Banshkhali: "বাঁশখালী",
+    Bayazid: "বায়েজিদ", Bhujpur: "ভূজপুর", Boalkhali: "বোয়ালখালী", Chandanaish: "চন্দনাইশ", Chandgaon: "চান্দগাঁও",
     "Double Mooring": "ডবলমুরিং", Fatikchhari: "ফটিকছড়ি", Halishahar: "হালিশহর", Hathazari: "হাটহাজারী",
-    Karnaphuli: "কর্ণফুলী", Khulshi: "খুলশী", Kotwali: "কোতোয়ালী", Lohagara: "লোহাগাড়া", Mirsharai: "মীরসরাই",
-    Pahartali: "পাহাড়তলী", Panchlaish: "পাঁচলাইশ", Patenga: "পতেঙ্গা", Patiya: "পটিয়া", Rangunia: "রাঙ্গুনিয়া",
+    Karnaphuli: "কর্ণফুলী", Khulshi: "খুলশী", Kotwali: "কোতোয়ালী", Lohagara: "লোহাগাড়া", Mirsharai: "মীরসরাই",
+    Pahartali: "পাহাড়তলী", Panchlaish: "পাঁচলাইশ", Patenga: "পতেঙ্গা", Patiya: "পটিয়া", Rangunia: "রাঙ্গুনিয়া",
     Raozan: "রাউজান", Sandwip: "সন্দ্বীপ", Satkania: "সাতকানিয়া", Sitakunda: "সীতাকুন্ড",
   },
   "Cox's Bazar": {
@@ -311,7 +311,7 @@ export const AREA_BN: Record<string, Record<string, string>> = {
     Matamuhuri: "মাতামুহুরী", Pekua: "পেকুয়া", Ramu: "রামু", Teknaf: "টেকনাফ", Ukhia: "উখিয়া",
   },
   Cumilla: {
-    Barura: "বরুড়া", Brahmanpara: "ব্রাহ্মণপাড়া", Burichang: "বুড়িচং", Chandina: "চান্দিনা",
+    Barura: "বরুড়া", Brahmanpara: "ব্রাহ্মণপাড়া", Burichang: "বুড়িচং", Chandina: "চান্দিনা",
     Chauddagram: "চৌদ্দগ্রাম", "Cumilla Adarsha Sadar": "কুমিল্লা আদর্শ সদর",
     "Cumilla Sadar Dakshin": "কুমিল্লা সদর দক্ষিণ", Daudkandi: "দাউদকান্দি", Debidwar: "দেবিদ্বার", Homna: "হোমনা",
     Laksam: "লাকসাম", Meghna: "মেঘনা", Monohargonj: "মনোহরগঞ্জ", Muradnagar: "মুরাদনগর", Nangalkot: "নাঙ্গলকোট",
@@ -322,16 +322,16 @@ export const AREA_BN: Record<string, Record<string, string>> = {
     Parshuram: "পরশুরাম", Sonagazi: "সোনাগাজী",
   },
   Khagrachhari: {
-    Dighinala: "দিঘীনালা", Khagrachhari: "খাগড়াছড়ি সদর", Lakshmichhari: "লক্ষ্মীছড়ি", Mahalchhari: "মহালছড়ি",
-    Manikchhari: "মানিকছড়ি", Matiranga: "মাটিরাঙ্গা", Panchhari: "পানছড়ি", Ramgarh: "রামগড়",
+    Dighinala: "দিঘীনালা", Khagrachhari: "খাগড়াছড়ি সদর", Lakshmichhari: "লক্ষ্মীছড়ি", Mahalchhari: "মহালছড়ি",
+    Manikchhari: "মানিকছড়ি", Matiranga: "মাটিরাঙ্গা", Panchhari: "পানছড়ি", Ramgarh: "রামগড়",
   },
   Lakshmipur: {
     Chandraganj: "চন্দ্রগঞ্জ", Kamalnagar: "কমলনগর", "Lakshmipur Sadar": "লক্ষ্মীপুর সদর", Raipur: "রায়পুর",
     Ramganj: "রামগঞ্জ", Ramgati: "রামগতি",
   },
   Noakhali: {
-    Begumganj: "বেগমগঞ্জ", Chatkhil: "চাটখিল", Companiganj: "কোম্পানীগঞ্জ", Hatiya: "হাতিয়া", Kabirhat: "কবিরহাট",
-    "Noakhali Sadar": "নোয়াখালী সদর", Senbagh: "সেনবাগ", Sonaimuri: "সোনাইমুড়ী", Subarnachar: "সুবর্ণচর",
+    Begumganj: "বেগমগঞ্জ", Chatkhil: "চাটখিল", Companiganj: "কোম্পানীগঞ্জ", Hatiya: "হাতিয়া", Kabirhat: "কবিরহাট",
+    "Noakhali Sadar": "নোয়াখালী সদর", Senbagh: "সেনবাগ", Sonaimuri: "সোনাইমুড়ী", Subarnachar: "সুবর্ণচর",
   },
   Rangamati: {
     Bagaichhari: "বাঘাইছড়ি", Barkal: "বরকল", Belaichhari: "বিলাইছড়ি", Juraichhari: "জুরাছড়ি", Kaptai: "কাপ্তাই",
@@ -340,7 +340,7 @@ export const AREA_BN: Record<string, Record<string, string>> = {
   },
   // Rajshahi division
   Bogura: {
-    Adamdighi: "আদমদিঘি", "Bogura Sadar": "বগুড়া সদর", Dhunat: "ধুনট", Dhupchanchia: "দুপচাঁচিয়া",
+    Adamdighi: "আদমদিঘি", "Bogura Sadar": "বগুড়া সদর", Dhunat: "ধুনট", Dhupchanchia: "দুপচাঁচিয়া",
     Gabtali: "গাবতলী", Kahaloo: "কাহালু", Mokamtola: "মোকামতলা", Nandigram: "নন্দিগ্রাম", Sariakandi: "সারিয়াকান্দি",
     Shajahanpur: "শাজাহানপুর", Sherpur: "শেরপুর", Shibganj: "শিবগঞ্জ", Sonatola: "সোনাতলা",
   },
@@ -358,16 +358,16 @@ export const AREA_BN: Record<string, Record<string, string>> = {
     Raninagar: "রাণীনগর", Sapahar: "সাপাহার",
   },
   Natore: {
-    Bagatipara: "বাগাতিপাড়া", Baraigram: "বড়াইগ্রাম", Gurudaspur: "গুরুদাসপুর", Lalpur: "লালপুর",
-    Naldanga: "নলডাঙ্গা", "Natore Sadar": "নাটোর সদর", Singra: "সিংড়া",
+    Bagatipara: "বাগাতিপাড়া", Baraigram: "বড়াইগ্রাম", Gurudaspur: "গুরুদাসপুর", Lalpur: "লালপুর",
+    Naldanga: "নলডাঙ্গা", "Natore Sadar": "নাটোর সদর", Singra: "সিংড়া",
   },
   Pabna: {
     Ataikula: "আতাইকুলা", Atgharia: "আটঘরিয়া", Bera: "বেড়া", Bhangura: "ভাঙ্গুড়া", Chatmohar: "চাটমোহর",
     Faridpur: "ফরিদপুর", Ishwardi: "ঈশ্বরদী", "Pabna Sadar": "পাবনা সদর", Santhia: "সাঁথিয়া", Sujanagar: "সুজানগর",
   },
   Rajshahi: {
-    Bagha: "বাঘা", Bagmara: "বাগমারা", Charghat: "চারঘাট", Durgapur: "দুর্গাপুর", Godagari: "গোদাগাড়ী",
-    Mohanpur: "মোহনপুর", Paba: "পবা", Puthia: "পুঠিয়া", Tanore: "তানোর",
+    Bagha: "বাঘা", Bagmara: "বাগমারা", Charghat: "চারঘাট", Durgapur: "দুর্গাপুর", Godagari: "গোদাগাড়ী",
+    Mohanpur: "মোহনপুর", Paba: "পবা", Puthia: "পুঠিয়া", Tanore: "তানোর",
   },
   Sirajganj: {
     Belkuchi: "বেলকুচি", Chauhali: "চৌহালি", Kamarkhanda: "কামারখন্দ", Kazipur: "কাজীপুর", Raiganj: "রায়গঞ্জ",
@@ -379,7 +379,7 @@ export const AREA_BN: Record<string, Record<string, string>> = {
     Mollahat: "মোল্লাহাট", Mongla: "মোংলা", Morrelganj: "মোড়েলগঞ্জ", Rampal: "রামপাল", Sarankhola: "শরণখোলা",
   },
   Chuadanga: {
-    Alamdanga: "আলমডাঙ্গা", "Chuadanga Sadar": "চুয়াডাঙ্গা সদর", Damurhuda: "দামুড়হুদা", Jibannagar: "জীবননগর",
+    Alamdanga: "আলমডাঙ্গা", "Chuadanga Sadar": "চুয়াডাঙ্গা সদর", Damurhuda: "দামুড়হুদা", Jibannagar: "জীবননগর",
   },
   Jashore: {
     Abhaynagar: "অভয়নগর", Bagherpara: "বাঘারপাড়া", Chaugachha: "চৌগাছা", "Jashore Sadar": "যশোর সদর",
@@ -390,13 +390,13 @@ export const AREA_BN: Record<string, Record<string, string>> = {
     Maheshpur: "মহেশপুর", Shailkupa: "শৈলকুপা",
   },
   Khulna: {
-    Batiaghata: "বটিয়াঘাটা", Dacope: "দাকোপ", Daulatpur: "দৌলতপুর", Dighalia: "দিঘলিয়া", Dumuria: "ডুমুরিয়া",
-    Harintana: "হরিণটানা", Khalishpur: "খালিশপুর", "Khan Jahan Ali": "খানজাহান আলী", Kotwali: "কোতোয়ালী",
+    Batiaghata: "বটিয়াঘাটা", Dacope: "দাকোপ", Daulatpur: "দৌলতপুর", Dighalia: "দিঘলিয়া", Dumuria: "ডুমুরিয়া",
+    Harintana: "হরিণটানা", Khalishpur: "খালিশপুর", "Khan Jahan Ali": "খানজাহান আলী", Kotwali: "কোতোয়ালী",
     Koyra: "কয়রা", Paikgachha: "পাইকগাছা", Phultala: "ফুলতলা", Rupsha: "রূপসা", Sonadanga: "সোনাডাঙ্গা",
     Terokhada: "তেরখাদা",
   },
   Kushtia: {
-    Bheramara: "ভেড়ামারা", Daulatpur: "দৌলতপুর", Khoksa: "খোকসা", Kumarkhali: "কুমারখালী",
+    Bheramara: "ভেড়ামারা", Daulatpur: "দৌলতপুর", Khoksa: "খোকসা", Kumarkhali: "কুমারখালী",
     "Kushtia Sadar": "কুষ্টিয়া সদর", Mirpur: "মিরপুর",
   },
   Magura: {
@@ -406,7 +406,7 @@ export const AREA_BN: Record<string, Record<string, string>> = {
     Gangni: "গাংনী", "Meherpur Sadar": "মেহেরপুর সদর", Mujibnagar: "মুজিবনগর",
   },
   Narail: {
-    Kalia: "কালিয়া", Lohagara: "লোহাগড়া", Naragati: "নড়াগাতী", "Narail Sadar": "নড়াইল সদর",
+    Kalia: "কালিয়া", Lohagara: "লোহাগড়া", Naragati: "নড়াগাতী", "Narail Sadar": "নড়াইল সদর",
   },
   Satkhira: {
     Assasuni: "আশাশুনি", Debhata: "দেবহাটা", Kalaroa: "কলারোয়া", Kaliganj: "কালিগঞ্জ",
@@ -430,18 +430,18 @@ export const AREA_BN: Record<string, Record<string, string>> = {
     "Jhalokati Sadar": "ঝালকাঠি সদর", Kathalia: "কাঠালিয়া", Nalchity: "নলছিটি", Rajapur: "রাজাপুর",
   },
   Patuakhali: {
-    Bauphal: "বাউফল", Dashmina: "দশমিনা", Dumki: "দুমকি", Galachipa: "গলাচিপা", Kalapara: "কলাপাড়া",
+    Bauphal: "বাউফল", Dashmina: "দশমিনা", Dumki: "দুমকি", Galachipa: "গলাচিপা", Kalapara: "কলাপাড়া",
     Mirzaganj: "মির্জাগঞ্জ", "Patuakhali Sadar": "পটুয়াখালী সদর", Rangabali: "রাঙ্গাবালী",
   },
   Pirojpur: {
     Bhandaria: "ভান্ডারিয়া", Kawkhali: "কাউখালী", Mathbaria: "মঠবাড়ীয়া", Nazirpur: "নাজিরপুর",
-    "Nesarabad (Swarupkati)": "নেছারাবাদ", "Pirojpur Sadar": "পিরোজপুর সদর", Zianagar: "জিয়ানগর",
+    "Nesarabad (Swarupkati)": "নেছারাবাদ", "Pirojpur Sadar": "পিরোজপুর সদর", Zianagar: "জিয়ানগর",
   },
   // Sylhet division
   Habiganj: {
     Ajmiriganj: "আজমিরীগঞ্জ", Bahubal: "বাহুবল", Baniyachong: "বানিয়াচং", Chunarughat: "চুনারুঘাট",
     "Habiganj Sadar": "হবিগঞ্জ সদর", Lakhai: "লাখাই", Madhabpur: "মাধবপুর", Nabiganj: "নবীগঞ্জ",
-    Sayestaganj: "শায়েস্তাগঞ্জ",
+    Sayestaganj: "শায়েস্তাগঞ্জ",
   },
   Moulvibazar: {
     Barlekha: "বড়লেখা", Juri: "জুড়ী", Kamalganj: "কমলগঞ্জ", Kulaura: "কুলাউড়া",
@@ -449,7 +449,7 @@ export const AREA_BN: Record<string, Record<string, string>> = {
   },
   Sunamganj: {
     Bishwamvarpur: "বিশ্বম্ভরপুর", Chhatak: "ছাতক", "Dakshin Sunamganj": "দক্ষিণ সুনামগঞ্জ", Derai: "দিরাই",
-    Dharamapasha: "ধর্মপাশা", Dowarabazar: "দোয়ারাবাজার", Jagannathpur: "জগন্নাথপুর", Jamalganj: "জামালগঞ্জ",
+    Dharamapasha: "ধর্মপাশা", Dowarabazar: "দোয়ারাবাজার", Jagannathpur: "জগন্নাথপুর", Jamalganj: "জামালগঞ্জ",
     Sullah: "শাল্লা", "Sunamganj Sadar": "সুনামগঞ্জ সদর", Tahirpur: "তাহিরপুর",
   },
   Sylhet: {
@@ -470,7 +470,7 @@ export const AREA_BN: Record<string, Record<string, string>> = {
   },
   Kurigram: {
     Bhurungamari: "ভুরুঙ্গামারী", "Char Rajibpur": "চর রাজিবপুর", Chilmari: "চিলমারী",
-    "Kurigram Sadar": "কুড়িগ্রাম সদর", Nageshwari: "নাগেশ্বরী", Phulbari: "ফুলবাড়ী", Rajarhat: "রাজারহাট",
+    "Kurigram Sadar": "কুড়িগ্রাম সদর", Nageshwari: "নাগেশ্বরী", Phulbari: "ফুলবাড়ী", Rajarhat: "রাজারহাট",
     Raomari: "রৌমারী", Ulipur: "উলিপুর",
   },
   Lalmonirhat: {
@@ -479,23 +479,23 @@ export const AREA_BN: Record<string, Record<string, string>> = {
   },
   Nilphamari: {
     Dimla: "ডিমলা", Domar: "ডোমার", Jaldhaka: "জলঢাকা", Kishoreganj: "কিশোরগঞ্জ",
-    "Nilphamari Sadar": "নীলফামারী সদর", Saidpur: "সৈয়দপুর",
+    "Nilphamari Sadar": "নীলফামারী সদর", Saidpur: "সৈয়দপুর",
   },
   Panchagarh: {
-    Atwari: "আটোয়ারী", Boda: "বোদা", Debiganj: "দেবীগঞ্জ", "Panchagarh Sadar": "পঞ্চগড় সদর", Tetulia: "তেঁতুলিয়া",
+    Atwari: "আটোয়ারী", Boda: "বোদা", Debiganj: "দেবীগঞ্জ", "Panchagarh Sadar": "পঞ্চগড় সদর", Tetulia: "তেঁতুলিয়া",
   },
   Rangpur: {
-    Badarganj: "বদরগঞ্জ", Gangachhara: "গংগাচড়া", Kaunia: "কাউনিয়া", Mithapukur: "মিঠাপুকুর", Pirgachha: "পীরগাছা",
+    Badarganj: "বদরগঞ্জ", Gangachhara: "গংগাচড়া", Kaunia: "কাউনিয়া", Mithapukur: "মিঠাপুকুর", Pirgachha: "পীরগাছা",
     Pirganj: "পীরগঞ্জ", "Rangpur Sadar": "রংপুর সদর", Taraganj: "তারাগঞ্জ",
   },
   Thakurgaon: {
-    Baliadangi: "বালিয়াডাঙ্গী", Bhully: "ভূল্লী", Haripur: "হরিপুর", Pirganj: "পীরগঞ্জ", Ranisankail: "রাণীশংকৈল",
-    Ruhia: "রুহিয়া", "Thakurgaon Sadar": "ঠাকুরগাঁও সদর",
+    Baliadangi: "বালিয়াডাঙ্গী", Bhully: "ভূল্লী", Haripur: "হরিপুর", Pirganj: "পীরগঞ্জ", Ranisankail: "রাণীশংকৈল",
+    Ruhia: "রুহিয়া", "Thakurgaon Sadar": "ঠাকুরগাঁও সদর",
   },
   // Mymensingh division
   Jamalpur: {
-    Baksiganj: "বকশীগঞ্জ", Dewanganj: "দেওয়ানগঞ্জ", Islampur: "ইসলামপুর", "Jamalpur Sadar": "জামালপুর সদর",
-    Madarganj: "মাদারগঞ্জ", Melandaha: "মেলান্দহ", Sarishabari: "সরিষাবাড়ী",
+    Baksiganj: "বকশীগঞ্জ", Dewanganj: "দেওয়ানগঞ্জ", Islampur: "ইসলামপুর", "Jamalpur Sadar": "জামালপুর সদর",
+    Madarganj: "মাদারগঞ্জ", Melandaha: "মেলান্দহ", Sarishabari: "সরিষাবাড়ী",
   },
   Mymensingh: {
     Bhaluka: "ভালুকা", Dhobaura: "ধোবাউড়া", Fulbaria: "ফুলবাড়ীয়া", Gaffargaon: "গফরগাঁও", Gauripur: "গৌরীপুর",
@@ -508,7 +508,7 @@ export const AREA_BN: Record<string, Record<string, string>> = {
     Purbadhala: "পূর্বধলা",
   },
   Sherpur: {
-    Jhenaigati: "ঝিনাইগাতী", Nakla: "নকলা", Nalitabari: "নালিতাবাড়ী", "Sherpur Sadar": "শেরপুর সদর",
+    Jhenaigati: "ঝিনাইগাতী", Nakla: "নকলা", Nalitabari: "নালিতাবাড়ী", "Sherpur Sadar": "শেরপুর সদর",
     Sreebardi: "শ্রীবরদী",
   },
 };

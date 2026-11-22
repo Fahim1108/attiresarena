@@ -12,7 +12,7 @@ import {
   formatChargeTaka,
   parseDeliverySettings,
 } from "../src/lib/delivery-settings";
-import { DELIVERY_SETTINGS_SCHEMA, deliveryDistrictGroups, settingNumber } from "../src/lib/admin/settings-shared";
+import { DELIVERY_SETTINGS_SCHEMA, deliveryDistrictOptions, settingNumber } from "../src/lib/admin/settings-shared";
 import { advanceBreakdown } from "../src/lib/manual-payment";
 import { previewPaymentConfiguration } from "../src/config/payment-receiving";
 import { commerce } from "../src/config";
@@ -59,14 +59,46 @@ describe("delivery settings parsing", () => {
     ).toEqual({ insideDistrict: "Khulna", insideChargeMinor: 5000, outsideChargeMinor: 14000 });
   });
 
-  it("covers all 64 districts", () => {
+  it("covers all 64 districts as one flat, uniformly-aligned option list", () => {
     expect(ALL_DISTRICTS).toHaveLength(64);
     for (const district of ["Barishal", "Dhaka", "Khulna", "Rajshahi", "Chattogram", "Sylhet", "Rangpur", "Mymensingh"]) {
       expect(isDistrict(district)).toBe(true);
     }
     expect(isDistrict("Not a district")).toBe(false);
-    expect(deliveryDistrictGroups()).toHaveLength(8);
-    expect(deliveryDistrictGroups().flatMap((g) => g.districts)).toHaveLength(64);
+    // Flat list, not optgroups: every row renders the same in the native
+    // select, and no division name ever appears as a row of its own
+    // (division names double as district names, e.g. Rangpur).
+    const options = deliveryDistrictOptions();
+    expect(options).toHaveLength(64);
+    expect(options.map((o) => o.value).sort()).toEqual([...ALL_DISTRICTS].sort());
+    // English names match the official 64-district list exactly.
+    expect([...ALL_DISTRICTS].sort()).toEqual(
+      [
+        "Bagerhat", "Bandarban", "Barguna", "Barishal", "Bhola", "Bogura",
+        "Brahmanbaria", "Chandpur", "Chapai Nawabganj", "Chattogram",
+        "Chuadanga", "Cox's Bazar", "Cumilla", "Dhaka", "Dinajpur",
+        "Faridpur", "Feni", "Gaibandha", "Gazipur", "Gopalganj", "Habiganj",
+        "Jamalpur", "Jashore", "Jhalokati", "Jhenaidah", "Joypurhat",
+        "Khagrachhari", "Khulna", "Kishoreganj", "Kurigram", "Kushtia",
+        "Lakshmipur", "Lalmonirhat", "Madaripur", "Magura", "Manikganj",
+        "Meherpur", "Moulvibazar", "Munshiganj", "Mymensingh", "Naogaon",
+        "Narail", "Narayanganj", "Narsingdi", "Natore", "Netrokona",
+        "Nilphamari", "Noakhali", "Pabna", "Panchagarh", "Patuakhali",
+        "Pirojpur", "Rajbari", "Rajshahi", "Rangamati", "Rangpur",
+        "Satkhira", "Shariatpur", "Sherpur", "Sirajganj", "Sunamganj",
+        "Sylhet", "Tangail", "Thakurgaon",
+      ].sort(),
+    );
+    for (const option of options) {
+      expect(option.label).toContain(" — ");
+      expect(option.label.startsWith(`${option.value} (`)).toBe(true);
+    }
+    expect(deliveryDistrictOptions().find((o) => o.value === "Dinajpur")?.label).toBe(
+      "Dinajpur (দিনাজপুর) — Rangpur (রংপুর)",
+    );
+    expect(deliveryDistrictOptions().find((o) => o.value === "Barishal")?.label).toBe(
+      "Barishal (বরিশাল) — Barishal (বরিশাল)",
+    );
   });
 
   it("formats the announcement text from the saved zones", () => {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { parseGoogleVerification } from "@/lib/seo";
-import { DIVISIONS, isDistrict } from "@/data/bangladesh";
+import { DIVISIONS, districtLabel, divisionLabel, isDistrict } from "@/data/bangladesh";
 
 /**
  * Pure settings helpers and schemas shared by server code, client forms, and
@@ -179,12 +179,24 @@ export const DELIVERY_SETTINGS_SCHEMA = z.object({
 
 export type DeliverySettingsFormValues = z.infer<typeof DELIVERY_SETTINGS_SCHEMA>;
 
-/** District options grouped by division, for the admin district select. */
-export function deliveryDistrictGroups(): { division: string; districts: string[] }[] {
-  return Object.keys(DIVISIONS).map((division) => ({
-    division,
-    districts: DIVISIONS[division] ?? [],
-  }));
+/**
+ * Flat district options for the admin district select. Every option carries
+ * its division — "Dinajpur (দিনাজপুর) — Rangpur (রংপুর)" — so the native
+ * select renders all 64 rows uniformly aligned. The previous optgroup
+ * version rendered division names as bare flush-left headers (no Bangla,
+ * no radio) while district rows were indented with radios, which looked
+ * misaligned on phones; a division name also doubles as a district name
+ * (Rangpur, Sylhet, Mymensingh…), so a header row could be mistaken for
+ * a selectable district. Division names now never appear as a row of
+ * their own. Values stay the plain English district names.
+ */
+export function deliveryDistrictOptions(): { value: string; label: string }[] {
+  return Object.entries(DIVISIONS).flatMap(([division, districts]) =>
+    districts.map((district) => ({
+      value: district,
+      label: `${districtLabel(district)} — ${divisionLabel(division)}`,
+    })),
+  );
 }
 
 /** Setting keys that only an owner may write (enforced by RPC + action). */

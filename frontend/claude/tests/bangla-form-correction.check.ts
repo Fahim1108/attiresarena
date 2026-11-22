@@ -55,6 +55,23 @@ describe("Bangla display-name dataset", () => {
     }
   });
 
+  it("uses precomposed Bangla letters, never legacy base+nukta sequences", () => {
+    // ড়/য় must be the single code points U+09DC/U+09DF, not ড/য + nukta
+    // (U+09A1/U+09AF U+09BC): the decomposed form renders inconsistently
+    // on some Android fonts and breaks string equality with normally
+    // typed Bangla. (Node's String.normalize("NFC") does NOT compose
+    // these — U+09DC/U+09DF are composition-excluded — so this is
+    // asserted directly instead of normalizing.)
+    const legacyNukta = /[ডযঢ]়/;
+    for (const bn of [
+      ...Object.values(DIVISION_BN),
+      ...Object.values(DISTRICT_BN),
+      ...Object.values(AREA_BN).flatMap((areas) => Object.values(areas)),
+    ]) {
+      expect(bn).not.toMatch(legacyNukta);
+    }
+  });
+
   it("renders the owner's examples exactly", () => {
     expect(divisionLabel("Sylhet")).toBe("Sylhet (সিলেট)");
     expect(districtLabel("Habiganj")).toBe("Habiganj (হবিগঞ্জ)");

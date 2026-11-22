@@ -9,13 +9,12 @@ import {
 } from "@/components/admin/ui-client";
 import type { AdminActionResult } from "@/lib/admin/authorization";
 import {
-  deliveryDistrictGroups,
+  deliveryDistrictOptions,
   parseLowStockThreshold,
   settingNumber,
   settingString,
   type StoreSettingsMap,
 } from "@/lib/admin/settings-shared";
-import { districtLabel } from "@/data/bangladesh";
 
 type FormAction = (
   prev: AdminActionResult | null,
@@ -395,14 +394,10 @@ export function DeliverySettingsForm({
             defaultValue={insideDistrict}
             required
           >
-            {deliveryDistrictGroups().map((group) => (
-              <optgroup key={group.division} label={group.division}>
-                {group.districts.map((district) => (
-                  <option key={district} value={district}>
-                    {districtLabel(district)}
-                  </option>
-                ))}
-              </optgroup>
+            {deliveryDistrictOptions().map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
             ))}
           </select>
           <p className="aa-hint">
