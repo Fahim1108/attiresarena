@@ -5,7 +5,7 @@ import { useToast } from "@/context/ToastContext";
 import { useWishlist } from "@/context/WishlistContext";
 import { cn } from "@/lib/cn";
 
-export function WishlistButton({ productId, productName, className, variant = "floating" }: { productId: string; productName: string; className?: string; variant?: "floating" | "inline" }) {
+export function WishlistButton({ productId, productName, className, variant = "floating" }: { productId: string; productName: string; className?: string; variant?: "floating" | "inline" | "inline-sm" }) {
   const { has, toggle, hydrated } = useWishlist();
   const toast = useToast();
   const active = hydrated && has(productId);
@@ -22,12 +22,16 @@ export function WishlistButton({ productId, productName, className, variant = "f
       }}
       className={cn(
         "aa-press inline-flex items-center justify-center transition-colors",
-        variant === "floating" ? "h-9 w-9 rounded-full bg-surface/90 shadow-sm backdrop-blur transition-colors duration-200 hover:bg-surface [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" : "h-11 w-11 rounded-full border border-line hover:border-primary/40",
+        variant === "floating"
+          ? "h-9 w-9 rounded-full bg-surface/90 shadow-sm backdrop-blur transition-colors duration-200 hover:bg-surface [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
+          : variant === "inline-sm"
+            ? "h-8 w-8 rounded-full border border-line hover:border-primary/40"
+            : "h-11 w-11 rounded-full border border-line hover:border-primary/40",
         className,
       )}
     >
       <Heart
-        className={cn("h-[18px] w-[18px] transition-[fill,color] duration-300 ease-out", active ? "fill-primary text-primary" : "fill-transparent text-ink")}
+        className={cn(variant === "inline-sm" ? "h-4 w-4" : "h-[18px] w-[18px]", "transition-[fill,color] duration-300 ease-out", active ? "fill-primary text-primary" : "fill-transparent text-ink")}
         strokeWidth={1.7}
         aria-hidden
       />
