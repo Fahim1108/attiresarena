@@ -31,6 +31,13 @@ begin;
 --     a submission row (advance = the stored delivery charge).
 --     Idempotent: orders that already have a submission are skipped,
 --     and a TxID already recorded for another order is not duplicated.
+--     Guard added after the staging apply: the backfill WHERE also
+--     requires the regexp match to be non-null (m is not null), so
+--     orders whose note carries no payment line are skipped instead
+--     of failing the insert. Staging data is unaffected (0 rows
+--     backfilled there). The sender pattern also accepts +880
+--     (normalized to 0 on insert) after the production apply failed
+--     on AA-10011, whose note carries a +880 sender number.
 --  3. place_checkout_order gains p_payment jsonb (param 8) alongside
 --     p_coupon_code (param 7). Submission row inserted in the same
 --     transaction as the order, advance = server-computed delivery
@@ -108,14 +115,16 @@ create policy payment_submissions_staff_read on public.payment_submissions for s
 -- Backfill: parse the payment line out of existing order notes. The line
 -- format is fixed by formatPaymentNoteLine in src/lib/manual-payment.ts:
 -- "[Advance payment] bKash TxID <txid>, sender <phone>." (the customer
--- note, if any, follows on the next line). The advance is the stored
--- delivery charge — the amount the customer was asked to send.
+-- The sender may be in 01-format or international +880-format (checkout
+-- accepts both); +880 is normalized to 01-format on insert because the
+-- sender_number CHECK requires 01-format.
 insert into public.payment_submissions(order_id, provider, transaction_id, sender_number, advance_minor, status, submitted_at, idempotency_key)
-select o.id, lower(m[1]), m[2], m[3], o.delivery_charge_minor, 'submitted', o.placed_at, gen_random_uuid()
+select o.id, lower(m[1]), m[2], regexp_replace(m[3], '^\+880', '0'), o.delivery_charge_minor, 'submitted', o.placed_at, gen_random_uuid()
 from public.orders o
 cross join lateral regexp_match(o.note,
-  '^\[Advance payment\] (bKash|Nagad) TxID ([A-Za-z0-9][A-Za-z0-9._-]*), sender (01[3-9][0-9]{8})') as m
+  '^\[Advance payment\] (bKash|Nagad) TxID ([A-Za-z0-9][A-Za-z0-9._-]*), sender ((?:\+880|0)1[3-9][0-9]{8})') as m
 where o.note is not null
+  and m is not null
   and not exists (select 1 from public.payment_submissions ps where ps.order_id = o.id)
 on conflict (provider, transaction_id) where status <> 'rejected' do nothing;
 
