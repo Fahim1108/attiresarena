@@ -125,7 +125,7 @@ describe("checkout form wiring", () => {
     expect(checkoutForm).toContain("options={divisionNames.map((d) => ({ value: d, label: divisionLabel(d) }))}");
     expect(checkoutForm).toContain("options={districts.map((d) => ({ value: d, label: districtLabel(d) }))}");
     expect(checkoutForm).toContain("options={areas.map((a) => ({ value: a, label: areaLabel(form.district, a) }))}");
-    expect(checkoutForm).toContain('import { areaLabel, areasOf, districtLabel, districtsOf, divisionLabel, divisionNames, isInsideBarishalCity } from "@/data/bangladesh"');
+    expect(checkoutForm).toContain('import { areaLabel, areasOf, districtLabel, districtsOf, divisionLabel, divisionNames } from "@/data/bangladesh"');
   });
 
   it("keeps the heading and labels English, placeholders/hints/errors Bangla", () => {
@@ -169,7 +169,7 @@ describe("checkout form wiring", () => {
   });
 
   it("keeps everything outside the delivery form in English", () => {
-    for (const text of ["Inside Barishal City", "Outside Barishal City", "Select a district to calculate delivery", 'label="Order note (optional)"', "Anything we should know? e.g. preferred delivery time"]) {
+    for (const text of ["Inside ${insideDistrict}", "Outside ${insideDistrict}", "Select a district to calculate delivery", 'label="Order note (optional)"', "Anything we should know? e.g. preferred delivery time"]) {
       expect(checkoutForm).toContain(text);
     }
     for (const text of ["ঢাকার ভিতরে", "ঢাকার বাইরে", "ডেলিভারি চার্জ জানতে জেলা বেছে নিন", "অর্ডার নোট"]) {

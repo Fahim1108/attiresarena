@@ -7,7 +7,7 @@ import { CouponField } from "@/components/cart/CouponField";
 import { OrderSummary } from "@/components/cart/OrderSummary";
 import { Button, ButtonLink, Checkbox, DemoNotice, EmptyState, Input, Modal, Select, CheckoutSkeleton, SmartImage, Textarea } from "@/components/ui";
 import { useCart } from "@/context/CartContext";
-import { areaLabel, areasOf, districtLabel, districtsOf, divisionLabel, divisionNames, isInsideBarishalCity } from "@/data/bangladesh";
+import { areaLabel, areasOf, districtLabel, districtsOf, divisionLabel, divisionNames } from "@/data/bangladesh";
 import { canPlaceOrder } from "@/lib/checkout/gate";
 import { toMinorUnits } from "@/lib/checkout/coupons";
 import { formatOrderNumber } from "@/lib/admin/format";
@@ -198,15 +198,14 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
   if (!items.length)
     return <EmptyState icon={<ShoppingBag className="h-7 w-7" aria-hidden />} title="Your cart is empty" description="Add products to your cart before checking out." action={<ButtonLink href="/shop">Browse Products</ButtonLink>} />;
 
-  // Barishal City is decided by the area (Barishal Sadar), so until an area
-  // is picked for Barishal district the zone is not known yet.
+  // Inside means the whole admin-selected district, so the zone is known
+  // as soon as a district is picked — no area needed to decide it.
+  const insideDistrict = manualPaymentConfiguration.policy.insideDistrict;
   const deliveryLabel = !form.district
     ? "Select a district to calculate delivery"
-    : form.district === "Barishal" && !form.area
-      ? "Select an area to calculate delivery"
-      : isInsideBarishalCity(form.division, form.district, form.area)
-        ? "Inside Barishal City"
-        : "Outside Barishal City";
+    : form.district === insideDistrict
+      ? `Inside ${insideDistrict}`
+      : `Outside ${insideDistrict}`;
 
   // The notice must name the environment honestly. On production with
   // ordering enabled this is a real store, so no demo notice renders at

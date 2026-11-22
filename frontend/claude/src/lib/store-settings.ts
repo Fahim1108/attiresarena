@@ -697,6 +697,9 @@ export function parseAnnouncementBar(
  * Announcement-bar override (wired in the root layout). The stored
  * text replaces the bar's left message and `visible` controls the bar.
  * Returns the static header unchanged when no valid value is stored.
+ * The text follows the delivery zones because saving delivery settings
+ * also writes the derived announcement text (see saveDeliverySettings)
+ * — the bar itself stays manually editable from Content → Homepage.
  */
 export function applyAnnouncementOverride(
   header: HeaderSettings,

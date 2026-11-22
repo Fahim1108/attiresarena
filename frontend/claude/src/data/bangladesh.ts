@@ -541,11 +541,18 @@ export function areasOf(district: string): string[] {
   return AREAS[district] ?? [];
 }
 
-/** "Inside Barishal City" is only Barishal Sadar upazila of Barishal district. Everywhere else is outside. */
-export function isInsideBarishalCity(division: string, district: string, area: string): boolean {
-  return division === "Barishal" && district === "Barishal" && area === "Barishal Sadar";
+/** "Inside {district}" is the whole admin-selected district. Everywhere else is outside. */
+export function isInsideDeliveryZone(district: string, insideDistrict: string): boolean {
+  return district !== "" && district === insideDistrict;
 }
 
-export function deliveryZone(division: string, district: string, area: string): DeliveryZone {
-  return isInsideBarishalCity(division, district, area) ? "inside-barishal-city" : "outside-barishal-city";
+export function deliveryZone(district: string, insideDistrict: string): DeliveryZone {
+  return isInsideDeliveryZone(district, insideDistrict) ? "inside" : "outside";
+}
+
+/** Flat list of all 64 districts, in division order (see DIVISIONS). */
+export const ALL_DISTRICTS: readonly string[] = Object.values(DIVISIONS).flat();
+
+export function isDistrict(value: string): boolean {
+  return (ALL_DISTRICTS as readonly string[]).includes(value);
 }

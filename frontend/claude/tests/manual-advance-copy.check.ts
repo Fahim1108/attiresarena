@@ -5,7 +5,7 @@ import {ManualAdvancePayment} from '@/components/checkout/ManualAdvancePayment';
 import {PaymentMethodSelector} from '@/components/checkout/PaymentMethodSelector';
 import type {ManualPaymentConfiguration} from '@/types/manual-payment';
 
-const policy = { insideBarishalCityMinor: 5000, outsideBarishalCityMinor: 14000, credit: "against-order-total" as const };
+const policy = { insideMinor: 5000, outsideMinor: 14000, insideDistrict: "Barishal", credit: "against-order-total" as const };
 const destinations = [{ provider: "bkash" as const, recipientNumber: "configured-in-test", accountType: "personal" as const, transferInstructions: "" }];
 const base = { totalMinor: 200000, division: "Barishal", district: "Barishal", area: "Barishal Sadar" };
 

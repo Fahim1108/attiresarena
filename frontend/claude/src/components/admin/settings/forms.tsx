@@ -9,10 +9,13 @@ import {
 } from "@/components/admin/ui-client";
 import type { AdminActionResult } from "@/lib/admin/authorization";
 import {
+  deliveryDistrictGroups,
   parseLowStockThreshold,
+  settingNumber,
   settingString,
   type StoreSettingsMap,
 } from "@/lib/admin/settings-shared";
+import { districtLabel } from "@/data/bangladesh";
 
 type FormAction = (
   prev: AdminActionResult | null,
@@ -363,5 +366,88 @@ export function BrandImageForm({
         </div>
       ) : null}
     </div>
+  );
+}
+
+export function DeliverySettingsForm({
+  action,
+  settings,
+}: {
+  action: FormAction;
+  settings: StoreSettingsMap;
+}) {
+  const [state, formAction] = useActionState(action, null);
+  const insideDistrict =
+    settingString(settings, "delivery_inside_district") || "Barishal";
+  const insideChargeMinor =
+    settingNumber(settings, "delivery_inside_charge_minor") ?? 5000;
+  const outsideChargeMinor =
+    settingNumber(settings, "delivery_outside_charge_minor") ?? 14000;
+  return (
+    <form action={formAction}>
+      <FormMessage state={state} />
+      <div className="aa-form-grid">
+        <div className="aa-field aa-field--full">
+          <label htmlFor="delivery-inside-district">Inside district</label>
+          <select
+            id="delivery-inside-district"
+            name="delivery_inside_district"
+            defaultValue={insideDistrict}
+            required
+          >
+            {deliveryDistrictGroups().map((group) => (
+              <optgroup key={group.division} label={group.division}>
+                {group.districts.map((district) => (
+                  <option key={district} value={district}>
+                    {districtLabel(district)}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          <p className="aa-hint">
+            Orders delivered in this district pay the Inside charge; every
+            other district pays the Outside charge.
+          </p>
+        </div>
+        <div className="aa-field">
+          <label htmlFor="delivery-inside-charge">
+            Inside delivery charge (৳)
+          </label>
+          <input
+            id="delivery-inside-charge"
+            name="delivery_inside_charge_taka"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={10000}
+            step={1}
+            defaultValue={Math.round(insideChargeMinor / 100)}
+            required
+          />
+          <p className="aa-hint">Charged for orders inside the district above.</p>
+        </div>
+        <div className="aa-field">
+          <label htmlFor="delivery-outside-charge">
+            Outside delivery charge (৳)
+          </label>
+          <input
+            id="delivery-outside-charge"
+            name="delivery_outside_charge_taka"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={10000}
+            step={1}
+            defaultValue={Math.round(outsideChargeMinor / 100)}
+            required
+          />
+          <p className="aa-hint">Charged for orders in every other district.</p>
+        </div>
+      </div>
+      <div className="aa-form-actions">
+        <SubmitButton>Save delivery settings</SubmitButton>
+      </div>
+    </form>
   );
 }

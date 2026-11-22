@@ -5,8 +5,8 @@ import {reconcileCartLines} from "@/lib/cart-catalogue";
 import { applyCartAdd, applyCartQuantity, cartUnitCount, MAX_UNITS_PER_ORDER, type CartLimitRefusal } from "@/lib/cart-limits";
 import { fromMinorUnits, isCouponFresh, toMinorUnits } from "@/lib/checkout/coupons";
 import type {Product} from "@/types";
-import { commerce } from "@/config";
 import { deliveryZone } from "@/data/bangladesh";
+import { DEFAULT_DELIVERY_SETTINGS, type DeliverySettings } from "@/lib/delivery-settings";
 import { readStorage, STORAGE_KEYS, writeStorage } from "@/lib/storage";
 import type { CartItem, Coupon, OrderSummary } from "@/types";
 
@@ -50,7 +50,7 @@ const CartContext = createContext<CartContextValue | null>(null);
  * Codex: when a server cart exists, sync `items` with it here (the API of this
  * context can stay the same, so components need no changes).
  */
-export function CartProvider({ children, initialItems = [], approvedVariantIds = initialItems.map(i=>i.variantId), approvedProducts=[] }: { children: ReactNode; initialItems?: CartItem[]; approvedVariantIds?: string[]; approvedProducts?:Product[] }) {
+export function CartProvider({ children, initialItems = [], approvedVariantIds = initialItems.map(i=>i.variantId), approvedProducts=[], delivery = DEFAULT_DELIVERY_SETTINGS }: { children: ReactNode; initialItems?: CartItem[]; approvedVariantIds?: string[]; approvedProducts?:Product[]; delivery?: DeliverySettings }) {
   const [approvedIds] = useState(()=>new Set(approvedVariantIds));
   const [initialSeed] = useState(initialItems);
   const [items, setItems] = useState<CartItem[]>([]);
@@ -153,14 +153,16 @@ export function CartProvider({ children, initialItems = [], approvedVariantIds =
       const freshCoupon = isCouponFresh(coupon, toMinorUnits(subtotal), phone ?? null) ? coupon : undefined;
       const discount = freshCoupon ? Math.min(fromMinorUnits(freshCoupon.discountMinor), subtotal) : 0;
       // No free delivery: every order pays the zone charge. Without an
-      // address yet the summary shows the inside-Barishal-City charge as
-      // the estimate; checkout confirms the real charge for the address.
-      const zone = !district ? "inside-barishal-city" : deliveryZone(division ?? "", district, area ?? "");
-      const baseDelivery = zone === "inside-barishal-city" ? commerce.deliveryCharges.insideBarishalCity : commerce.deliveryCharges.outsideBarishalCity;
+      // address yet the summary shows the inside charge as the estimate;
+      // checkout confirms the real charge for the address. Charges and
+      // the inside district come from the saved delivery settings
+      // (admin-editable), never hardcoded.
+      const zone = !district ? "inside" : deliveryZone(district, delivery.insideDistrict);
+      const baseDelivery = zone === "inside" ? delivery.insideChargeMinor / 100 : delivery.outsideChargeMinor / 100;
       const deliveryCharge = itemCount === 0 ? 0 : baseDelivery;
       return { itemCount, subtotal, discount, deliveryCharge, total: Math.max(0, subtotal - discount + deliveryCharge), coupon: freshCoupon };
     },
-    [items, coupon, subtotal],
+    [items, coupon, subtotal, delivery],
   );
 
   const value = useMemo<CartContextValue>(

@@ -13,6 +13,7 @@ import { readOwnReview } from "@/lib/customer/reviews";
 import { customerSession } from "@/lib/customer/session";
 import { buildPageMetadata, mergeSeoKeywords, resolveDefaultOgImage, resolveEntitySeo, resolveGlobalKeywords, resolveTwitterCard } from "@/lib/seo";
 import { getStorefrontContent } from "@/lib/store-settings";
+import { resolveDeliverySettings } from "@/lib/delivery-settings";
 import { getBrands, getCategories, getProductBySlug, getProducts, getReviews, getSizeGuide } from "@/services";
 
 type Params = Promise<{ slug: string }>;
@@ -50,7 +51,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pa
   const product = await getProductBySlug(slug);
   if (!product) notFound();
   const sp = await searchParams;
-  const [brands, categories, reviews, related, sizeGuide, session] = await Promise.all([
+  const [brands, categories, reviews, related, sizeGuide, session, content] = await Promise.all([
     getBrands(),
     getCategories(),
     getReviews(product.id),
@@ -61,6 +62,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pa
     // sessions on product pages); the review action authenticates
     // inside itself and is authoritative.
     customerSession(),
+    getStorefrontContent(),
   ]);
   // The author's own review (any status) is a separate prop: it must
   // never feed the approved list, the average/count, or JSON-LD.
@@ -136,7 +138,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pa
             ]}
           />
           )}
-          <ProductDeliveryInfo className={product.reviewOnly ? "lg:col-start-2" : undefined} />
+          <ProductDeliveryInfo className={product.reviewOnly ? "lg:col-start-2" : undefined} delivery={resolveDeliverySettings(content?.settings ?? null)} />
         </div>
         <div className="mt-16">
           <ReviewList reviews={reviews} signedIn={session !== null} ownReview={ownReview} productId={product.id} />

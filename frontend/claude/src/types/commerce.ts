@@ -45,7 +45,7 @@ export interface OrderSummary {
 
 export type PaymentMethod = "cod" | "online";
 
-export type DeliveryZone = "inside-barishal-city" | "outside-barishal-city";
+export type DeliveryZone = "inside" | "outside";
 
 export interface CheckoutPayload {
   customer: { fullName: string; phone: string; email?: string };

@@ -2,8 +2,12 @@ import type { ActionResult } from "./commerce";
 
 export type AdvanceProvider = "bkash" | "nagad";
 export interface AdvancePolicy {
-  insideBarishalCityMinor: number;
-  outsideBarishalCityMinor: number;
+  /** Inside charge in minor units (the advance for an inside-district order). */
+  insideMinor: number;
+  /** Outside charge in minor units (the advance for any other district). */
+  outsideMinor: number;
+  /** The district that pays the inside charge. */
+  insideDistrict: string;
   credit: "against-order-total";
 }
 export interface PaymentDestination {

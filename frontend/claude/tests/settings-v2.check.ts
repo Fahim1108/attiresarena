@@ -46,8 +46,8 @@ import {
 } from "../src/lib/store-settings";
 
 describe("v2 setting-key allowlist", () => {
-  it("contains the original 17 keys plus the 16 v2 keys plus the M-B verification key", () => {
-    expect(SETTING_KEYS).toHaveLength(34);
+  it("contains the original 17 keys plus the 16 v2 keys plus the M-B verification key plus the 3 delivery zone keys", () => {
+    expect(SETTING_KEYS).toHaveLength(37);
     for (const key of [
       "meta_pixel_id",
       "meta_pixel_events",
@@ -67,6 +67,10 @@ describe("v2 setting-key allowlist", () => {
       "display_currency",
       "display_timezone",
       "low_stock_threshold",
+      // Delivery zones (migration 20261122000100).
+      "delivery_inside_district",
+      "delivery_inside_charge_minor",
+      "delivery_outside_charge_minor",
     ] as const) {
       expect(isSettingKey(key)).toBe(true);
     }

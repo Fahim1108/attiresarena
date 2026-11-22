@@ -171,7 +171,9 @@ export interface CommerceSettings {
   currencySymbol: string;
   currencyCode: string;
   locale: string;
-  deliveryCharges: { insideBarishalCity: number; outsideBarishalCity: number };
+  deliveryCharges: { inside: number; outside: number };
+  /** The district that pays the inside charge (admin-editable delivery setting). */
+  deliveryInsideDistrict: string;
   returnWindowDays: number;
   codEnabled: boolean;
   onlinePaymentEnabled: boolean;

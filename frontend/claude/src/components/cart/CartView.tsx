@@ -4,8 +4,8 @@ import { ArrowLeft, ArrowRight, Lock, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Button, ButtonLink, EmptyState, CartSkeleton, Modal } from "@/components/ui";
-import { commerce } from "@/config";
 import { useCart } from "@/context/CartContext";
+import { useStorefront } from "@/context/StorefrontContext";
 import { formatPrice } from "@/lib/format";
 import { CartItem } from "./CartItem";
 import { CouponField } from "./CouponField";
@@ -13,6 +13,7 @@ import { OrderSummary } from "./OrderSummary";
 
 export function CartView() {
   const { items, hydrated, getSummary, itemCount, clear } = useCart();
+  const { commerce } = useStorefront();
   const [confirmClear, setConfirmClear] = useState(false);
   const summary = getSummary();
 
@@ -50,7 +51,7 @@ export function CartView() {
       <aside className="lg:sticky lg:top-28 lg:self-start">
         <div className="space-y-5 rounded-card border border-line p-5 sm:p-6">
           <CouponField />
-          <OrderSummary summary={summary} deliveryNote={`Inside Barishal City shown (${formatPrice(commerce.deliveryCharges.insideBarishalCity)}). Outside Barishal City: ${formatPrice(commerce.deliveryCharges.outsideBarishalCity)} — calculated at checkout.`} />
+          <OrderSummary summary={summary} deliveryNote={`Inside ${commerce.deliveryInsideDistrict} shown (${formatPrice(commerce.deliveryCharges.inside)}). Outside ${commerce.deliveryInsideDistrict}: ${formatPrice(commerce.deliveryCharges.outside)} — calculated at checkout.`} />
           <ButtonLink href="/checkout" size="lg" fullWidth rightIcon={<ArrowRight className="h-4 w-4" aria-hidden />}>
             Proceed to Checkout
           </ButtonLink>

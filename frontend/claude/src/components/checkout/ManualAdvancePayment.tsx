@@ -101,7 +101,7 @@ export function ManualAdvancePayment({ configuration, totalMinor, division, dist
         <div className="flex justify-between gap-4 font-semibold text-primary"><dt>{mode === "cod" ? "Required advance" : "Full payment amount"}</dt><dd data-required-advance>{breakdown ? formatPaymentAmount(breakdown.amountDueMinor) : "Select location"}</dd></div>
         <div className="flex justify-between gap-4 border-t border-line pt-2"><dt>Remaining on delivery</dt><dd data-remaining-balance>{breakdown ? formatPaymentAmount(breakdown.remainingMinor) : "—"}</dd></div>
       </dl>
-      {breakdown && mode === "cod" && <p className="text-sm text-ink-muted">{breakdown.zone === "inside-barishal-city" ? "Inside Barishal City" : "Outside Barishal City"}: {formatPaymentAmount(breakdown.amountDueMinor)} advance required to confirm COD. Amounts shown are estimates until a secure order quote is available.</p>}
+      {breakdown && mode === "cod" && <p className="text-sm text-ink-muted">{breakdown.zone === "inside" ? `Inside ${configuration.policy.insideDistrict}` : `Outside ${configuration.policy.insideDistrict}`}: {formatPaymentAmount(breakdown.amountDueMinor)} advance required to confirm COD. Amounts shown are estimates until a secure order quote is available.</p>}
       <div role="tablist" aria-label="Personal payment method" className="grid grid-cols-2 gap-2">
         {(["bkash", "nagad"] as const).map((method, index) => (
           <button key={method} id={`${id}-${method}`} type="button" role="tab" aria-label={`Personal ${names[method]}`} aria-selected={provider === method}

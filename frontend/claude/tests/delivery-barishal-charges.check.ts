@@ -10,61 +10,72 @@ import { Footer } from "../src/components/layout/Footer";
 import { ManualAdvancePayment } from "../src/components/checkout/ManualAdvancePayment";
 import { ProductDeliveryInfo } from "../src/components/product/ProductDeliveryInfo";
 import { StorefrontProvider } from "../src/context/StorefrontContext";
-import { deliveryZone, isInsideBarishalCity } from "../src/data/bangladesh";
+import { areasOf, deliveryZone, isInsideDeliveryZone } from "../src/data/bangladesh";
 import { advanceBreakdown, manualPaymentBreakdown } from "../src/lib/manual-payment";
 import { previewPaymentConfiguration } from "../src/config/payment-receiving";
 import type { ManualPaymentConfiguration } from "../src/types/manual-payment";
 
 const policy = previewPaymentConfiguration().policy;
+const INSIDE = "Barishal";
 
-describe("Barishal City delivery zone", () => {
-  it("is inside only for Barishal Sadar upazila of Barishal district", () => {
-    expect(isInsideBarishalCity("Barishal", "Barishal", "Barishal Sadar")).toBe(true);
-    expect(deliveryZone("Barishal", "Barishal", "Barishal Sadar")).toBe("inside-barishal-city");
+describe("Delivery zone (whole inside district)", () => {
+  it("is inside for every upazila of the selected district", () => {
+    // The inside zone is the whole district now, so any of its upazilas
+    // (Babuganj, Bakerganj) is inside, not just the Sadar upazila.
+    for (const area of ["Barishal Sadar", "Babuganj", "Bakerganj"] as const) {
+      expect(areasOf("Barishal")).toContain(area);
+    }
+    expect(isInsideDeliveryZone("Barishal", INSIDE)).toBe(true);
+    expect(deliveryZone("Barishal", INSIDE)).toBe("inside");
   });
 
-  it("is outside for the rest of Barishal division", () => {
-    for (const [district, area] of [
-      ["Barishal", "Babuganj"],
-      ["Barishal", "Bakerganj"],
-      ["Barguna", "Barguna Sadar"],
-      ["Bhola", "Bhola Sadar"],
-      ["Jhalokati", "Jhalokati Sadar"],
-      ["Patuakhali", "Patuakhali Sadar"],
-      ["Pirojpur", "Pirojpur Sadar"],
+  it("is outside for the other districts of Barishal division", () => {
+    for (const district of [
+      "Barguna",
+      "Bhola",
+      "Jhalokati",
+      "Patuakhali",
+      "Pirojpur",
     ] as const) {
-      expect(isInsideBarishalCity("Barishal", district, area)).toBe(false);
-      expect(deliveryZone("Barishal", district, area)).toBe("outside-barishal-city");
+      expect(isInsideDeliveryZone(district, INSIDE)).toBe(false);
+      expect(deliveryZone(district, INSIDE)).toBe("outside");
     }
   });
 
   it("is outside for Dhaka and every other division", () => {
-    for (const [division, district, area] of [
-      ["Dhaka", "Dhaka", "Mirpur"],
-      ["Dhaka", "Gazipur", "Gazipur Sadar"],
-      ["Chattogram", "Cumilla", "Cumilla Adarsha Sadar"],
-      ["Sylhet", "Sylhet", "Sylhet Sadar"],
-      ["Khulna", "Khulna", "Sonadanga"],
-      ["Rajshahi", "Rajshahi", "Paba"],
-      ["Rangpur", "Rangpur", "Rangpur Sadar"],
-      ["Mymensingh", "Mymensingh", "Mymensingh Sadar"],
+    for (const district of [
+      "Dhaka",
+      "Gazipur",
+      "Cumilla",
+      "Sylhet",
+      "Khulna",
+      "Rajshahi",
+      "Rangpur",
+      "Mymensingh",
     ] as const) {
-      expect(isInsideBarishalCity(division, district, area)).toBe(false);
-      expect(deliveryZone(division, district, area)).toBe("outside-barishal-city");
+      expect(isInsideDeliveryZone(district, INSIDE)).toBe(false);
+      expect(deliveryZone(district, INSIDE)).toBe("outside");
     }
   });
 
-  it("is outside when the address is incomplete or invented", () => {
-    expect(isInsideBarishalCity("", "", "")).toBe(false);
-    expect(isInsideBarishalCity("Barishal", "Barishal", "")).toBe(false);
-    expect(isInsideBarishalCity("Barishal", "Barishal", "Not an area")).toBe(false);
-    expect(isInsideBarishalCity("Sylhet", "Barishal", "Barishal Sadar")).toBe(false);
+  it("is outside when the district is empty or invented", () => {
+    expect(isInsideDeliveryZone("", INSIDE)).toBe(false);
+    expect(isInsideDeliveryZone("Not a district", INSIDE)).toBe(false);
+    expect(deliveryZone("", INSIDE)).toBe("outside");
+  });
+
+  it("follows the selected district, not Barishal", () => {
+    expect(isInsideDeliveryZone("Dhaka", "Dhaka")).toBe(true);
+    expect(deliveryZone("Dhaka", "Dhaka")).toBe("inside");
+    expect(isInsideDeliveryZone("Barishal", "Dhaka")).toBe(false);
+    expect(deliveryZone("Barishal", "Dhaka")).toBe("outside");
   });
 });
 
 describe("Barishal delivery charges (no free delivery)", () => {
-  it("charges 50 inside Barishal City and 140 everywhere else", () => {
-    expect(commerce.deliveryCharges).toEqual({ insideBarishalCity: 50, outsideBarishalCity: 140 });
+  it("charges 50 inside Barishal and 140 everywhere else", () => {
+    expect(commerce.deliveryCharges).toEqual({ inside: 50, outside: 140 });
+    expect(commerce.deliveryInsideDistrict).toBe("Barishal");
     expect("freeDeliveryThreshold" in commerce).toBe(false);
   });
 
@@ -82,10 +93,10 @@ describe("Barishal delivery charges (no free delivery)", () => {
   it("advances exactly the delivery charge — 50 inside, 140 outside — at any order size", () => {
     // No free-delivery waiver: even a large order still pays the charge.
     expect(advanceBreakdown(500000, "Barishal", "Barishal", "Barishal Sadar", policy)).toEqual({
-      zone: "inside-barishal-city", totalMinor: 500000, advanceMinor: 5000, remainingMinor: 495000,
+      zone: "inside", totalMinor: 500000, advanceMinor: 5000, remainingMinor: 495000,
     });
     expect(advanceBreakdown(500000, "Dhaka", "Dhaka", "Mirpur", policy)).toEqual({
-      zone: "outside-barishal-city", totalMinor: 500000, advanceMinor: 14000, remainingMinor: 486000,
+      zone: "outside", totalMinor: 500000, advanceMinor: 14000, remainingMinor: 486000,
     });
     expect(manualPaymentBreakdown("cod", 500000, "Barishal", "Barguna", "Barguna Sadar", policy)).toMatchObject({
       amountDueMinor: 14000, remainingMinor: 486000,
@@ -101,13 +112,13 @@ describe("Barishal delivery charges (no free delivery)", () => {
     const city = renderToStaticMarkup(createElement(ManualAdvancePayment, {
       mode: "cod", configuration, totalMinor: 200000, division: "Barishal", district: "Barishal", area: "Barishal Sadar",
     }));
-    expect(city).toContain("Inside Barishal City");
+    expect(city).toContain("Inside Barishal");
     expect(city).toContain("৳50");
     expect(city).not.toContain("Dhaka");
     const outside = renderToStaticMarkup(createElement(ManualAdvancePayment, {
       mode: "cod", configuration, totalMinor: 200000, division: "Dhaka", district: "Dhaka", area: "Mirpur",
     }));
-    expect(outside).toContain("Outside Barishal City");
+    expect(outside).toContain("Outside Barishal");
     expect(outside).toContain("৳140");
   });
 });
@@ -119,10 +130,10 @@ describe("Barishal delivery fixes (Preview 2026-11-21)", () => {
     // design-review fixture.
     const card = renderToStaticMarkup(createElement(ProductDeliveryInfo, {}));
     expect(card).toContain("Delivery Information");
-    expect(card).toContain("Inside Barishal City");
+    expect(card).toContain("Inside Barishal");
     expect(card).toContain("BDT 50");
     expect(card).toContain("1–2 working days");
-    expect(card).toContain("Outside Barishal City");
+    expect(card).toContain("Outside Barishal");
     expect(card).toContain("BDT 140");
     expect(card).toContain("3–5 working days");
     expect(card).toContain("Order confirmation");
@@ -138,7 +149,7 @@ describe("Barishal delivery fixes (Preview 2026-11-21)", () => {
       ),
     );
     // Full message present, not cut off mid-word at the "…৳140 outside" end.
-    expect(bar).toContain("Nationwide delivery: ৳50 inside Barishal City · ৳140 outside");
+    expect(bar).toContain("Nationwide delivery: ৳50 inside Barishal · ৳140 outside");
     // No truncation anywhere in the bar: no `truncate` class on any line.
     expect(bar).not.toContain("truncate");
     expect(bar).not.toMatch(/free/i);
@@ -151,7 +162,7 @@ describe("Barishal delivery fixes (Preview 2026-11-21)", () => {
     // here: on the 2026-11-21 Preview the bar showed a stale fragment
     // ("out of delivery") from the stored override, not this default.
     expect(header.announcement.left).toBe(
-      "Nationwide delivery: ৳50 inside Barishal City · ৳140 outside",
+      "Nationwide delivery: ৳50 inside Barishal · ৳140 outside",
     );
   });
 

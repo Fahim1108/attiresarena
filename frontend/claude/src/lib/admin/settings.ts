@@ -2,6 +2,8 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { deliveryAnnouncementText } from "@/lib/delivery-settings";
+import { parseAnnouncementBar } from "@/lib/store-settings";
 import { requireStaff, isOwner, actionOk, actionError, toActionError } from "./authorization";
 import { areaRoles, PRODUCT_MEDIA_BUCKET } from "./constants";
 import { draftMediaLimit, validDraftImage } from "./media-validation";
@@ -11,6 +13,7 @@ import type { AdminActionResult } from "./authorization";
 import {
   ANNOUNCEMENT_SCHEMA,
   CUSTOM_CODE_SCHEMA,
+  DELIVERY_SETTINGS_SCHEMA,
   GENERAL_DISPLAY_SCHEMA,
   MARKETING_SETTINGS_SCHEMA,
   PIXEL_EVENTS,
@@ -188,6 +191,58 @@ export async function saveStoreSettings(
   revalidatePath("/admin/settings/general");
   revalidateStorefrontLayout();
   return actionOk("Store settings saved.");
+}
+
+/**
+ * Save the delivery zones (migration 20261122000100): the inside district
+ * plus both charges. Charges are entered in whole taka and stored in
+ * minor units (100 minor = ৳1), matching the checkout settings the DB
+ * trigger mirrors them into. Saving updates the storefront delivery
+ * card, the checkout estimate and the advance amount on the next page
+ * load — and it also rewrites the announcement bar text to match the
+ * new zones (keeping its stored visibility), so the bar can never show
+ * stale charges. The bar stays manually editable from Content → Homepage.
+ */
+export async function saveDeliverySettings(
+  _prev: AdminActionResult | null,
+  form: FormData,
+): Promise<AdminActionResult> {
+  "use server";
+  const session = await requireStaff(areaRoles("settings"));
+  const parsed = DELIVERY_SETTINGS_SCHEMA.safeParse({
+    delivery_inside_district: formText(form, "delivery_inside_district"),
+    delivery_inside_charge_taka: Number(formText(form, "delivery_inside_charge_taka")),
+    delivery_outside_charge_taka: Number(formText(form, "delivery_outside_charge_taka")),
+  });
+  if (!parsed.success) {
+    return actionError("Check the delivery fields and try again.");
+  }
+  const values: [SettingKey, unknown][] = [
+    ["delivery_inside_district", parsed.data.delivery_inside_district],
+    ["delivery_inside_charge_minor", parsed.data.delivery_inside_charge_taka * 100],
+    ["delivery_outside_charge_minor", parsed.data.delivery_outside_charge_taka * 100],
+  ];
+  for (const [key, value] of values) {
+    const saved = await setSetting(session.client, key, value);
+    if (saved.error) return actionError(saved.error);
+  }
+  const current = await getStoreSettingsMap();
+  const bar = parseAnnouncementBar(current?.["announcement_bar"]);
+  const announcement = await setSetting(session.client, "announcement_bar", {
+    text: deliveryAnnouncementText({
+      insideDistrict: parsed.data.delivery_inside_district,
+      insideChargeMinor: parsed.data.delivery_inside_charge_taka * 100,
+      outsideChargeMinor: parsed.data.delivery_outside_charge_taka * 100,
+    }),
+    visible: bar?.visible ?? true,
+  });
+  if (announcement.error) return actionError(announcement.error);
+  revalidatePath("/admin/settings/store");
+  revalidatePath("/admin/content/homepage");
+  revalidateStorefrontLayout();
+  return actionOk(
+    "Delivery settings saved. The storefront, checkout and advance amounts now use the new district and charges.",
+  );
 }
 
 export async function saveAnnouncementBar(

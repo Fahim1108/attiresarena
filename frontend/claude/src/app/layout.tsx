@@ -8,6 +8,7 @@ import { StorefrontProvider } from "@/context/StorefrontContext";
 import { ToastProvider } from "@/context/ToastContext";
 import { WishlistProvider } from "@/context/WishlistContext";
 import { applyAnnouncementOverride, applyBrandOverride, applyCustomizeOverride, applyFooterLinksOverride, applyFooterOverride, applyNavigationOverride, applySiteNameOverride, getStorefrontContent, parseMarketingSettings, resolveStorefrontMetadata, settingText } from "@/lib/store-settings";
+import { applyDeliveryOverride, resolveDeliverySettings } from "@/lib/delivery-settings";
 import { brandMediaUrl } from "@/lib/brand-media-delivery";
 import { getInitialCart, getStorefrontSettings, getProducts } from "@/services";
 import "@fontsource-variable/cormorant-garamond";
@@ -52,11 +53,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // applyFooterOverride; only the link columns change here.
   // Stored announcement-bar text/visibility replaces the static bar the
   // same way; without a stored value the static bar is unchanged.
+  // Delivery zones: the saved inside district + charges (admin-editable)
+  // flow into the cart summary, the storefront settings and the
+  // announcement bar; without saved values the static Barishal 50/140
+  // defaults apply.
   const siteName = applySiteNameOverride(settings.siteName, content?.settings ?? null);
   const logo = applyBrandOverride(settings.logo, content?.settings ?? null, siteName);
   const theme = applyCustomizeOverride(settings.theme, content?.layout ?? null);
   const header = applyNavigationOverride(applyAnnouncementOverride(settings.header, content?.settings ?? null), content?.layout ?? null);
   const footer = applyFooterLinksOverride(applyFooterOverride(settings.footer, content?.settings ?? null), content?.layout ?? null);
+  const delivery = resolveDeliverySettings(content?.settings ?? null);
+  const commerce = applyDeliveryOverride(settings.commerce, content?.settings ?? null);
   return (
     <html lang="en" >
       <head>
@@ -66,10 +73,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <CustomCodeSlot code={marketing.headCode} label="header" />
         <MarketingScripts marketing={marketing} />
-        <StorefrontProvider settings={{ ...settings, siteName, logo, theme, header, footer }}>
+        <StorefrontProvider settings={{ ...settings, siteName, logo, theme, header, footer, commerce }}>
           <ToastProvider>
             <WishlistProvider approvedProductIds={catalogue.items.map(p=>p.id)}>
-              <CartProvider approvedProducts={catalogue.items} initialItems={initialCart} approvedVariantIds={catalogue.items.flatMap(p=>p.variants.filter(v=>v.stock>0).map(v=>v.id))}>
+              <CartProvider approvedProducts={catalogue.items} initialItems={initialCart} approvedVariantIds={catalogue.items.flatMap(p=>p.variants.filter(v=>v.stock>0).map(v=>v.id))} delivery={delivery}>
                 <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[80] focus:rounded focus:bg-primary focus:px-4 focus:py-2 focus:text-white">
                   Skip to content
                 </a>

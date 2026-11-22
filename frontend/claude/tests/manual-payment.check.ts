@@ -3,26 +3,26 @@ import { advanceBreakdown, buildOrderNote, canDisplayConfirmedOrder, classifyAdv
 import { submitManualPaymentAction } from "../src/services/manual-payment-actions";
 import { mockDataSource } from "../src/services/adapters/mock";
 
-const policy = { insideBarishalCityMinor: 5000, outsideBarishalCityMinor: 14000, credit: "against-order-total" as const };
+const policy = { insideMinor: 5000, outsideMinor: 14000, insideDistrict: "Barishal", credit: "against-order-total" as const };
 const input = { provider: "bkash", transactionId: " AbC-123 ", senderNumber: " +880 1700-000000 ", note: " Test note ", idempotencyKey: "11111111-1111-4111-8111-111111111111", orderReference: null };
 afterEach(() => vi.restoreAllMocks());
 
 describe("location and precision-safe advance breakdown", () => {
-  it("credits 50 inside Barishal City against the total, without adding delivery again", () => {
-    expect(advanceBreakdown(200000, "Barishal", "Barishal", "Barishal Sadar", policy)).toEqual({ zone: "inside-barishal-city", totalMinor: 200000, advanceMinor: 5000, remainingMinor: 195000 });
+  it("credits 50 inside the district against the total, without adding delivery again", () => {
+    expect(advanceBreakdown(200000, "Barishal", "Barishal", "Barishal Sadar", policy)).toEqual({ zone: "inside", totalMinor: 200000, advanceMinor: 5000, remainingMinor: 195000 });
   });
-  it("credits 140 outside Barishal City and includes 64-district classification", () => {
+  it("credits 140 outside the district and includes 64-district classification", () => {
     expect(advanceBreakdown(200000, "Dhaka", "Gazipur", "Gazipur Sadar", policy)?.remainingMinor).toBe(186000);
-    expect(classifyAdvanceLocation("Barishal", "Barishal", "Babuganj")).toBe("outside-barishal-city");
-    expect(classifyAdvanceLocation("Barishal", "Barguna", "Barguna Sadar")).toBe("outside-barishal-city");
-    expect(classifyAdvanceLocation("Dhaka", "Dhaka", "Mirpur")).toBe("outside-barishal-city");
+    expect(classifyAdvanceLocation("Barishal", "Barishal", "Babuganj", "Barishal")).toBe("inside");
+    expect(classifyAdvanceLocation("Barishal", "Barguna", "Barguna Sadar", "Barishal")).toBe("outside");
+    expect(classifyAdvanceLocation("Dhaka", "Dhaka", "Mirpur", "Barishal")).toBe("outside");
   });
   it("rejects mismatched, missing, invented and arbitrary inside/outside labels", () => {
     for (const [division, district, area] of [["", "", ""], ["Barishal", "inside-barishal-city", "Barishal Sadar"], ["Sylhet", "Barishal", "Barishal Sadar"], ["Unknown", "Barishal", "Barishal Sadar"], ["Barishal", "Barishal", "Not an area"], ["Barishal", "Barishal", ""]] as const) expect(advanceBreakdown(200000, division, district, area, policy)).toBeNull();
   });
   it("rejects unsafe or insufficient totals and invalid policies", () => {
     for (const total of [-1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, 4000]) expect(advanceBreakdown(total, "Barishal", "Barishal", "Barishal Sadar", policy)).toBeNull();
-    expect(advanceBreakdown(200000, "Barishal", "Barishal", "Barishal Sadar", { ...policy, insideBarishalCityMinor: -1 })).toBeNull();
+    expect(advanceBreakdown(200000, "Barishal", "Barishal", "Barishal Sadar", { ...policy, insideMinor: -1 })).toBeNull();
   });
   it("uses integer minor units for fractional BDT too", () => {
     expect(advanceBreakdown(200050, "Barishal", "Barishal", "Barishal Sadar", policy)?.remainingMinor).toBe(195050);

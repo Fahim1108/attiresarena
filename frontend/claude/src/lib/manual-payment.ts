@@ -1,20 +1,20 @@
-import { areasOf, DIVISIONS } from "@/data/bangladesh";
+import { areasOf, deliveryZone, DIVISIONS, isInsideDeliveryZone } from "@/data/bangladesh";
 import { isValidBdPhone, normalizePhone } from "./validation";
 import type { AdvancePolicy, AdvanceProvider, PaymentSubmissionInput, VerifiedAdvanceOrder } from "@/types/manual-payment";
 
-export function classifyAdvanceLocation(division: string, district: string, area: string) {
+export function classifyAdvanceLocation(division: string, district: string, area: string, insideDistrict: string) {
   if (!DIVISIONS[division]?.includes(district)) return null;
   if (!areasOf(district).includes(area)) return null;
-  // Explicit preview policy: Barishal City is Barishal Sadar upazila of
-  // Barishal district, rather than a customer-controlled "inside" label.
-  // Live zones need approval.
-  return division === "Barishal" && district === "Barishal" && area === "Barishal Sadar" ? "inside-barishal-city" : "outside-barishal-city";
+  // Inside means the whole admin-selected district (not one upazila):
+  // the customer-controlled "inside" label is never trusted, only the
+  // saved district. Live zones need approval.
+  return isInsideDeliveryZone(district, insideDistrict) ? "inside" : "outside";
 }
 
 export function advanceBreakdown(totalMinor: number, division: string, district: string, area: string, policy: AdvancePolicy) {
-  const zone = classifyAdvanceLocation(division, district, area);
+  const zone = classifyAdvanceLocation(division, district, area, policy.insideDistrict);
   if (!zone || !Number.isSafeInteger(totalMinor) || totalMinor < 0 || policy.credit !== "against-order-total") return null;
-  const advanceMinor = zone === "inside-barishal-city" ? policy.insideBarishalCityMinor : policy.outsideBarishalCityMinor;
+  const advanceMinor = zone === "inside" ? policy.insideMinor : policy.outsideMinor;
   if (!Number.isSafeInteger(advanceMinor) || advanceMinor < 0 || advanceMinor > totalMinor) return null;
   return { zone, totalMinor, advanceMinor, remainingMinor: totalMinor - advanceMinor };
 }
@@ -29,7 +29,7 @@ export function manualPaymentBreakdown(mode: "cod" | "online", totalMinor: numbe
     const advance = advanceBreakdown(totalMinor, division, district, area, policy);
     return advance ? { ...advance, amountDueMinor: advance.advanceMinor } : null;
   }
-  const zone = classifyAdvanceLocation(division, district, area);
+  const zone = classifyAdvanceLocation(division, district, area, policy.insideDistrict);
   if (!zone || !Number.isSafeInteger(totalMinor) || totalMinor <= 0) return null;
   return { zone, totalMinor, amountDueMinor: totalMinor, remainingMinor: 0 };
 }

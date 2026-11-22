@@ -3,7 +3,7 @@ import type { HeaderSettings } from "@/types";
 export const header: HeaderSettings = {
   announcement: {
     enabled: true,
-    left: "Nationwide delivery: ৳50 inside Barishal City · ৳140 outside",
+    left: "Nationwide delivery: ৳50 inside Barishal · ৳140 outside",
     items: ["Authentic Brands", "Premium Quality", "Easy Returns"],
     promo: "Style Elevated. Always.",
     rightLinks: [],

@@ -1,5 +1,6 @@
 import { isValidBdPhone, normalizePhone } from "@/lib/validation";
 import type { AdvancePolicy, ManualPaymentConfiguration } from "@/types/manual-payment";
+import { DEFAULT_DELIVERY_SETTINGS, type DeliverySettings } from "@/lib/delivery-settings";
 
 export interface PaymentReceivingConfig {
   bkashNumber: string;
@@ -31,12 +32,18 @@ export function previewReceivingConfiguration(): PaymentReceivingConfig {
   };
 }
 
-export function previewPaymentConfiguration(receiving = previewReceivingConfiguration()): ManualPaymentConfiguration {
+export function previewPaymentConfiguration(
+  receiving = previewReceivingConfiguration(),
+  delivery: DeliverySettings = DEFAULT_DELIVERY_SETTINGS,
+): ManualPaymentConfiguration {
   const destinations: ManualPaymentConfiguration["destinations"] = [];
   if (receiving.bkashAuthorized && isValidBdPhone(normalizePhone(receiving.bkashNumber))) destinations.push({ provider: "bkash", recipientNumber: normalizePhone(receiving.bkashNumber), accountType: "personal", transferInstructions: "" });
   if (receiving.nagadAuthorized && isValidBdPhone(normalizePhone(receiving.nagadNumber))) destinations.push({ provider: "nagad", recipientNumber: normalizePhone(receiving.nagadNumber), accountType: "personal", transferInstructions: "" });
   // Recipient approval is NOT an authorization to collect, persist or verify.
-  return { available: false, destinations, policy: { insideBarishalCityMinor: 5000, outsideBarishalCityMinor: 14000, credit: "against-order-total" } };
+  // The advance amounts come from the saved delivery settings, never
+  // hardcoded: changing the district or charges in admin changes the
+  // advance shown here too.
+  return { available: false, destinations, policy: { insideMinor: delivery.insideChargeMinor, outsideMinor: delivery.outsideChargeMinor, insideDistrict: delivery.insideDistrict, credit: "against-order-total" } };
 }
 
 /**

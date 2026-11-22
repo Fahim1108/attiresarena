@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { parseGoogleVerification } from "@/lib/seo";
+import { DIVISIONS, isDistrict } from "@/data/bangladesh";
 
 /**
  * Pure settings helpers and schemas shared by server code, client forms, and
@@ -14,7 +15,8 @@ import { parseGoogleVerification } from "@/lib/seo";
  * 20261115001100_admin_v2_marketing_settings.sql, which extends both the
  * public-read policy (public-safe keys only) and admin_set_setting, plus
  * google_search_console_verification from migration 20261119000400
- * (same two places). SMS settings were removed: no provider was ever
+ * (same two places), plus the delivery-zone keys from migration
+ * 20261122000100 (same two places). SMS settings were removed: no provider was ever
  * connected and nothing was sent, so sms_provider / sms_sender_id /
  * sms_enabled are deliberately NOT setting keys any more.
  */
@@ -57,6 +59,11 @@ export const SETTING_KEYS = [
   "display_currency",
   "display_timezone",
   "low_stock_threshold",
+  // Delivery zones (migration 20261122000100): the admin-selected inside
+  // district and both charges, in minor units for the charges.
+  "delivery_inside_district",
+  "delivery_inside_charge_minor",
+  "delivery_outside_charge_minor",
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];
@@ -141,6 +148,43 @@ export function settingString(
 ): string {
   const value = settings?.[key];
   return typeof value === "string" ? value : "";
+}
+
+/** Read a stored setting as an integer, or null when absent/not an integer. */
+export function settingNumber(
+  settings: StoreSettingsMap | null | undefined,
+  key: SettingKey,
+): number | null {
+  const value = settings?.[key];
+  return typeof value === "number" && Number.isSafeInteger(value) ? value : null;
+}
+
+// ---------------------------------------------------------------------------
+// Delivery zones (migration 20261122000100)
+// ---------------------------------------------------------------------------
+
+/**
+ * Delivery settings form values. Charges are whole taka in the form
+ * (the admin thinks in taka); the save action stores minor units.
+ * The inside district must be one of Bangladesh's 64 districts.
+ */
+export const DELIVERY_SETTINGS_SCHEMA = z.object({
+  delivery_inside_district: z
+    .string()
+    .trim()
+    .refine((value) => isDistrict(value), "Choose one of the 64 districts."),
+  delivery_inside_charge_taka: z.number().int().min(0).max(10000),
+  delivery_outside_charge_taka: z.number().int().min(0).max(10000),
+});
+
+export type DeliverySettingsFormValues = z.infer<typeof DELIVERY_SETTINGS_SCHEMA>;
+
+/** District options grouped by division, for the admin district select. */
+export function deliveryDistrictGroups(): { division: string; districts: string[] }[] {
+  return Object.keys(DIVISIONS).map((division) => ({
+    division,
+    districts: DIVISIONS[division] ?? [],
+  }));
 }
 
 /** Setting keys that only an owner may write (enforced by RPC + action). */

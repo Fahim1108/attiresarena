@@ -17,6 +17,8 @@ import {defaultStorefrontSettings} from '@/config';
 import {queryProducts} from '@/lib/catalog-query';
 import {isShirtSubcategory} from '@/lib/category-hierarchy';
 import {getPublishedCategories,mergeDbCategories} from '@/lib/store-settings';
+import {getStorefrontContent} from '@/lib/store-settings';
+import {resolveDeliverySettings} from '@/lib/delivery-settings';
 import {availableShirtTypes,publishedAvailable} from '@/lib/catalogue-dimensions';
 import type {Category,Product} from '@/types';
 import type {StorefrontDataSource} from '../types';
@@ -143,7 +145,13 @@ export const ownerCatalogue:StorefrontDataSource={...unavailableServices,...cust
  },async getCategoryBySlug(slug){return (await this.getCategories()).find(c=>c.slug===slug)??null;},
  async getSizeGuide(id){return id==='tops'?officialShirtSizeGuide:null;},
  async getManualPaymentConfiguration(){
-  const configuration=previewPaymentConfiguration();
+  // The advance amounts follow the saved delivery settings (admin-editable,
+  // migration 20261122000100): changing the district or charges in admin
+  // changes the advance shown at checkout. The settings read fails closed
+  // to the Barishal 50/140 defaults.
+  const content = await getStorefrontContent().catch(() => null);
+  const delivery = resolveDeliverySettings(content?.settings ?? null);
+  const configuration=previewPaymentConfiguration(undefined, delivery);
   // Owner decision 2026-11-19: advance payment (TxID + sender number) is
   // required before any order can be placed. Production collects ONLY from
   // owner-set env vars (MANUAL_PAYMENT_*_NUMBER); the hardcoded preview
