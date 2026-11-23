@@ -199,6 +199,65 @@ export function deliveryDistrictOptions(): { value: string; label: string }[] {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Test data erase (migration 20261123000100)
+// ---------------------------------------------------------------------------
+
+/**
+ * A product counts as test data when its name or slug starts with
+ * "test" (case-insensitive). Mirrors private.is_test_product in SQL —
+ * SQL is authoritative; this helper exists so tests and the UI can
+ * reason about the same rule without a database.
+ */
+export function isTestProductName(name: string, slug: string): boolean {
+  const cleanName = name.trim().toLowerCase();
+  const cleanSlug = slug.trim().toLowerCase();
+  return cleanName.startsWith("test") || cleanSlug.startsWith("test");
+}
+
+/**
+ * Counts returned by admin_test_data_erase_counts (and by the erase
+ * itself under `deleted`). Every key is a row count; test_product_names
+ * lists the test products by name so the owner sees exactly which
+ * products the erase will remove. storage_files is derived
+ * (test product media rows + banner rows, one file each).
+ */
+const TEST_DATA_ERASE_COUNTS_SCHEMA = z.object({
+  orders: z.number().int().nonnegative(),
+  order_items: z.number().int().nonnegative(),
+  payment_submissions: z.number().int().nonnegative(),
+  order_shipments: z.number().int().nonnegative(),
+  courier_booking_claims: z.number().int().nonnegative(),
+  coupon_redemptions: z.number().int().nonnegative(),
+  checkout_sessions: z.number().int().nonnegative(),
+  checkout_items: z.number().int().nonnegative(),
+  abandoned_recovery_log: z.number().int().nonnegative(),
+  checkout_rate_events: z.number().int().nonnegative(),
+  test_products: z.number().int().nonnegative(),
+  test_product_names: z.array(z.string()),
+  test_product_variants: z.number().int().nonnegative(),
+  test_product_media: z.number().int().nonnegative(),
+  test_inventory_movements: z.number().int().nonnegative(),
+  test_thrift_intake: z.number().int().nonnegative(),
+  test_catalogue_terms: z.number().int().nonnegative(),
+  product_reviews: z.number().int().nonnegative(),
+  review_moderation_log: z.number().int().nonnegative(),
+  coupons: z.number().int().nonnegative(),
+  banners: z.number().int().nonnegative(),
+  customers: z.number().int().nonnegative(),
+  storage_files: z.number().int().nonnegative(),
+});
+
+export type TestDataEraseCounts = z.infer<typeof TEST_DATA_ERASE_COUNTS_SCHEMA>;
+
+/** Parse the erase counts RPC result; null when absent or malformed. */
+export function parseTestDataEraseCounts(
+  value: unknown,
+): TestDataEraseCounts | null {
+  const parsed = TEST_DATA_ERASE_COUNTS_SCHEMA.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
 /** Setting keys that only an owner may write (enforced by RPC + action). */
 export const OWNER_ONLY_SETTING_KEYS: readonly SettingKey[] = [
   "custom_head_code",

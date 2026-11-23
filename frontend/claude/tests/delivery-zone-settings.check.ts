@@ -265,6 +265,6 @@ describe("migration 20261122000100 text", () => {
     const files = readdirSync(join(repoRoot, "supabase/migrations"))
       .filter((f) => f.endsWith(".sql"))
       .sort();
-    expect(files[files.length - 1]).toBe("20261122000100_delivery_zone_settings.sql");
+    expect(files[files.length - 1]).toBe("20261123000100_test_data_erase.sql");
   });
 });

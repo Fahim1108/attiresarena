@@ -1,18 +1,19 @@
 import { Notice } from "@/components/admin/ui";
-import { DeliverySettingsForm, StoreSettingsForm } from "@/components/admin/settings/forms";
+import { DeliverySettingsForm, StoreSettingsForm, TestDataEraseForm } from "@/components/admin/settings/forms";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/design-system/Card";
 import { PageHeader } from "@/components/design-system/PageHeader";
-import { getStoreSettingsMap, saveDeliverySettings, saveStoreSettings } from "@/lib/admin/settings";
+import { eraseTestData, getStoreSettingsMap, getTestDataEraseCounts, saveDeliverySettings, saveStoreSettings } from "@/lib/admin/settings";
 
 export default async function StoreSettingsPage() {
   const settings = await getStoreSettingsMap();
+  const eraseCounts = await getTestDataEraseCounts();
 
   return (
     <main id="main" tabIndex={-1} className="aa-main aa-main--ds">
       <div className="space-y-6">
         <PageHeader
           title="Store settings"
-          description="Contact details, social links, footer text and delivery zones. Only owners can change settings."
+          description="Contact details, social links, footer text, delivery zones and test data erase. Only owners can change settings."
         >
           <p className="text-[13px] font-medium text-admin-text-secondary">
             Settings
@@ -49,6 +50,14 @@ export default async function StoreSettingsPage() {
                   these values.
                 </p>
                 <DeliverySettingsForm action={saveDeliverySettings} settings={settings} />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle headingLevel="h2">Danger zone</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <TestDataEraseForm action={eraseTestData} counts={eraseCounts} />
               </CardContent>
             </Card>
           </>

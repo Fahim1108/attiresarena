@@ -80,13 +80,16 @@ export function DangerSubmitButton({
   children,
   pendingLabel = "Working…",
   className = "aa-button",
+  disabled = false,
 }: {
   children: React.ReactNode;
   pendingLabel?: string;
   className?: string;
+  /** Extra disable reason on top of the pending state (e.g. confirmation word not typed yet). */
+  disabled?: boolean;
 }) {
   return (
-    <SubmitButton pendingLabel={pendingLabel} className={className} danger>
+    <SubmitButton pendingLabel={pendingLabel} className={className} danger disabled={disabled}>
       {children}
     </SubmitButton>
   );

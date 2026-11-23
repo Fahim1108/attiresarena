@@ -2,10 +2,12 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { createClient } from "@supabase/supabase-js";
 import { deliveryAnnouncementText } from "@/lib/delivery-settings";
 import { parseAnnouncementBar } from "@/lib/store-settings";
 import { requireStaff, isOwner, actionOk, actionError, toActionError } from "./authorization";
 import { areaRoles, PRODUCT_MEDIA_BUCKET } from "./constants";
+import { adminConfiguration } from "./supabase";
 import { draftMediaLimit, validDraftImage } from "./media-validation";
 import type { AdminActionResult } from "./authorization";
 
@@ -25,11 +27,13 @@ import {
   TWITTER_CARDS,
   isSettingKey,
   parseLowStockThreshold,
+  parseTestDataEraseCounts,
 } from "./settings-shared";
 import type {
   PixelEventsConfig,
   SettingKey,
   StoreSettingsMap,
+  TestDataEraseCounts,
 } from "./settings-shared";
 
 // Re-exported so existing import sites (pages, tests) keep working; the
@@ -242,6 +246,147 @@ export async function saveDeliverySettings(
   revalidateStorefrontLayout();
   return actionOk(
     "Delivery settings saved. The storefront, checkout and advance amounts now use the new district and charges.",
+  );
+}
+
+/** The confirmation word for the test-data erase. Must match the RPC. */
+const ERASE_CONFIRMATION_WORD = "ERASE";
+
+/**
+ * Load the test-data erase preview counts (owner-only). Null when
+ * unavailable — for example the erase migration has not been applied
+ * on this database yet. The page treats null as "counts unknown" and
+ * disables the erase button instead of erasing blind.
+ */
+export async function getTestDataEraseCounts(): Promise<TestDataEraseCounts | null> {
+  const session = await requireStaff(areaRoles("settings"));
+  const result = await session.client.rpc("admin_test_data_erase_counts");
+  if (result.error) return null;
+  return parseTestDataEraseCounts(result.data);
+}
+
+/**
+ * Erase all test data (migration 20261123000100, owner-only, type ERASE
+ * to confirm). Flow:
+ *
+ * 1. Owner + MFA re-checks (the settings area is owner-only, and the
+ *    RPC hard-checks the owner role again — no per-user grant can
+ *    ever enable this).
+ * 2. Fail closed when the deployment has no service-role key: without
+ *    it the customer accounts and storage files could not be cleaned
+ *    up, so nothing is deleted at all.
+ * 3. The RPC deletes every database row in one transaction and returns
+ *    the deleted counts plus the storage paths and customer user ids
+ *    to clean up afterwards.
+ * 4. Storage files are removed via the service-role Storage API and
+ *    customer auth accounts via the Supabase Admin API. If either
+ *    cleanup fails, the database rows are already gone, so the result
+ *    says so plainly: files stay orphaned in the bucket (remove them
+ *    from Supabase Dashboard → Storage), while leftover customer
+ *    accounts are picked up again by pressing Erase again.
+ */
+export async function eraseTestData(
+  _prev: AdminActionResult | null,
+  form: FormData,
+): Promise<AdminActionResult> {
+  "use server";
+  const session = await requireStaff(areaRoles("settings"));
+  if (!isOwner(session)) {
+    return actionError("Only the store owner can erase test data.");
+  }
+  if (formText(form, "confirmation") !== ERASE_CONFIRMATION_WORD) {
+    return actionError("Type ERASE to confirm the erase. Nothing was deleted.");
+  }
+  const config = adminConfiguration();
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!config || !serviceKey) {
+    return actionError(
+      "Test data erase is not configured: the deployment has no service-role key. " +
+        "Ask the operator to configure it, then try again. Nothing was deleted.",
+    );
+  }
+  const erased = await session.client.rpc("admin_test_data_erase", {
+    p_confirmation: ERASE_CONFIRMATION_WORD,
+  });
+  if (erased.error) {
+    return actionError(toActionError(erased.error, "Test data could not be erased."));
+  }
+  const result = erased.data as {
+    deleted?: unknown;
+    storage_paths?: unknown;
+    customer_user_ids?: unknown;
+  } | null;
+  const counts = parseTestDataEraseCounts(result?.deleted);
+  if (!counts) {
+    return actionError(
+      "Test data erase returned an unexpected result. Check the audit log before trying again.",
+    );
+  }
+  const storagePaths = Array.isArray(result?.storage_paths)
+    ? result.storage_paths.filter(
+        (path): path is string => typeof path === "string",
+      )
+    : [];
+  const customerIds = Array.isArray(result?.customer_user_ids)
+    ? result.customer_user_ids.filter(
+        (id): id is string => typeof id === "string",
+      )
+    : [];
+  const admin = createClient(config.url, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  let storageRemoved = 0;
+  let storageFailed = 0;
+  for (let i = 0; i < storagePaths.length; i += 100) {
+    const chunk = storagePaths.slice(i, i + 100);
+    const removed = await admin.storage
+      .from(PRODUCT_MEDIA_BUCKET)
+      .remove(chunk);
+    if (removed.error) storageFailed += chunk.length;
+    else storageRemoved += removed.data?.length ?? 0;
+  }
+  let customersRemoved = 0;
+  let customersFailed = 0;
+  for (const id of customerIds) {
+    const deleted = await admin.auth.admin.deleteUser(id);
+    if (deleted.error) customersFailed += 1;
+    else customersRemoved += 1;
+  }
+  revalidatePath("/admin/settings/store");
+  revalidateStorefrontLayout();
+  const erasedParts: string[] = [];
+  if (counts.orders > 0) erasedParts.push(`${counts.orders} orders`);
+  if (counts.payment_submissions > 0)
+    erasedParts.push(`${counts.payment_submissions} payment records`);
+  if (counts.test_products > 0)
+    erasedParts.push(`${counts.test_products} test products`);
+  if (counts.customers > 0)
+    erasedParts.push(`${counts.customers} customer accounts`);
+  if (counts.product_reviews > 0)
+    erasedParts.push(`${counts.product_reviews} reviews`);
+  if (counts.coupons > 0) erasedParts.push(`${counts.coupons} coupons`);
+  if (counts.banners > 0) erasedParts.push(`${counts.banners} banners`);
+  if (counts.checkout_sessions > 0)
+    erasedParts.push(`${counts.checkout_sessions} checkout sessions`);
+  const summary =
+    erasedParts.length > 0
+      ? `Erased ${erasedParts.join(", ")}.`
+      : "Nothing to erase — all counts were already zero.";
+  if (storageFailed > 0 || customersFailed > 0) {
+    const notes = [summary];
+    if (storageRemoved > 0) notes.push(`Removed ${storageRemoved} files.`);
+    if (storageFailed > 0)
+      notes.push(
+        `${storageFailed} files could not be removed — remove them from Supabase Dashboard → Storage → ${PRODUCT_MEDIA_BUCKET}.`,
+      );
+    if (customersFailed > 0)
+      notes.push(
+        `${customersFailed} customer accounts could not be removed — press Erase again to retry.`,
+      );
+    return actionError(notes.join(" "));
+  }
+  return actionOk(
+    `${summary} Removed ${storageRemoved} files and ${customersRemoved} customer accounts.`,
   );
 }
 

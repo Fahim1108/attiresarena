@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useId, useRef, useState } from "react";
 import {
   ConfirmSubmit,
+  DangerSubmitButton,
   FormMessage,
   SubmitButton,
   type RowAction,
@@ -14,6 +15,7 @@ import {
   settingNumber,
   settingString,
   type StoreSettingsMap,
+  type TestDataEraseCounts,
 } from "@/lib/admin/settings-shared";
 
 type FormAction = (
@@ -444,5 +446,162 @@ export function DeliverySettingsForm({
         <SubmitButton>Save delivery settings</SubmitButton>
       </div>
     </form>
+  );
+}
+
+/**
+ * Test data erase (migration 20261123000100, owner-only). Shows the live
+ * counts of what the erase will remove, then asks for a typed ERASE
+ * confirmation inside a dialog — the same dialog + danger-submit idiom
+ * as ConfirmSubmit, with the extra typed word because this action is
+ * irreversible. The counts come from the same RPC predicates as the
+ * erase itself, so the preview can never disagree with the delete.
+ * Nothing is deleted when counts cannot be loaded or when everything
+ * is already zero.
+ */
+export function TestDataEraseForm({
+  action,
+  counts,
+}: {
+  action: FormAction;
+  counts: TestDataEraseCounts | null;
+}) {
+  const [state, formAction] = useActionState(action, null);
+  const [open, setOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const dialog = useRef<HTMLDialogElement>(null);
+  const bodyId = useId();
+  // Close the dialog once the action reports back, so the inline outcome
+  // below the button is visible instead of hidden behind it. The
+  // confirmation text resets when the dialog closes (onClose below), not
+  // here — calling setState inside this effect would cascade renders.
+  useEffect(() => {
+    if (state !== null) {
+      dialog.current?.close();
+    }
+  }, [state]);
+  const rows: { label: string; value: number }[] =
+    counts === null
+      ? []
+      : [
+          { label: "Orders", value: counts.orders },
+          { label: "Payment records (TxID)", value: counts.payment_submissions },
+          { label: "Checkout sessions", value: counts.checkout_sessions },
+          { label: "Test products", value: counts.test_products },
+          { label: "Customer accounts", value: counts.customers },
+          { label: "Reviews", value: counts.product_reviews },
+          { label: "Coupons", value: counts.coupons },
+          { label: "Banners", value: counts.banners },
+        ];
+  const total = rows.reduce((sum, row) => sum + row.value, 0);
+  const shownNames = counts?.test_product_names.slice(0, 10) ?? [];
+  const hiddenNames = (counts?.test_product_names.length ?? 0) - shownNames.length;
+  return (
+    <div>
+      <FormMessage state={state} />
+      {counts === null ? (
+        <p className="aa-notice aa-notice--warning">
+          Erase counts could not be loaded — the erase migration may not be
+          applied on this database yet. The button stays disabled until the
+          counts load.
+        </p>
+      ) : (
+        <>
+          <p className="mb-4 text-sm text-admin-text-secondary">
+            Permanently deletes every order, payment record, checkout
+            session, TEST-named product, customer account, review, coupon
+            and banner listed below. Categories, settings, delivery
+            charges, payment numbers, admin accounts and the audit log are
+            never touched. This cannot be undone.
+          </p>
+          <ul className="mb-4 text-sm">
+            {rows.map((row) => (
+              <li
+                key={row.label}
+                className="flex justify-between border-b border-admin-border py-1 last:border-b-0"
+              >
+                <span>{row.label}</span>
+                <strong className="admin-ds-numeric">{row.value}</strong>
+              </li>
+            ))}
+          </ul>
+          {shownNames.length > 0 ? (
+            <p className="mb-4 text-sm text-admin-text-secondary">
+              Test products: {shownNames.join(", ")}
+              {hiddenNames > 0 ? ` and ${hiddenNames} more` : ""}.
+            </p>
+          ) : null}
+          {total === 0 ? (
+            <p className="aa-notice aa-notice--success">
+              Nothing to erase — all counts are already zero.
+            </p>
+          ) : null}
+        </>
+      )}
+      <div className="aa-form-actions">
+        <button
+          type="button"
+          className="aa-row-action aa-row-action--danger"
+          disabled={counts === null || total === 0}
+          aria-label="Erase all test data"
+          onClick={() => {
+            setOpen(true);
+            dialog.current?.showModal();
+          }}
+        >
+          Erase test data
+        </button>
+      </div>
+      <dialog
+        ref={dialog}
+        className="aa-dialog"
+        onClose={() => {
+          setOpen(false);
+          setConfirmText("");
+        }}
+        aria-label="Erase all test data"
+        aria-describedby={bodyId}
+      >
+        {open ? (
+          <form action={formAction} method="post">
+            <h2>Erase all test data?</h2>
+            <p id={bodyId}>
+              This permanently deletes {total} items — orders, payment
+              records, checkout sessions, TEST-named products, customer
+              accounts, reviews, coupons and banners. Categories,
+              settings, delivery charges, payment numbers, admin accounts
+              and the audit log stay. This cannot be undone.
+            </p>
+            <div className="aa-field">
+              <label htmlFor="erase-confirmation">Type ERASE to confirm</label>
+              <input
+                id="erase-confirmation"
+                name="confirmation"
+                value={confirmText}
+                onChange={(event) => setConfirmText(event.target.value)}
+                autoComplete="off"
+                placeholder="ERASE"
+                maxLength={5}
+              />
+            </div>
+            <div className="aa-dialog-actions">
+              <button
+                type="button"
+                className="aa-secondary"
+                onClick={() => dialog.current?.close()}
+              >
+                Cancel
+              </button>
+              <DangerSubmitButton
+                pendingLabel="Erasing…"
+                disabled={confirmText !== "ERASE"}
+              >
+                Erase test data
+              </DangerSubmitButton>
+            </div>
+          </form>
+        ) : null}
+      </dialog>
+    </div>
   );
 }
