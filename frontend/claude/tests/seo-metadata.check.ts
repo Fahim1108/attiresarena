@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   breadcrumbJsonLd,
   buildPageMetadata,
@@ -6,6 +7,7 @@ import {
   extractRowSeoFields,
   faqJsonLd,
   hasListingParams,
+  HOME_OG_IMAGE,
   mergeSeoKeywords,
   organizationJsonLd,
   parseGoogleVerification,
@@ -14,6 +16,7 @@ import {
   resolveDefaultOgImage,
   resolveEntitySeo,
   resolveGlobalKeywords,
+  resolveHomeOgImage,
   resolveTwitterCard,
   SEO_OG_LOCALE,
 } from "../src/lib/seo";
@@ -359,6 +362,77 @@ describe("resolveDefaultOgImage / resolveGlobalKeywords / mergeSeoKeywords (SEO-
     expect(mergeSeoKeywords(["thrift", "shirts"], ["vintage", "thrift"])).toEqual(["thrift", "shirts", "vintage"]);
     expect(mergeSeoKeywords(["a"], undefined)).toEqual(["a"]);
     expect(mergeSeoKeywords([], [])).toEqual([]);
+  });
+});
+
+describe("homepage share image is the check-shirts photo (home OG fix)", () => {
+  it("HOME_OG_IMAGE is the 1200x630 shirt photo with a descriptive alt", () => {
+    expect(HOME_OG_IMAGE.url).toBe("/brand/og-home.jpg");
+    expect(HOME_OG_IMAGE.width).toBe(1200);
+    expect(HOME_OG_IMAGE.height).toBe(630);
+    expect(HOME_OG_IMAGE.alt.length).toBeGreaterThan(0);
+  });
+
+  it("resolveHomeOgImage returns the shirt photo unless a stored absolute OG URL wins", () => {
+    expect(resolveHomeOgImage(null)).toEqual(HOME_OG_IMAGE);
+    expect(resolveHomeOgImage({})).toEqual(HOME_OG_IMAGE);
+    // Relative/invalid stored values are ignored by the default resolver, so the shirt photo still applies.
+    expect(resolveHomeOgImage({ seo_og_image_url: "/relative/path.jpg" })).toEqual(HOME_OG_IMAGE);
+    expect(resolveHomeOgImage({ seo_og_image_url: "  " })).toEqual(HOME_OG_IMAGE);
+    expect(resolveHomeOgImage({ seo_og_image_url: "https://cdn.example.com/og.jpg" })).toBe(null);
+  });
+
+  it("buildPageMetadata emits the shirt photo with 1200x630 for OG and Twitter", () => {
+    const meta = buildPageMetadata({
+      siteName: "Attires Arena",
+      path: "/",
+      title: { absolute: "Attires Arena — Thrift Shirts in Bangladesh" },
+      description: "Best thrift collection in Bangladesh.",
+      image: HOME_OG_IMAGE,
+      defaultImage: { url: "/brand/logo-badge.jpg", width: 540, height: 540, alt: "Attires Arena" },
+    });
+    const og = meta.openGraph as unknown as { images?: unknown };
+    expect(og.images).toEqual([
+      { url: "/brand/og-home.jpg", width: 1200, height: 630, alt: "Two folded check thrift shirts — white check and maroon check" },
+    ]);
+    const twitter = meta.twitter as unknown as { images?: unknown };
+    expect(twitter.images).toEqual(["/brand/og-home.jpg"]);
+  });
+
+  it("buildPageMetadata falls back to the badge when the stored OG URL wins (null home image)", () => {
+    const meta = buildPageMetadata({
+      siteName: "Attires Arena",
+      path: "/",
+      title: { absolute: "Attires Arena — Thrift Shirts in Bangladesh" },
+      description: "Best thrift collection in Bangladesh.",
+      image: resolveHomeOgImage({ seo_og_image_url: "https://cdn.example.com/og.jpg" }),
+      defaultImage: { url: "https://cdn.example.com/og.jpg" },
+    });
+    const og = meta.openGraph as unknown as { images?: unknown };
+    expect(og.images).toEqual([{ url: "https://cdn.example.com/og.jpg" }]);
+  });
+
+  it("og-home.jpg on disk is a real 1200x630 JPEG (not a placeholder path)", () => {
+    const buffer = readFileSync(new URL("../public/brand/og-home.jpg", import.meta.url));
+    expect(buffer.subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));
+    // Minimal SOF scan: SOF0 (FFC0) / SOF2 (FFC2) carry height then width.
+    let offset = 2;
+    let found: { width: number; height: number } | null = null;
+    while (offset + 9 < buffer.length) {
+      if (buffer[offset] !== 0xff) throw new Error("not a JPEG segment");
+      const marker = buffer[offset + 1];
+      if (marker === undefined) throw new Error("not a JPEG segment");
+      if (marker === 0xc0 || marker === 0xc2) {
+        found = { height: buffer.readUInt16BE(offset + 5), width: buffer.readUInt16BE(offset + 7) };
+        break;
+      }
+      if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
+        offset += 2;
+        continue;
+      }
+      offset += 2 + buffer.readUInt16BE(offset + 2);
+    }
+    expect(found).toEqual({ width: 1200, height: 630 });
   });
 });
 

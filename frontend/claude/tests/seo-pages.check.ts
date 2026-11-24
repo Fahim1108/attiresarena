@@ -312,3 +312,34 @@ describe("proxy 404-gate untouched (SEO-17)", () => {
     expect(proxy).toContain("status: 404");
   });
 });
+
+describe("homepage share image is the check-shirts photo (home OG fix)", () => {
+  it("homepage wires resolveHomeOgImage into buildPageMetadata", () => {
+    const src = page("(store)/page.tsx");
+    expect(src).toContain("resolveHomeOgImage");
+    expect(src).toContain("image: resolveHomeOgImage(settings)");
+    // The homepage always emits its full metadata set (no canonical-only
+    // branch left to inherit the badge from the layout).
+    expect(src).not.toContain('return { alternates: { canonical: "/" } };');
+  });
+
+  it("no other page uses the homepage share image (homepage-only)", () => {
+    for (const path of [
+      "(store)/shop/page.tsx",
+      "(store)/product/[slug]/page.tsx",
+      "(store)/category/[slug]/page.tsx",
+      "(store)/about/page.tsx",
+      "(store)/contact/page.tsx",
+    ]) {
+      const src = page(path);
+      expect(src).not.toContain("resolveHomeOgImage");
+      expect(src).not.toContain("HOME_OG_IMAGE");
+      expect(src).not.toContain("og-home.jpg");
+    }
+  });
+
+  it("layout default still falls back to the logo badge (other pages unchanged)", () => {
+    const src = read("../src/lib/store-settings.ts");
+    expect(src).toContain("resolveDefaultOgImage(settings, base.logoBadge, base.siteName)");
+  });
+});
