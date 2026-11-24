@@ -81,6 +81,8 @@ export interface StorefrontDataSource {
   getCurrentCustomer(): Promise<Customer | null>;
   getOrders(): Promise<Order[]>;
   getOrderByNumber(orderNumber: string, phone?: string): Promise<Order | null>;
+  /** All orders placed with one phone, newest first (guest track-order list). */
+  getOrdersByPhone(phone: string): Promise<Order[]>;
 
   // ---- Mutations (all require backend) ----
   /** `total` is the server-calculated order total in BDT. Browser totals are never trusted. */

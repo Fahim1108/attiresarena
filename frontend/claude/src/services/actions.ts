@@ -26,6 +26,10 @@ export async function getOrderByNumberAction(orderNumber: string, phone?: string
   return dataSource.getOrderByNumber(orderNumber, phone);
 }
 
+export async function getOrdersByPhoneAction(phone: string) {
+  return dataSource.getOrdersByPhone(phone);
+}
+
 /** Stores contact details and cart contents once the delivery step is completed. */
 export async function saveCheckoutProgressAction(input: unknown) {
   return saveCheckoutProgress(input);

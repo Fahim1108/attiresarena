@@ -27,5 +27,6 @@ export const getManualPaymentConfiguration = () => dataSource.getManualPaymentCo
 export const getCurrentCustomer = () => dataSource.getCurrentCustomer();
 export const getOrders = () => dataSource.getOrders();
 export const getOrderByNumber = (orderNumber: string, phone?: string) => dataSource.getOrderByNumber(orderNumber, phone);
+export const getOrdersByPhone = (phone: string) => dataSource.getOrdersByPhone(phone);
 
 export const getHomepageProducts = () => dataSource.getHomepageProducts();
