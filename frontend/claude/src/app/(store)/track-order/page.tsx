@@ -15,7 +15,7 @@ export default function TrackOrderPage() {
     <div className="container max-w-3xl py-6 sm:py-8">
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Track Order" }]} />
       <h1 className="mt-4 text-balance font-serif text-4xl text-ink sm:text-5xl">Track your order</h1>
-      <p className="mb-8 mt-2 text-sm text-ink-muted">Enter the order number from your confirmation message.</p>
+      <p className="mb-8 mt-2 text-sm text-ink-muted">Enter the phone number you ordered with to see all your orders. Add an order number to find one specific order.</p>
       <TrackOrderForm />
     </div>
   );
