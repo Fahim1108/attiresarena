@@ -130,6 +130,9 @@ export const mockDataSource: StorefrontDataSource = {
   async getOrderByNumber() {
     return null;
   },
+  async getOrdersByPhone() {
+    return [];
+  },
 
   async placeOrder() {
     return notConnected("Order placement");

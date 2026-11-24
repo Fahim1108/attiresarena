@@ -23,7 +23,7 @@ import {
   readCustomerOrders,
   type CustomerOrderMedia,
 } from "@/lib/customer/orders";
-import { trackGuestOrderByPhone } from "@/lib/customer/tracking";
+import { trackGuestOrderByPhone, trackGuestOrdersByPhone } from "@/lib/customer/tracking";
 import type { Customer } from "@/types";
 import type { StorefrontDataSource } from "../types";
 import { rpcFor } from "../checkout";
@@ -117,6 +117,25 @@ export const customerServices = {
     );
   },
 
+  /**
+   * Phone-only order list for guest tracking: every order placed
+   * with the phone, newest first. Same server-only RPC pattern as
+   * getOrderByNumber — an unnormalisable phone or a missing tracking
+   * credential yields [] without a call, and a miss is [] like any
+   * other failure, so the page shows one "No orders found" state.
+   */
+  async getOrdersByPhone(phone: string) {
+    const canonicalPhone = normalizeTrackingPhone(phone);
+    if (canonicalPhone === null) return [];
+    const config = trackingRpcConfiguration();
+    if (!config) return [];
+    return trackGuestOrdersByPhone(
+      rpcFor(config),
+      canonicalPhone,
+      await orderMedia(),
+    );
+  },
+
   async signIn(input: { email: string; password: string }) {
     return signInCustomer(input);
   },
@@ -148,6 +167,7 @@ export const customerServices = {
   | "getCurrentCustomer"
   | "getOrders"
   | "getOrderByNumber"
+  | "getOrdersByPhone"
   | "signIn"
   | "register"
   | "requestPasswordReset"
