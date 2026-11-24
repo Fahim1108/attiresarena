@@ -10,12 +10,18 @@ interface FieldShellProps {
   error?: string;
   hint?: string;
   required?: boolean;
+  /**
+   * Keep the message line in the layout even with no error/hint, so a
+   * late error never grows this field and knocks a neighbouring field
+   * in the same grid row out of alignment (see the track-order form).
+   */
+  reserveMessageSpace?: boolean;
   id: string;
   children: ReactNode;
   className?: string;
 }
 
-export function FieldShell({ label, error, hint, required, id, children, className }: FieldShellProps) {
+export function FieldShell({ label, error, hint, required, reserveMessageSpace, id, children, className }: FieldShellProps) {
   return (
     <div className={cn("space-y-1.5", className)}>
       {label && (
@@ -33,6 +39,10 @@ export function FieldShell({ label, error, hint, required, id, children, classNa
         <p id={`${id}-hint`} className="text-xs text-ink-muted">
           {hint}
         </p>
+      ) : reserveMessageSpace ? (
+        <p aria-hidden="true" className="text-xs">
+          &nbsp;
+        </p>
       ) : null}
     </div>
   );
@@ -42,16 +52,17 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   hint?: string;
+  reserveMessageSpace?: boolean;
   leftIcon?: ReactNode;
   wrapperClassName?: string;
   ref?: Ref<HTMLInputElement>;
 }
 
-export function Input({ label, error, hint, leftIcon, className, wrapperClassName, id, required, ref, ...props }: InputProps) {
+export function Input({ label, error, hint, reserveMessageSpace, leftIcon, className, wrapperClassName, id, required, ref, ...props }: InputProps) {
   const autoId = useId();
   const inputId = id ?? autoId;
   return (
-    <FieldShell label={label} error={error} hint={hint} required={required} id={inputId} className={wrapperClassName}>
+    <FieldShell label={label} error={error} hint={hint} reserveMessageSpace={reserveMessageSpace} required={required} id={inputId} className={wrapperClassName}>
       <div className="relative">
         {leftIcon && <span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted">{leftIcon}</span>}
         <input
