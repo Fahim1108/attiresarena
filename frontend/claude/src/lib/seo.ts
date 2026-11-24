@@ -783,6 +783,26 @@ export const SEO_OG_LOCALE = "en_US";
  */
 export const DEFAULT_OG_IMAGE_SIZE = { width: 540, height: 540 } as const;
 
+/**
+ * Measured dimensions of the homepage share image `/brand/og-home.jpg`
+ * (1200×630 JPEG, center-cropped 2026-11-24 from the check-shirts
+ * category photo Fahim chose on 2026-11-19 — white check + maroon check
+ * folded shirts). Only the homepage uses it: Google picked the Belt
+ * category tile as the search-result thumbnail because the global
+ * default is the small logo badge, so the homepage carries a real shirt
+ * photo as its share image instead. A stored `seo_og_image_url` still
+ * wins over it (see `resolveHomeOgImage`).
+ */
+export const HOME_OG_IMAGE_SIZE = { width: 1200, height: 630 } as const;
+
+/** Homepage-only share image (see above). The alt describes the photo, nothing invented. */
+export const HOME_OG_IMAGE = {
+  url: "/brand/og-home.jpg",
+  width: HOME_OG_IMAGE_SIZE.width,
+  height: HOME_OG_IMAGE_SIZE.height,
+  alt: "Two folded check thrift shirts — white check and maroon check",
+} as const;
+
 export interface PageMetadataInput {
   siteName: string;
   /** Clean path, no query string (e.g. "/shop"). Canonical + OG url resolve against metadataBase, so the apex base always wins. */
@@ -790,8 +810,8 @@ export interface PageMetadataInput {
   /** Plain string goes through the `%s | Site` title template; `{ absolute }` replaces the whole title (home overrides only). */
   title: string | { absolute: string };
   description?: string;
-  /** Page-specific OG/Twitter image. Omit to use `defaultImage`. */
-  image?: { url: string; alt?: string } | null;
+  /** Page-specific OG/Twitter image. Omit to use `defaultImage`. Width/height are emitted when known (homepage photo only) — never guessed for product/category images. */
+  image?: { url: string; width?: number; height?: number; alt?: string } | null;
   /**
    * Resolved global default image (stored `seo_og_image_url` or the logo
    * badge — see `resolveDefaultOgImage`). REQUIRED: Next.js REPLACES the
@@ -826,7 +846,14 @@ export function buildPageMetadata(input: PageMetadataInput): Metadata {
   const shareDescription = input.ogDescription ?? input.description;
   const image = input.image ?? null;
   const ogImages = image
-    ? [{ url: image.url, ...(image.alt ? { alt: image.alt } : {}) }]
+    ? [
+        {
+          url: image.url,
+          ...(image.width ? { width: image.width } : {}),
+          ...(image.height ? { height: image.height } : {}),
+          ...(image.alt ? { alt: image.alt } : {}),
+        },
+      ]
     : [input.defaultImage];
   const shareImageUrl = image ? image.url : input.defaultImage.url;
   return {
@@ -878,6 +905,23 @@ export function resolveDefaultOgImage(
     height: DEFAULT_OG_IMAGE_SIZE.height,
     alt: siteName,
   };
+}
+
+/**
+ * Resolve the homepage share image: the check-shirts photo
+ * (`HOME_OG_IMAGE`), unless a stored absolute `seo_og_image_url` is set
+ * — the stored URL still wins (existing behaviour) and the caller then
+ * falls back to the resolved default by passing no page image (null).
+ * Relative/invalid stored values are ignored by `resolveDefaultOgImage`,
+ * so the shirt photo still applies for them.
+ */
+export function resolveHomeOgImage(
+  settings: Record<string, unknown> | null | undefined,
+): typeof HOME_OG_IMAGE | null {
+  const stored = settings?.["seo_og_image_url"];
+  const text =
+    typeof stored === "string" && stored.trim() ? stored.trim() : null;
+  return parseAbsoluteHttpUrl(text) ? null : HOME_OG_IMAGE;
 }
 
 /** Parse the stored global `seo_keywords` (comma-split, trimmed, capped at 20); empty when unset. */
