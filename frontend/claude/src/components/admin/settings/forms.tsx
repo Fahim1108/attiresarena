@@ -452,12 +452,12 @@ export function DeliverySettingsForm({
 /**
  * Test data erase (migration 20261123000100, owner-only). Shows the live
  * counts of what the erase will remove, then asks for a typed ERASE
- * confirmation inside a dialog — the same dialog + danger-submit idiom
- * as ConfirmSubmit, with the extra typed word because this action is
- * irreversible. The counts come from the same RPC predicates as the
- * erase itself, so the preview can never disagree with the delete.
- * Nothing is deleted when counts cannot be loaded or when everything
- * is already zero.
+ * confirmation AND the owner's admin login password inside a dialog —
+ * the same dialog + danger-submit idiom as ConfirmSubmit, with the extra
+ * typed word and password because this action is irreversible. The counts
+ * come from the same RPC predicates as the erase itself, so the preview
+ * can never disagree with the delete. Nothing is deleted when counts
+ * cannot be loaded or when everything is already zero.
  */
 export function TestDataEraseForm({
   action,
@@ -469,12 +469,14 @@ export function TestDataEraseForm({
   const [state, formAction] = useActionState(action, null);
   const [open, setOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
+  const [password, setPassword] = useState("");
   const dialog = useRef<HTMLDialogElement>(null);
   const bodyId = useId();
   // Close the dialog once the action reports back, so the inline outcome
   // below the button is visible instead of hidden behind it. The
-  // confirmation text resets when the dialog closes (onClose below), not
-  // here — calling setState inside this effect would cascade renders.
+  // confirmation text and password reset when the dialog closes (onClose
+  // below), not here — calling setState inside this effect would cascade
+  // renders.
   useEffect(() => {
     if (state !== null) {
       dialog.current?.close();
@@ -486,16 +488,13 @@ export function TestDataEraseForm({
       : [
           { label: "Orders", value: counts.orders },
           { label: "Payment records (TxID)", value: counts.payment_submissions },
+          { label: "Delivery records", value: counts.order_shipments + counts.courier_booking_claims },
           { label: "Checkout sessions", value: counts.checkout_sessions },
-          { label: "Test products", value: counts.test_products },
-          { label: "Customer accounts", value: counts.customers },
           { label: "Reviews", value: counts.product_reviews },
           { label: "Coupons", value: counts.coupons },
           { label: "Banners", value: counts.banners },
         ];
   const total = rows.reduce((sum, row) => sum + row.value, 0);
-  const shownNames = counts?.test_product_names.slice(0, 10) ?? [];
-  const hiddenNames = (counts?.test_product_names.length ?? 0) - shownNames.length;
   return (
     <div>
       <FormMessage state={state} />
@@ -508,11 +507,12 @@ export function TestDataEraseForm({
       ) : (
         <>
           <p className="mb-4 text-sm text-admin-text-secondary">
-            Permanently deletes every order, payment record, checkout
-            session, TEST-named product, customer account, review, coupon
-            and banner listed below. Categories, settings, delivery
-            charges, payment numbers, admin accounts and the audit log are
-            never touched. This cannot be undone.
+            Permanently deletes every order, payment record, delivery
+            record, checkout session, review, coupon and banner listed
+            below. All products, customer accounts, visitor data,
+            categories, settings, delivery charges, payment numbers,
+            admin accounts and the audit log are never touched. This
+            cannot be undone.
           </p>
           <ul className="mb-4 text-sm">
             {rows.map((row) => (
@@ -525,12 +525,6 @@ export function TestDataEraseForm({
               </li>
             ))}
           </ul>
-          {shownNames.length > 0 ? (
-            <p className="mb-4 text-sm text-admin-text-secondary">
-              Test products: {shownNames.join(", ")}
-              {hiddenNames > 0 ? ` and ${hiddenNames} more` : ""}.
-            </p>
-          ) : null}
           {total === 0 ? (
             <p className="aa-notice aa-notice--success">
               Nothing to erase — all counts are already zero.
@@ -558,6 +552,7 @@ export function TestDataEraseForm({
         onClose={() => {
           setOpen(false);
           setConfirmText("");
+          setPassword("");
         }}
         aria-label="Erase all test data"
         aria-describedby={bodyId}
@@ -567,10 +562,11 @@ export function TestDataEraseForm({
             <h2>Erase all test data?</h2>
             <p id={bodyId}>
               This permanently deletes {total} items — orders, payment
-              records, checkout sessions, TEST-named products, customer
-              accounts, reviews, coupons and banners. Categories,
-              settings, delivery charges, payment numbers, admin accounts
-              and the audit log stay. This cannot be undone.
+              records, delivery records, checkout sessions, reviews,
+              coupons and banners. All products, customer accounts,
+              visitor data, categories, settings, delivery charges,
+              payment numbers, admin accounts and the audit log stay.
+              This cannot be undone.
             </p>
             <div className="aa-field">
               <label htmlFor="erase-confirmation">Type ERASE to confirm</label>
@@ -584,6 +580,23 @@ export function TestDataEraseForm({
                 maxLength={5}
               />
             </div>
+            <div className="aa-field">
+              <label htmlFor="erase-password">Admin login password</label>
+              <input
+                id="erase-password"
+                name="password"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete="current-password"
+                placeholder="Your admin login password"
+                maxLength={128}
+              />
+              <p className="aa-hint">
+                Your own admin login password — checked on the server before
+                anything is erased.
+              </p>
+            </div>
             <div className="aa-dialog-actions">
               <button
                 type="button"
@@ -594,7 +607,7 @@ export function TestDataEraseForm({
               </button>
               <DangerSubmitButton
                 pendingLabel="Erasing…"
-                disabled={confirmText !== "ERASE"}
+                disabled={confirmText !== "ERASE" || password.length === 0}
               >
                 Erase test data
               </DangerSubmitButton>
