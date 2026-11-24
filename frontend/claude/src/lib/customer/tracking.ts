@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import type { CheckoutRpc } from "@/lib/checkout/service";
+import type { Order } from "@/types";
 import {
   customerOrderItemRowSchema,
   customerOrderRowSchema,
@@ -31,10 +32,15 @@ import {
 /** PostgREST name of the guest-tracking function. */
 export const CUSTOMER_TRACK_ORDER_RPC = "customer_track_order_by_phone";
 
+/** PostgREST name of the guest-tracking list function (all orders for one phone). */
+export const CUSTOMER_TRACK_ORDERS_RPC = "customer_track_orders_by_phone";
+
 const trackedOrderPayloadSchema = z.object({
   order: customerOrderRowSchema,
   items: z.array(customerOrderItemRowSchema),
 });
+
+const trackedOrdersPayloadSchema = z.array(trackedOrderPayloadSchema);
 
 function logTrackingFailure(reason: string): void {
   console.error(`[attiresarena:customer-tracking] guest lookup failed: ${reason}`);
@@ -69,4 +75,41 @@ export async function trackGuestOrderByPhone(
     return null;
   }
   return projectCustomerOrder(parsed.data.order, parsed.data.items, media);
+}
+
+/**
+ * List every order placed with one already-normalised phone, newest
+ * first. Same guarantees as trackGuestOrderByPhone: the phone must
+ * already be the strict stored form (see normalizeTrackingPhone);
+ * anything else returns [] without a database call, and a miss, a
+ * failed call, or a malformed payload all yield [] — the page shows
+ * the same "No orders found" state for each. The rpc transport is
+ * injected so tests can pass a stub instead of the live server
+ * credential.
+ */
+export async function trackGuestOrdersByPhone(
+  rpc: CheckoutRpc,
+  phone: string,
+  media: Map<string, CustomerOrderMedia>,
+): Promise<Order[]> {
+  if (phone !== normalizeTrackingPhone(phone)) return [];
+  const result = await rpc<unknown>(CUSTOMER_TRACK_ORDERS_RPC, {
+    p_phone: phone,
+  });
+  if (!result.ok) {
+    logTrackingFailure(result.code);
+    return [];
+  }
+  if (result.data === null) return [];
+  const parsed = trackedOrdersPayloadSchema.safeParse(result.data);
+  if (!parsed.success) {
+    logTrackingFailure("invalid-payload");
+    return [];
+  }
+  const orders: Order[] = [];
+  for (const entry of parsed.data) {
+    const projected = projectCustomerOrder(entry.order, entry.items, media);
+    if (projected) orders.push(projected);
+  }
+  return orders;
 }
