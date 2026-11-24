@@ -381,11 +381,11 @@ describe("track-order form pins (no disabled button, no unavailable copy)", () =
   });
 
   it("requires the phone and validates it before calling the action", () => {
-    const phoneLine = form.split("\n").find((line) => line.includes('id="track-phone"'));
-    expect(phoneLine).toBeDefined();
-    expect(phoneLine).toContain('label="Phone Number"');
-    expect(phoneLine).not.toContain("(optional)");
-    expect(phoneLine).toContain("required");
+    const phoneStart = form.indexOf('id="track-phone"');
+    const phoneBlock = form.slice(phoneStart, form.indexOf("/>", phoneStart));
+    expect(phoneBlock).toContain('label="Phone Number"');
+    expect(phoneBlock).not.toContain("(optional)");
+    expect(phoneBlock).toContain("required");
     expect(form).toContain("isValidBdPhone");
     expect(form).toContain("getOrderByNumberAction(orderNumber, phone)");
   });
