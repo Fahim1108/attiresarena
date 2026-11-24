@@ -2,12 +2,11 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@supabase/supabase-js";
 import { deliveryAnnouncementText } from "@/lib/delivery-settings";
 import { parseAnnouncementBar } from "@/lib/store-settings";
 import { requireStaff, isOwner, actionOk, actionError, toActionError } from "./authorization";
+import { verifyStaffPassword } from "./account";
 import { areaRoles, PRODUCT_MEDIA_BUCKET } from "./constants";
-import { adminConfiguration } from "./supabase";
 import { draftMediaLimit, validDraftImage } from "./media-validation";
 import type { AdminActionResult } from "./authorization";
 
@@ -267,23 +266,23 @@ export async function getTestDataEraseCounts(): Promise<TestDataEraseCounts | nu
 
 /**
  * Erase all test data (migration 20261123000100, owner-only, type ERASE
- * to confirm). Flow:
+ * to confirm + re-enter the admin login password). Flow:
  *
  * 1. Owner + MFA re-checks (the settings area is owner-only, and the
  *    RPC hard-checks the owner role again — no per-user grant can
  *    ever enable this).
- * 2. Fail closed when the deployment has no service-role key: without
- *    it the customer accounts and storage files could not be cleaned
- *    up, so nothing is deleted at all.
+ * 2. The typed ERASE word AND the owner's current admin login password
+ *    must both be right. The password is verified server-side only, via
+ *    the throwaway-client check in ./account (never logged, never stored,
+ *    never sent to the database — the RPC only ever receives the ERASE
+ *    word). A wrong password stops here: nothing is deleted, no partial
+ *    erase. Wrong passwords behave like staff sign-in — plain failure,
+ *    with Supabase Auth's own rate limiting as the backstop.
  * 3. The RPC deletes every database row in one transaction and returns
- *    the deleted counts plus the storage paths and customer user ids
- *    to clean up afterwards.
- * 4. Storage files are removed via the service-role Storage API and
- *    customer auth accounts via the Supabase Admin API. If either
- *    cleanup fails, the database rows are already gone, so the result
- *    says so plainly: files stay orphaned in the bucket (remove them
- *    from Supabase Dashboard → Storage), while leftover customer
- *    accounts are picked up again by pressing Erase again.
+ *    the deleted counts. No service-role key is needed any more: the
+ *    erase deletes no auth accounts and no storage files (products,
+ *    customers and visitor data all stay), so there is no post-RPC
+ *    cleanup step at all.
  */
 export async function eraseTestData(
   _prev: AdminActionResult | null,
@@ -297,12 +296,16 @@ export async function eraseTestData(
   if (formText(form, "confirmation") !== ERASE_CONFIRMATION_WORD) {
     return actionError("Type ERASE to confirm the erase. Nothing was deleted.");
   }
-  const config = adminConfiguration();
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!config || !serviceKey) {
+  const password = formText(form, "password");
+  if (!password) {
     return actionError(
-      "Test data erase is not configured: the deployment has no service-role key. " +
-        "Ask the operator to configure it, then try again. Nothing was deleted.",
+      "Enter your admin login password to confirm the erase. Nothing was deleted.",
+    );
+  }
+  const email = session.user.email;
+  if (!email || !(await verifyStaffPassword(email, password))) {
+    return actionError(
+      "ভুল পাসওয়ার্ড — the password is incorrect. Nothing was deleted.",
     );
   }
   const erased = await session.client.rpc("admin_test_data_erase", {
@@ -311,46 +314,12 @@ export async function eraseTestData(
   if (erased.error) {
     return actionError(toActionError(erased.error, "Test data could not be erased."));
   }
-  const result = erased.data as {
-    deleted?: unknown;
-    storage_paths?: unknown;
-    customer_user_ids?: unknown;
-  } | null;
+  const result = erased.data as { deleted?: unknown } | null;
   const counts = parseTestDataEraseCounts(result?.deleted);
   if (!counts) {
     return actionError(
       "Test data erase returned an unexpected result. Check the audit log before trying again.",
     );
-  }
-  const storagePaths = Array.isArray(result?.storage_paths)
-    ? result.storage_paths.filter(
-        (path): path is string => typeof path === "string",
-      )
-    : [];
-  const customerIds = Array.isArray(result?.customer_user_ids)
-    ? result.customer_user_ids.filter(
-        (id): id is string => typeof id === "string",
-      )
-    : [];
-  const admin = createClient(config.url, serviceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  let storageRemoved = 0;
-  let storageFailed = 0;
-  for (let i = 0; i < storagePaths.length; i += 100) {
-    const chunk = storagePaths.slice(i, i + 100);
-    const removed = await admin.storage
-      .from(PRODUCT_MEDIA_BUCKET)
-      .remove(chunk);
-    if (removed.error) storageFailed += chunk.length;
-    else storageRemoved += removed.data?.length ?? 0;
-  }
-  let customersRemoved = 0;
-  let customersFailed = 0;
-  for (const id of customerIds) {
-    const deleted = await admin.auth.admin.deleteUser(id);
-    if (deleted.error) customersFailed += 1;
-    else customersRemoved += 1;
   }
   revalidatePath("/admin/settings/store");
   revalidateStorefrontLayout();
@@ -358,35 +327,16 @@ export async function eraseTestData(
   if (counts.orders > 0) erasedParts.push(`${counts.orders} orders`);
   if (counts.payment_submissions > 0)
     erasedParts.push(`${counts.payment_submissions} payment records`);
-  if (counts.test_products > 0)
-    erasedParts.push(`${counts.test_products} test products`);
-  if (counts.customers > 0)
-    erasedParts.push(`${counts.customers} customer accounts`);
   if (counts.product_reviews > 0)
     erasedParts.push(`${counts.product_reviews} reviews`);
   if (counts.coupons > 0) erasedParts.push(`${counts.coupons} coupons`);
   if (counts.banners > 0) erasedParts.push(`${counts.banners} banners`);
   if (counts.checkout_sessions > 0)
     erasedParts.push(`${counts.checkout_sessions} checkout sessions`);
-  const summary =
+  return actionOk(
     erasedParts.length > 0
       ? `Erased ${erasedParts.join(", ")}.`
-      : "Nothing to erase — all counts were already zero.";
-  if (storageFailed > 0 || customersFailed > 0) {
-    const notes = [summary];
-    if (storageRemoved > 0) notes.push(`Removed ${storageRemoved} files.`);
-    if (storageFailed > 0)
-      notes.push(
-        `${storageFailed} files could not be removed — remove them from Supabase Dashboard → Storage → ${PRODUCT_MEDIA_BUCKET}.`,
-      );
-    if (customersFailed > 0)
-      notes.push(
-        `${customersFailed} customer accounts could not be removed — press Erase again to retry.`,
-      );
-    return actionError(notes.join(" "));
-  }
-  return actionOk(
-    `${summary} Removed ${storageRemoved} files and ${customersRemoved} customer accounts.`,
+      : "Nothing to erase — all counts were already zero.",
   );
 }
 

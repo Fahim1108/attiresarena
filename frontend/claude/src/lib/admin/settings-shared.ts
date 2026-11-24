@@ -204,23 +204,10 @@ export function deliveryDistrictOptions(): { value: string; label: string }[] {
 // ---------------------------------------------------------------------------
 
 /**
- * A product counts as test data when its name or slug starts with
- * "test" (case-insensitive). Mirrors private.is_test_product in SQL —
- * SQL is authoritative; this helper exists so tests and the UI can
- * reason about the same rule without a database.
- */
-export function isTestProductName(name: string, slug: string): boolean {
-  const cleanName = name.trim().toLowerCase();
-  const cleanSlug = slug.trim().toLowerCase();
-  return cleanName.startsWith("test") || cleanSlug.startsWith("test");
-}
-
-/**
  * Counts returned by admin_test_data_erase_counts (and by the erase
- * itself under `deleted`). Every key is a row count; test_product_names
- * lists the test products by name so the owner sees exactly which
- * products the erase will remove. storage_files is derived
- * (test product media rows + banner rows, one file each).
+ * itself under `deleted`). Every key is a row count. Products,
+ * customer accounts and visitor data are NOT in this list: the erase
+ * never touches them, so there is nothing to count.
  */
 const TEST_DATA_ERASE_COUNTS_SCHEMA = z.object({
   orders: z.number().int().nonnegative(),
@@ -233,19 +220,10 @@ const TEST_DATA_ERASE_COUNTS_SCHEMA = z.object({
   checkout_items: z.number().int().nonnegative(),
   abandoned_recovery_log: z.number().int().nonnegative(),
   checkout_rate_events: z.number().int().nonnegative(),
-  test_products: z.number().int().nonnegative(),
-  test_product_names: z.array(z.string()),
-  test_product_variants: z.number().int().nonnegative(),
-  test_product_media: z.number().int().nonnegative(),
-  test_inventory_movements: z.number().int().nonnegative(),
-  test_thrift_intake: z.number().int().nonnegative(),
-  test_catalogue_terms: z.number().int().nonnegative(),
   product_reviews: z.number().int().nonnegative(),
   review_moderation_log: z.number().int().nonnegative(),
   coupons: z.number().int().nonnegative(),
   banners: z.number().int().nonnegative(),
-  customers: z.number().int().nonnegative(),
-  storage_files: z.number().int().nonnegative(),
 });
 
 export type TestDataEraseCounts = z.infer<typeof TEST_DATA_ERASE_COUNTS_SCHEMA>;
