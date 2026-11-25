@@ -39,7 +39,10 @@ vi.mock("next/navigation", () => ({
  * - (12) "Details & Care" is gone; only Description + Delivery & Returns
  *   remain. CORRECTED 2026-11-25 (Fahim): the size guide is a button just
  *   below the size selector that opens the table inline — no standalone
- *   section below the accordion.
+ *   section below the accordion. CORRECTED AGAIN 2026-11-25 (Fahim): the
+ *   guide table is removed from the reviewOnly "Product details" section
+ *   too, and the Size Guide button is a solid primary button so it stands
+ *   out.
  */
 
 function src(rel: string): string {
@@ -171,6 +174,10 @@ describe("item 12: accordion without Details & Care", () => {
     const page = src("app/(store)/product/[slug]/page.tsx");
     expect(page).not.toContain('aria-labelledby="size-guide"');
     expect(page).not.toContain('<h2 id="size-guide"');
+    // The reviewOnly "Product details" section carries no guide table either
+    // (Fahim, 2026-11-25: "Product diye size guide ta bad dao").
+    expect(page).not.toContain("SizeGuideTable");
+    expect(page).toContain('id="review-details"');
     const panel = src("components/product/ProductPurchasePanel.tsx");
     // The button sits right after the size selector and toggles the table.
     // (lastIndexOf: the first "Size Guide" mention is the state comment.)
@@ -252,6 +259,13 @@ describe("item 12 (size guide button): toggle renders collapsed", () => {
     );
     expect(html).toContain("Size Guide");
     expect(html).toContain('aria-expanded="false"');
+    // The Size Guide button is a solid primary button so it stands out
+    // (Fahim, 2026-11-25: "size guide button ta arektu noticable koro").
+    const button = html.match(
+      /<button[^>]*aria-controls="product-size-guide"[^>]*>Size Guide<\/button>/,
+    );
+    expect(button).not.toBeNull();
+    expect(button?.[0]).toContain("bg-primary");
     // The guide table stays hidden until the button is opened.
     expect(html).not.toContain(officialShirtSizeGuide.title);
   });
