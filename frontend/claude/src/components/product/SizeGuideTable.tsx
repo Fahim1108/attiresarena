@@ -1,6 +1,26 @@
 import type { SizeGuide } from "@/types";
 
-/** Inline size-guide table for the product page Details section.
+/** Bracket text for the size-selector buttons ("XL (Chest 44, Length 28–29)"),
+ *  built from the guide's Chest/Length columns. A size with no usable
+ *  measurements is omitted so its button shows just the label. */
+export function sizeGuideMeasurements(guide: SizeGuide): Record<string, string> {
+  const chestIdx = guide.columns.findIndex((c) => c.toLowerCase() === "chest");
+  const lengthIdx = guide.columns.findIndex((c) => c.toLowerCase() === "length");
+  const out: Record<string, string> = {};
+  for (const row of guide.rows) {
+    const size = row[0];
+    if (!size) continue;
+    const parts: string[] = [];
+    const chest = chestIdx >= 0 ? row[chestIdx] : undefined;
+    const length = lengthIdx >= 0 ? row[lengthIdx] : undefined;
+    if (chest && chest !== "Not specified") parts.push(`Chest ${chest}`);
+    if (length && length !== "Not specified") parts.push(`Length ${length}`);
+    if (parts.length > 0) out[size] = parts.join(", ");
+  }
+  return out;
+}
+
+/** Inline size-guide table for the product page Size Guide section.
  *  Shown directly on the page — there is no Size Guide button or modal. */
 export function SizeGuideTable({ guide }: { guide: SizeGuide }) {
   return (

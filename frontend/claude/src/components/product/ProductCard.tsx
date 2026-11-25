@@ -51,7 +51,7 @@ export function ProductCard({ product, brandName, priority, sizes = "(min-width:
 
   return (
     <article className={cn("aa-product-card group relative", className)}>
-      <div className={cn("relative overflow-hidden rounded-card", cfg.imageAspect === "portrait" ? "aspect-[4/5]" : cfg.imageAspect === "landscape" ? "aspect-[4/3]" : "aspect-square")} style={{ backgroundColor: cfg.imageBackground }}>
+      <div className={cn("relative overflow-hidden rounded-card", cfg.imageAspect === "portrait" ? "aspect-[3/4]" : cfg.imageAspect === "landscape" ? "aspect-[4/3]" : "aspect-square")} style={{ backgroundColor: cfg.imageBackground }}>
         {/* The image link duplicates the product-name link below; hide it from keyboard and assistive tech so each card has a single tab stop. */}
         <Link href={href} tabIndex={-1} aria-hidden className="aa-press absolute inset-0">
           {/* Hover (pointer devices only): gentle 1.05 zoom + cross-fade to the secondary image. */}

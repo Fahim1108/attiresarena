@@ -1,7 +1,7 @@
 "use client";
 
 import { imagesForColor } from "@/lib/product";
-import type { Product } from "@/types";
+import type { Product, SizeGuide } from "@/types";
 import { useProductSize } from "./ProductSizeContext";
 import { ProductGallery } from "./ProductGallery";
 import { ProductPurchasePanel } from "./ProductPurchasePanel";
@@ -10,9 +10,9 @@ import { ProductPurchasePanel } from "./ProductPurchasePanel";
  *  product's first colour; colour switching is intentionally unavailable.
  *  Size selection is unlocked for verified products and stays locked for
  *  reviewOnly products — see ProductPurchasePanel.
- *  The size guide is shown inline in the Details section of the product
- *  page, not in the purchase panel — there is no Size Guide button. */
-export function ProductDetailClient({ product, brandName }: { product: Product; brandName?: string; initialColorId?: string }) {
+ *  The size guide is shown in its own section on the product page, not in
+ *  the purchase panel — there is no Size Guide button. */
+export function ProductDetailClient({ product, brandName, sizeGuide }: { product: Product; brandName?: string; initialColorId?: string; sizeGuide?: SizeGuide | null }) {
   const selection = useProductSize();
   const colorId = product.colors[0]?.id ?? "";
   return (
@@ -20,7 +20,7 @@ export function ProductDetailClient({ product, brandName }: { product: Product; 
       <ProductGallery images={imagesForColor(product, colorId)} productName={product.name} videoId={product.youtubeVideoId} />
       <div className="lg:sticky lg:top-28 lg:self-start">
         {product.reviewOnly && <p className="mb-4 text-xs text-ink-muted">{product.displaySizeEstimate?"Size shown is provisional until the garment is measured.":"Recorded size — physical verification is still pending."}</p>}
-        <ProductPurchasePanel product={product} brandName={brandName} colorId={colorId} onColorChange={() => {}} onSizeChange={selection?.setSize} />
+        <ProductPurchasePanel product={product} brandName={brandName} colorId={colorId} onColorChange={() => {}} onSizeChange={selection?.setSize} sizeGuide={sizeGuide} />
       </div>
     </div>
   );

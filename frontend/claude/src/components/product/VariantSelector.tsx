@@ -59,7 +59,7 @@ export function ColorSelector({ colors, value, onChange }: { colors: ColorOption
   );
 }
 
-export function SizeSelector({ sizes, labels, locked = false, value, onChange, isAvailable, onSizeGuide, error }: { sizes: string[]; locked?: boolean; labels?: Record<string, string>; value?: string; onChange: (s: string) => void; isAvailable: (s: string) => boolean; onSizeGuide?: () => void; error?: string }) {
+export function SizeSelector({ sizes, labels, locked = false, value, onChange, isAvailable, onSizeGuide, measurements, error }: { sizes: string[]; locked?: boolean; labels?: Record<string, string>; value?: string; onChange: (s: string) => void; isAvailable: (s: string) => boolean; onSizeGuide?: () => void; measurements?: Record<string, string>; error?: string }) {
   const labelId = useId();
   const errorId = useId();
   if (sizes.length === 1 && sizes[0] === "One Size") {
@@ -82,13 +82,14 @@ export function SizeSelector({ sizes, labels, locked = false, value, onChange, i
         {sizes.map((s, i) => {
           const available = isAvailable(s);
           const active = s === value;
+          const measurement = measurements?.[s];
           return (
             <button
               key={s}
               type="button"
               role="radio"
               aria-checked={active}
-              aria-label={available ? `Size ${s}` : `Size ${s}, ${locked ? "not available for this item" : "sold out"}`}
+              aria-label={available ? `Size ${s}${measurement ? `, ${measurement}` : ""}` : `Size ${s}${measurement ? `, ${measurement}` : ""}, ${locked ? "not available for this item" : "sold out"}`}
               disabled={locked || !available}
               tabIndex={active || (!value && i === firstEnabled) ? 0 : -1}
               onClick={() => { if (!locked) onChange(s); }}
@@ -99,7 +100,7 @@ export function SizeSelector({ sizes, labels, locked = false, value, onChange, i
                 !available && !locked && "cursor-not-allowed text-ink-muted/50 hover:border-line",
               )}
             >
-              {labels?.[s] ?? labels?.[canonicalSize(s) ?? s] ?? canonicalSize(s) ?? s}
+              {labels?.[s] ?? labels?.[canonicalSize(s) ?? s] ?? canonicalSize(s) ?? s}{measurement ? ` (${measurement})` : ""}
             </button>
           );
         })}

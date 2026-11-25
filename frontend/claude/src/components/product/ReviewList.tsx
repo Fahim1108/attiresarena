@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { LoginForm } from '@/components/account/AuthForms';
 import { Badge, Button, DemoNotice, Modal, Rating } from '@/components/ui';
+import { SmartImage } from '@/components/ui/SmartImage';
 import type { OwnReview } from '@/lib/customer/reviews';
 import { clearReviewDraft, readReviewDraft, tabSessionStorage, writeReviewDraft } from '@/lib/review-draft-storage';
 import type { Review } from '@/types';
@@ -115,6 +116,15 @@ export function ReviewList({ reviews, signedIn, ownReview, productId }: { review
               <Rating value={r.rating} />
               {r.title && <h3 className="mt-2 font-medium">{r.title}</h3>}
               <p className="mt-2 text-sm">{r.body}</p>
+              {r.photos && r.photos.length > 0 && (
+                <ul className="mt-3 flex flex-wrap gap-2" aria-label="Review photos">
+                  {r.photos.map((photo, index) => (
+                    <li key={photo.src} className="relative h-20 w-20 overflow-hidden rounded-lg border border-line bg-[#F4F2F0]">
+                      <SmartImage src={photo.src} alt={photo.alt || `Review photo ${index + 1}`} fill sizes="80px" className="object-cover" />
+                    </li>
+                  ))}
+                </ul>
+              )}
               <time dateTime={r.createdAt} className="mt-2 block text-xs text-ink-muted">{new Date(r.createdAt).toLocaleDateString('en-BD')}</time>
             </li>
           ))}

@@ -1,16 +1,17 @@
 "use client";
 
-import { Banknote, CheckCircle2, CircleAlert, RotateCcw, ShieldCheck, ShoppingBag, Zap } from "lucide-react";
+import { Banknote, Check, CheckCircle2, CircleAlert, Copy, Facebook, RotateCcw, ShieldCheck, ShoppingBag, Zap } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Button, Price, Rating } from "@/components/ui";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Button, buttonClasses, Price, Rating } from "@/components/ui";
 import { useCart } from "@/context/CartContext";
 import { cn } from "@/lib/cn";
 import { displayedSizes, findVariant, isSizeAvailable, toCartLine } from "@/lib/product";
-import type { Product } from "@/types";
+import type { Product, SizeGuide } from "@/types";
 import { QuantitySelector } from "./QuantitySelector";
 import { SizeSelector } from "./VariantSelector";
+import { sizeGuideMeasurements } from "./SizeGuideTable";
 import { WishlistButton } from "./WishlistButton";
 
 interface Props {
@@ -22,15 +23,43 @@ interface Props {
   onAdded?: () => void;
   onSizeChange?: (size:string)=>void;
   headingLevel?: "h1" | "h2";
+  sizeGuide?: SizeGuide | null;
 }
 
-export function ProductPurchasePanel({ product, brandName, colorId, compact, onAdded, onSizeChange, headingLevel = "h1" }: Props) {
+export function ProductPurchasePanel({ product, brandName, colorId, compact, onAdded, onSizeChange, headingLevel = "h1", sizeGuide }: Props) {
   const router = useRouter();
   const { addItem, openDrawer } = useCart();
   const oneSize = product.sizes.length === 1;
   const [size, setSize] = useState<string | undefined>(oneSize ? product.sizes[0] : undefined);
   const [qty, setQty] = useState(1);
   const [sizeError, setSizeError] = useState<string>();
+  // Share row is client-only: the page URL comes from the browser, with an
+  // empty server snapshot so server rendering never sees a mismatched href.
+  const pageUrl = useSyncExternalStore(
+    (onChange) => {
+      window.addEventListener("popstate", onChange);
+      return () => window.removeEventListener("popstate", onChange);
+    },
+    () => window.location.href,
+    () => "",
+  );
+  const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
+  const copyTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => { window.clearTimeout(copyTimer.current); }, []);
+
+  async function copyLink() {
+    if (!pageUrl) return;
+    try {
+      await navigator.clipboard.writeText(pageUrl);
+      setCopied(true);
+      setCopyFailed(false);
+      copyTimer.current = window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+      setCopyFailed(true);
+    }
+  }
 
   const variant = size ? findVariant(product, colorId, size) : undefined;
   const stock = variant?.stock ?? 0;
@@ -96,6 +125,7 @@ export function ProductPurchasePanel({ product, brandName, colorId, compact, onA
           setQty(1);
         }}
         isAvailable={(s) => isSizeAvailable(product, colorId, s)}
+        measurements={sizeGuide ? sizeGuideMeasurements(sizeGuide) : undefined}
         error={sizeError}
       />
 
@@ -122,6 +152,23 @@ export function ProductPurchasePanel({ product, brandName, colorId, compact, onA
         <Button size="lg" variant="burgundy" fullWidth onClick={() => add(true)} disabled={purchaseDisabled} leftIcon={<Zap className="h-4 w-4" aria-hidden />}>
           Buy Now
         </Button>
+        {pageUrl && (
+          <div className="flex gap-2.5">
+            <a
+              href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(pageUrl)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Share this product on Facebook"
+              className={buttonClasses({ variant: "outline", size: "sm", fullWidth: true })}
+            >
+              <Facebook className="h-4 w-4" aria-hidden /> Share on Facebook
+            </a>
+            <Button variant="outline" size="sm" fullWidth onClick={copyLink} leftIcon={copied ? <Check className="h-4 w-4" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}>
+              {copied ? "Link copied" : "Copy link"}
+            </Button>
+          </div>
+        )}
+        {copyFailed && <p role="status" className="text-xs text-ink-muted">Could not copy the link. Please select and copy it manually.</p>}
         {compact && (
           <Link href={`/product/${product.slug}`} className="block pt-1 text-center text-xs text-primary underline underline-offset-4">
             View full details

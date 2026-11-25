@@ -39,7 +39,7 @@ export function ProductGallery({ images, productName, videoId }: { images: Produ
   // with a video but no photos still shows its video slide.
   if (images.length === 0 && !hasVideo) {
     return (
-      <div className="flex aspect-[4/5] items-center justify-center rounded-card bg-[#F4F2F0]">
+      <div className="flex aspect-[3/4] items-center justify-center rounded-card bg-[#F4F2F0]">
         <p className="text-sm text-ink-muted">No photo available for this product.</p>
       </div>
     );
@@ -113,7 +113,7 @@ export function ProductGallery({ images, productName, videoId }: { images: Produ
           {images.map((img, i) => (
             <div
               key={img.src}
-              className="relative aspect-[4/5] w-full shrink-0 snap-center cursor-zoom-in"
+              className="relative aspect-[3/4] w-full shrink-0 snap-center cursor-zoom-in"
               onMouseMove={(e) => {
                 if (window.matchMedia("(hover: none)").matches) return;
                 const r = e.currentTarget.getBoundingClientRect();
@@ -134,7 +134,7 @@ export function ProductGallery({ images, productName, videoId }: { images: Produ
             </div>
           ))}
           {hasVideo && (
-            <div className="relative aspect-[4/5] w-full shrink-0 snap-center">
+            <div className="relative aspect-[3/4] w-full shrink-0 snap-center">
               <YoutubeVideoPlayer videoId={videoId ?? ""} title={productName} />
             </div>
           )}
@@ -165,7 +165,7 @@ export function ProductGallery({ images, productName, videoId }: { images: Produ
       <Modal open={zoomOpen} onClose={() => setZoomOpen(false)} title={productName} hideTitle className="sm:max-w-3xl">
         {current && (
           <div className="relative">
-            <div className="relative mx-auto aspect-[4/5] max-h-[75vh] overflow-auto rounded bg-[#F4F2F0]">
+            <div className="relative mx-auto aspect-[3/4] max-h-[75vh] overflow-auto rounded bg-[#F4F2F0]">
               <SmartImage src={current.src} alt={current.alt} fill sizes="100vw" className="object-contain" />
             </div>
             <div className="mt-4 flex items-center justify-between">
