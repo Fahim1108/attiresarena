@@ -66,11 +66,26 @@ export function SizeSelector({ sizes, labels, locked = false, value, onChange, i
     return <p className="text-sm text-ink">Size: <span className="font-medium">One Size</span></p>;
   }
   const firstEnabled = sizes.findIndex((s) => !locked && isAvailable(s));
+  // The product's fixed size(s) with guide measurements, shown beside the
+  // "Size:" line — "Size: M (Chest 40, Length 28–29)", or for several sizes
+  // "Size: S (Chest 38, Length 27–28), L (Chest 42, Length 28–29)".
+  // The option buttons stay plain labels only: measurements never go in
+  // them (Fahim, 2026-11-25).
+  const availableSizes = sizes.filter((s) => isAvailable(s));
+  const sizeLine = availableSizes.length > 0
+    ? availableSizes
+        .map((s) => {
+          const label = labels?.[s] ?? labels?.[canonicalSize(s) ?? s] ?? canonicalSize(s) ?? s;
+          const measurement = measurements?.[s];
+          return measurement ? `${label} (${measurement})` : label;
+        })
+        .join(", ")
+    : null;
   return (
     <div>
       <div className="mb-2.5 flex items-center justify-between">
         <p id={labelId} className="text-sm text-ink">
-          Size: <span className="font-medium">{value ? labels?.[value] ?? labels?.[canonicalSize(value) ?? value] ?? canonicalSize(value) ?? value : "Select a size"}</span>
+          Size: <span className="font-medium">{sizeLine ?? (value ? labels?.[value] ?? labels?.[canonicalSize(value) ?? value] ?? canonicalSize(value) ?? value : "Select a size")}</span>
         </p>
         {onSizeGuide && (
           <button type="button" onClick={onSizeGuide} className="text-xs text-primary underline underline-offset-4 hover:text-primary-dark">
@@ -82,14 +97,13 @@ export function SizeSelector({ sizes, labels, locked = false, value, onChange, i
         {sizes.map((s, i) => {
           const available = isAvailable(s);
           const active = s === value;
-          const measurement = measurements?.[s];
           return (
             <button
               key={s}
               type="button"
               role="radio"
               aria-checked={active}
-              aria-label={available ? `Size ${s}${measurement ? `, ${measurement}` : ""}` : `Size ${s}${measurement ? `, ${measurement}` : ""}, ${locked ? "not available for this item" : "sold out"}`}
+              aria-label={available ? `Size ${s}` : `Size ${s}, ${locked ? "not available for this item" : "sold out"}`}
               disabled={locked || !available}
               tabIndex={active || (!value && i === firstEnabled) ? 0 : -1}
               onClick={() => { if (!locked) onChange(s); }}
@@ -100,7 +114,7 @@ export function SizeSelector({ sizes, labels, locked = false, value, onChange, i
                 !available && !locked && "cursor-not-allowed text-ink-muted/50 hover:border-line",
               )}
             >
-              {labels?.[s] ?? labels?.[canonicalSize(s) ?? s] ?? canonicalSize(s) ?? s}{measurement ? ` (${measurement})` : ""}
+              {labels?.[s] ?? labels?.[canonicalSize(s) ?? s] ?? canonicalSize(s) ?? s}
             </button>
           );
         })}
