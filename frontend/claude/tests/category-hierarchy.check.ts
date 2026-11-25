@@ -10,9 +10,11 @@ import { queryProducts } from "../src/lib/catalog-query";
 import { selectableStock } from "../src/lib/product";
 import {
   SHIRT_PARENT_ID,
+  childCategories,
   isShirtSubcategory,
   shirtSubKey,
   shirtSubcategories,
+  subcategoryChipGroup,
   topLevelCategories,
 } from "../src/lib/category-hierarchy";
 import type { Category, Product } from "../src/types";
@@ -514,5 +516,109 @@ describe("duplicate shirt chips dedupe (Preview 2026-11-21, deployment BE9vxDT4)
       (shirts.facets.categories.find((c) => c.slug === "formal-shirt")?.count ?? 0) +
         (shirts.facets.categories.find((c) => c.slug === "formal-shirts")?.count ?? 0),
     ).toBe(2);
+  });
+});
+
+describe("client feedback 2026-11-24 items 3 + 4: secondaries never top-level, DB owns the taxonomy", () => {
+  const SNEAKERS_ID = "80000000-0000-4000-8000-000000000001";
+  const WHITE_ID = "80000000-0000-4000-8000-000000000002";
+  const BLACK_ID = "80000000-0000-4000-8000-000000000003";
+  const SHIRTS_ID = "80000000-0000-4000-8000-000000000004";
+
+  it("item 3: a child category with a real parent never leaks out as a top-level tile", () => {
+    const merged = mergeDbCategories(storeCategories, [
+      row({ id: SNEAKERS_ID, name: "Sneakers", slug: "sneakers", description: "", sort_position: 1 }),
+      row({ id: WHITE_ID, parent_id: SNEAKERS_ID, name: "White Sneakers", slug: "white-sneakers", description: "", sort_position: 1 }),
+      row({ id: BLACK_ID, parent_id: SNEAKERS_ID, name: "Black Sneakers", slug: "black-sneakers", description: "", sort_position: 2 }),
+    ]);
+    const top = topLevelCategories(merged).map((c) => c.slug);
+    expect(top).not.toContain("white-sneakers");
+    expect(top).not.toContain("black-sneakers");
+    expect(top).toEqual(["sneakers"]);
+    expect(childCategories(merged, SNEAKERS_ID).map((c) => c.slug)).toEqual([
+      "white-sneakers",
+      "black-sneakers",
+    ]);
+  });
+
+  it("item 4: once the DB returns primary rows, a static category with no DB row is dropped (admin delete really removes the tile)", () => {
+    // Five of the six primaries seeded — Watches has no DB row, so
+    // its static tile must NOT come back.
+    const five = mergeDbCategories(storeCategories, [
+      row({ id: SHIRTS_ID, name: "Shirts", slug: "shirts", description: "", sort_position: 1 }),
+      row({ id: "80000000-0000-4000-8000-000000000005", name: "Pants", slug: "pants", description: "", sort_position: 2 }),
+      row({ id: SNEAKERS_ID, name: "Sneakers", slug: "sneakers", description: "", sort_position: 3 }),
+      row({ id: "80000000-0000-4000-8000-000000000006", name: "Belt", slug: "belts", description: "", sort_position: 4 }),
+      row({ id: "80000000-0000-4000-8000-000000000007", name: "Wallet", slug: "wallets", description: "", sort_position: 5 }),
+    ]);
+    expect(five.map((c) => c.slug).sort()).toEqual([
+      "belts",
+      "pants",
+      "shirts",
+      "sneakers",
+      "wallets",
+    ]);
+    expect(five.find((c) => c.slug === "watches")).toBeUndefined();
+  });
+
+  it("item 4: before the primary seed (sub rows only, parent_id NULL) the static config still fills the gaps", () => {
+    const merged = mergeDbCategories(storeCategories, [
+      row({ id: CASUAL_ID, name: "Casual shirt", slug: "casual-shirt", sort_position: 1 }),
+      row({ id: FORMAL_ID, name: "Formal shirt", slug: "formal-shirt", sort_position: 2 }),
+      row({ id: CHECK_ID, name: "Check shirt", slug: "check-shirt", sort_position: 3 }),
+    ]);
+    expect(topLevelCategories(merged).map((c) => c.slug)).toEqual([
+      "shirts",
+      "pants",
+      "sneakers",
+      "belts",
+      "wallets",
+      "watches",
+    ]);
+  });
+
+  it("item 4: parented shirt subs keep the DB as source of truth even if every primary is deleted in admin", () => {
+    // The seed migration parents the subs; if the admin then deletes
+    // all six primaries, the parented subs still prove the seed ran,
+    // so the static six must NOT resurrect.
+    const merged = mergeDbCategories(storeCategories, [
+      row({ id: CASUAL_ID, parent_id: SHIRTS_ID, name: "Casual shirt", slug: "casual-shirt", sort_position: 1 }),
+      row({ id: FORMAL_ID, parent_id: SHIRTS_ID, name: "Formal shirt", slug: "formal-shirt", sort_position: 2 }),
+      row({ id: CHECK_ID, parent_id: SHIRTS_ID, name: "Check shirt", slug: "check-shirt", sort_position: 3 }),
+    ]);
+    expect(merged.map((c) => c.slug).sort()).toEqual([
+      "casual-shirt",
+      "check-shirt",
+      "formal-shirt",
+    ]);
+  });
+
+  it("item 3: generic sub-category chip group — any primary shows its children, a child page shows parent + siblings", () => {
+    const cats: Category[] = [
+      category({ id: "cat-shirts", slug: "shirts", name: "Shirts" }),
+      category({ id: CASUAL_ID, slug: "casual-shirt", name: "Casual shirt", parentId: SHIRT_PARENT_ID }),
+      category({ id: FORMAL_ID, slug: "formal-shirt", name: "Formal shirt", parentId: SHIRT_PARENT_ID }),
+      category({ id: CHECK_ID, slug: "check-shirt", name: "Check shirt", parentId: SHIRT_PARENT_ID }),
+      category({ id: SNEAKERS_ID, slug: "sneakers", name: "Sneakers" }),
+      category({ id: WHITE_ID, slug: "white-sneakers", name: "White Sneakers", parentId: SNEAKERS_ID }),
+      category({ id: BLACK_ID, slug: "black-sneakers", name: "Black Sneakers", parentId: SNEAKERS_ID }),
+      category({ id: "cat-pants", slug: "pants", name: "Pants" }),
+    ];
+    const sneakers = cats.find((c) => c.slug === "sneakers")!;
+    const sneakersGroup = subcategoryChipGroup(sneakers, cats);
+    expect(sneakersGroup?.parent.slug).toBe("sneakers");
+    expect(sneakersGroup?.items.map((c) => c.slug)).toEqual(["white-sneakers", "black-sneakers"]);
+    const white = cats.find((c) => c.slug === "white-sneakers")!;
+    const whiteGroup = subcategoryChipGroup(white, cats);
+    expect(whiteGroup?.parent.slug).toBe("sneakers");
+    expect(whiteGroup?.items.map((c) => c.slug)).toEqual(["white-sneakers", "black-sneakers"]);
+    const shirts = cats.find((c) => c.slug === "shirts")!;
+    const shirtsGroup = subcategoryChipGroup(shirts, cats);
+    expect(shirtsGroup?.parent.slug).toBe("shirts");
+    expect(shirtsGroup?.items.map((c) => c.slug)).toEqual(["casual-shirt", "formal-shirt", "check-shirt"]);
+    const casual = cats.find((c) => c.slug === "casual-shirt")!;
+    expect(subcategoryChipGroup(casual, cats)?.parent.slug).toBe("shirts");
+    const pants = cats.find((c) => c.slug === "pants")!;
+    expect(subcategoryChipGroup(pants, cats)).toBeNull();
   });
 });

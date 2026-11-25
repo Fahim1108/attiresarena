@@ -10,14 +10,14 @@ import {APPAREL_SIZES} from '@/lib/catalogue-dimensions';
 
 afterEach(()=>vi.unstubAllEnvs());
 function preview(){vi.stubEnv('CLAUDE_DESIGN_PREVIEW','1');vi.stubEnv('VERCEL_ENV','preview');for(const name of ['SUPABASE_URL','SUPABASE_PUBLISHABLE_KEY','NEXT_PUBLIC_SUPABASE_URL','NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'])vi.stubEnv(name,'');}
-it('shows all ten size groups without treating a provisional preview M as actual stock',()=>{
+it('shows all thirteen size groups without treating a provisional preview M as actual stock',()=>{
  preview();const products=reviewShirts();const html=renderToStaticMarkup(createElement(ShopBySize,{products}));
  for(const size of APPAREL_SIZES)expect(html).toContain(`>${size}</span>`);
- expect(html.match(/aria-disabled="true"/g)).toHaveLength(10);expect(html).not.toContain('href=');
+ expect(html.match(/aria-disabled="true"/g)).toHaveLength(13);expect(html).not.toContain('href=');
  const first=products[0];if(!first)throw new Error('Missing test inventory');
  const verified={...first,status:'published' as const,reviewOnly:false};
  const confirmed=renderToStaticMarkup(createElement(ShopBySize,{products:[verified]}));
- expect(confirmed).toContain('href="/shop?sizes=M&amp;available=1"');expect(confirmed.match(/aria-disabled="true"/g)).toHaveLength(9);
+ expect(confirmed).toContain('href="/shop?sizes=M&amp;available=1"');expect(confirmed.match(/aria-disabled="true"/g)).toHaveLength(12);
 });
 it('exposes styles only when matching verified published records exist',()=>{
  preview();const products=reviewShirts();expect(renderToStaticMarkup(createElement(ShirtStyles,{products}))).toBe('');
@@ -33,5 +33,5 @@ it('curates only original inventory and preserves photos, prices and lack of fab
 });
 it('preserves required homepage order and 3s hero auto-rotation',async()=>{
  preview();const settings=await ownerCatalogue.getStorefrontSettings();expect(settings.homepage.filter(s=>s.enabled).map(s=>s.type)).toEqual(['hero','categories','sizes','new-arrivals','featured']);expect(campaignHero.autoplayMs).toBe(3000);expect(campaignHero.slides.map(s=>s.id)).toEqual(['banner-01','banner-02','banner-03']);
- expect(settings.header.navigation.find(n=>n.label==='Shirts')?.children).toEqual([{label:'All Shirts',href:'/category/shirts'}]);
+ expect(settings.header.navigation.find(n=>n.label==='Shirts')?.children).toEqual([{label:'All Shirts',href:'/category/shirts'},{label:'Casual shirt',href:'/category/casual-shirt'},{label:'Formal shirt',href:'/category/formal-shirt'},{label:'Check shirt',href:'/category/check-shirt'}]);
 });

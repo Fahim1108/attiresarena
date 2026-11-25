@@ -483,7 +483,7 @@ describe("approvedReviews fallback read (Q8) + approved-only projection", () => 
     verified_purchase: true,
   };
 
-  it("reads the verified flag when the column exists, in one request", async () => {
+  it("reads the verified flag when the column exists, plus one photo read", async () => {
     stubConfig();
     const urls: string[] = [];
     vi.stubGlobal("fetch", async (url: string) => {
@@ -503,9 +503,10 @@ describe("approvedReviews fallback read (Q8) + approved-only projection", () => 
         verifiedPurchase: true,
       },
     ]);
-    expect(urls).toHaveLength(1);
+    expect(urls).toHaveLength(2);
     expect(urls[0]).toContain("status=eq.approved");
     expect(urls[0]).toContain("verified_purchase");
+    expect(urls[1]).toContain("product_review_photos");
   });
 
   it("retries once without the flag pre-migration instead of failing to []", async () => {
@@ -527,8 +528,9 @@ describe("approvedReviews fallback read (Q8) + approved-only projection", () => 
     const reviews = await approvedReviews(PRODUCT_ID);
     expect(reviews).toHaveLength(1);
     expect(reviews[0]?.verifiedPurchase).toBe(false);
-    expect(urls).toHaveLength(2);
-    expect(urls.every((url) => url.includes("status=eq.approved"))).toBe(true);
+    expect(urls).toHaveLength(3);
+    expect(urls.slice(0, 2).every((url) => url.includes("status=eq.approved"))).toBe(true);
+    expect(urls[2]).toContain("product_review_photos");
   });
 
   it("returns [] when both reads fail, and drops invalid rows", async () => {

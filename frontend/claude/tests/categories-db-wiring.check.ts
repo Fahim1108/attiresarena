@@ -138,6 +138,11 @@ describe("mergeDbCategories", () => {
   });
 
   it("appends a DB-only slug with its DB id and orders children after their parent", () => {
+    // Client feedback 2026-11-24 item 4: the rows include primary
+    // slugs (shirts, pants), so the DB owns the taxonomy — static
+    // categories with no DB row (sneakers, belts, wallets, watches,
+    // and the shirt sub-categories) are NOT re-appended. The
+    // DB-only slugs and the child ordering are what this test pins.
     const merged = mergeDbCategories(storeCategories, [
       shirts,
       pants,
@@ -149,15 +154,8 @@ describe("mergeDbCategories", () => {
       "overshirts",
       "pants",
       "hoodies",
-      "casual-shirt",
-      "formal-shirt",
-      "check-shirt",
-      "sneakers",
-      "belts",
-      "wallets",
-      "watches",
     ]);
-    expect(merged.map((c) => c.sortOrder)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(merged.map((c) => c.sortOrder)).toEqual([1, 2, 3, 4]);
     const hoodiesResult = merged.find((c) => c.slug === "hoodies")!;
     expect(hoodiesResult.id).toBe("22222222-2222-4222-8222-222222222222");
     expect(hoodiesResult.description).toBe("Warm hoodies.");
