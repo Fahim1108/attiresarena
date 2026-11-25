@@ -1,16 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { officialShirtSizeGuide } from "../src/config/shirt-size-guide";
 import { sizeGuideMeasurements } from "../src/components/product/SizeGuideTable";
+import { SizeSelector } from "../src/components/product/VariantSelector";
 import type { SizeGuide } from "../src/types";
 
 /**
  * Client feedback batch B (items 7, 10, 11, 12) — 2026-11-24, Fahim approved.
  * - (7) Product photo frame is taller (3/4) so tall portrait photos show the
  *   collar — on product cards and in the detail gallery.
- * - (10) Size buttons show the guide measurements in brackets, e.g.
- *   "XL (Chest 44, Length 28–29)"; sizes with no guide row show just the label.
+ * - (10) CORRECTED 2026-11-25 (Fahim): the guide measurements go beside the
+ *   "Size:" line, e.g. "Size: M (Chest 40, Length 28–29)" — or comma-separated
+ *   for several sizes — and the option buttons stay plain labels (S, M, L).
+ *   Sizes with no guide row show just the label.
  * - (11) Product page has a Facebook share button + a copy-link button.
  * - (12) "Details & Care" is gone; only Description + Delivery & Returns
  *   remain, and the size guide lives in its own section below the accordion.
@@ -20,7 +25,7 @@ function src(rel: string): string {
   return readFileSync(join(process.cwd(), "src", rel), "utf8");
 }
 
-describe("item 10: size-button measurements", () => {
+describe("item 10: size-guide measurement mapping (feeds the Size line)", () => {
   it("maps the official guide to bracket text", () => {
     const m = sizeGuideMeasurements(officialShirtSizeGuide);
     expect(m["XL"]).toBe("Chest 44, Length 28–29");
@@ -47,6 +52,54 @@ describe("item 10: size-button measurements", () => {
 
   it("omits a size that is absent from the guide entirely", () => {
     expect(sizeGuideMeasurements(officialShirtSizeGuide)["11XL"]).toBeUndefined();
+  });
+});
+
+describe("item 10 (corrected 2026-11-25): measurements beside the Size line", () => {
+  const measurements = {
+    S: "Chest 38, Length 27–28",
+    M: "Chest 40, Length 28–29",
+    L: "Chest 42, Length 28–29",
+    XL: "Chest 44, Length 28–29",
+  };
+
+  function renderSelector(
+    isAvailable: (s: string) => boolean,
+    m: Record<string, string> = measurements,
+  ): string {
+    return renderToStaticMarkup(
+      createElement(SizeSelector, {
+        sizes: ["S", "M", "L", "XL"],
+        value: undefined,
+        onChange: () => {},
+        isAvailable,
+        measurements: m,
+      }),
+    );
+  }
+
+  it("shows the single in-stock size with its measurements beside Size:", () => {
+    const html = renderSelector((s) => s === "M");
+    expect(html).toContain("M (Chest 40, Length 28–29)");
+    // The buttons stay plain labels: no measurement inside any button.
+    expect(html).not.toContain("(Chest 40, Length 28–29)</button>");
+    expect(html).toContain(">M</button>");
+    // Sold-out sizes do not appear in the Size line.
+    expect(html).not.toContain("S (Chest 38");
+  });
+
+  it("lists several in-stock sizes comma-separated beside Size:", () => {
+    const html = renderSelector((s) => s === "S" || s === "L");
+    expect(html).toContain(
+      "S (Chest 38, Length 27–28), L (Chest 42, Length 28–29)",
+    );
+    expect(html).not.toContain("(Chest 38, Length 27–28)</button>");
+  });
+
+  it("shows just the label when a size has no guide row", () => {
+    const html = renderSelector((s) => s === "M", {});
+    expect(html).toContain(">M</button>");
+    expect(html).not.toContain("(");
   });
 });
 
