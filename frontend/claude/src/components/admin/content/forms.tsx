@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { FormMessage, SubmitButton } from "@/components/admin/ui-client";
+import { BANNER_FIT_HEIGHT, BANNER_FIT_MAX_BYTES, BANNER_FIT_WIDTH, fitBannerImage } from "@/components/admin/catalog/banner-image-fit";
 import type { AdminActionResult } from "@/lib/admin/authorization";
 import type { Banner, ContentBlock } from "@/lib/admin/content";
 
@@ -141,8 +142,39 @@ export function BannerForm({
   defaultPlacement: "hero" | "promo";
 }) {
   const [state, formAction] = useActionState(action, null);
+  // Client feedback item 2: the chosen image is fitted to the 16:9
+  // banner frame before submit, so a wrong-size upload still matches.
+  // The input's files are replaced with the fitted file, so the server
+  // action receives exactly what the admin sees. Submits are blocked
+  // while a fit is running, so the original can never slip through.
+  const [fitNote, setFitNote] = useState<string | null>(null);
+  const [fitting, setFitting] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  async function onImageChange(files: FileList | null) {
+    const file = files?.[0];
+    const input = imageInputRef.current;
+    if (!file || !input) return;
+    setFitting(true);
+    try {
+      const fitted = await fitBannerImage(file);
+      if (fitted.fitted) {
+        const transfer = new DataTransfer();
+        transfer.items.add(fitted.file);
+        input.files = transfer.files;
+      }
+      setFitNote(fitted.note);
+    } finally {
+      setFitting(false);
+    }
+  }
   return (
-    <form action={formAction} encType="multipart/form-data">
+    <form
+      action={formAction}
+      encType="multipart/form-data"
+      onSubmit={(e) => {
+        if (fitting) e.preventDefault();
+      }}
+    >
       <FormMessage state={state} />
       <input type="hidden" name="id" value={banner?.id ?? ""} />
       <input
@@ -176,15 +208,24 @@ export function BannerForm({
         </div>
         <div className="aa-field">
           <label htmlFor={banner ? `banner-image-${banner.id}` : "banner-image"}>
-            Image (JPEG, PNG or WebP, up to 768 KiB)
+            Image — 16:9, {BANNER_FIT_WIDTH}×{BANNER_FIT_HEIGHT} (JPEG, PNG or WebP, up to {Math.round(BANNER_FIT_MAX_BYTES / 1024)} KiB)
           </label>
           <input
+            ref={imageInputRef}
             id={banner ? `banner-image-${banner.id}` : "banner-image"}
             name="image"
             type="file"
             accept="image/jpeg,image/png,image/webp"
             required={!banner}
+            onChange={(e) => {
+              void onImageChange(e.target.files);
+            }}
           />
+          <p className="aa-hint">
+            Any image is fitted to {BANNER_FIT_WIDTH}×{BANNER_FIT_HEIGHT} (16:9) automatically — nothing is cut off.
+            {fitting ? " Fitting…" : ""}
+          </p>
+          {fitNote ? <p className="aa-hint">{fitNote}</p> : null}
           {banner?.imageUrl ? (
             <p className="aa-hint">
               Current image is kept when no new file is chosen.
