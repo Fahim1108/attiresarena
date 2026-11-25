@@ -49,7 +49,9 @@ import { publicSupabaseConfiguration } from "./supabase-public";
 import { PRODUCT_MEDIA_BUCKET } from "./admin/constants";
 import { isCatalogStoragePath } from "./admin/catalog-variants";
 import {
+  PRIMARY_CATEGORY_SLUGS,
   SHIRT_PARENT_ID,
+  SHIRT_SUBCATEGORY_SLUGS,
   canonicalShirtSubcategory,
   isShirtSubcategory,
   shirtSubKey,
@@ -489,7 +491,10 @@ export function categoryMediaUrl(
  *   each followed by its children); a row whose parent is not among
  *   the published rows is treated as top-level. Static categories
  *   with no DB row keep their relative order after the DB-driven
- *   ones. sortOrder is reassigned sequentially in final order.
+ *   ones — UNLESS the DB owns the taxonomy (dbOwnsTaxonomy: the
+ *   primary-seed migration applied), in which case a static category
+ *   with no published DB row is dropped, so an admin delete really
+ *   removes the tile (item 4).
  * - Unpublished rows are ignored here (and invisible to the anon
  *   read anyway): unpublishing a category that also exists in the
  *   static config does NOT remove it from the shop — that needs a
@@ -506,6 +511,31 @@ export function mergeDbCategories(
     return parsed && parsed.published ? [parsed] : [];
   });
   if (rows.length === 0) return staticCategories;
+  /**
+   * Client feedback 2026-11-24 item 4: the DB owns the taxonomy
+   * once the primary-seed migration (20261124000100) has been
+   * applied — it inserts the six primary rows and gives the three
+   * shirt sub-categories a real parent. The gate is therefore: any
+   * primary slug among the published rows, OR any canonical shirt
+   * sub-category row with a real parent_id. The second arm matters
+   * when the admin later deletes a primary: the primaries may all
+   * be gone, but the parented subs still prove the seed ran, so
+   * the static fallback must NOT resurrect the deleted tiles.
+   * Before the seed (live DB today: only the three sub rows, all
+   * parent_id NULL) the gate is off and the static config fills
+   * the gaps exactly as before — shipping this code before the
+   * migration is applied cannot drop any tile. Known edge: if the
+   * admin deletes every primary AND un-parents (or deletes) every
+   * shirt sub-category, the gate turns off and the static six come
+   * back; deleting the whole taxonomy at once is not a supported
+   * admin flow.
+   */
+  const dbOwnsTaxonomy = rows.some(
+    (r) =>
+      (PRIMARY_CATEGORY_SLUGS as readonly string[]).includes(r.slug) ||
+      ((SHIRT_SUBCATEGORY_SLUGS as readonly string[]).includes(r.slug) &&
+        r.parent_id !== null),
+  );
   const bySlug = new Map<string, CategoryRow>();
   const byId = new Map<string, CategoryRow>();
   for (const row of rows) {
@@ -613,6 +643,14 @@ export function mergeDbCategories(
     }
   }
   for (const base of staticCategories) {
+    // Client feedback 2026-11-24 item 4: once the DB owns the
+    // taxonomy (see dbOwnsTaxonomy below), the DB is the source of
+    // truth — a static category with no published DB row is NOT
+    // re-appended, so deleting it in admin really removes its tile
+    // instead of resurrecting it from the static fallback. Until
+    // then (read failed, or the primary-seed migration not yet
+    // applied) the static rows fill the gaps exactly as before.
+    if (dbOwnsTaxonomy) continue;
     if (!usedSlugs.has(base.slug)) merged.push({ ...base, sortOrder: 0 });
   }
   return merged.map((category, index) => ({

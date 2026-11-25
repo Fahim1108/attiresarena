@@ -19,6 +19,25 @@ import type { Category } from "@/types";
 export const SHIRT_PARENT_SLUG = "shirts";
 export const SHIRT_PARENT_ID = "cat-shirts";
 
+/**
+ * The six primary (top-level) categories, in shop order. Client
+ * feedback 2026-11-24 item 4: the admin owns these rows in the DB;
+ * the static config is only a fallback. mergeDbCategories treats the
+ * DB as the source of truth once it returns any of these slugs (or a
+ * parented shirt sub-category — see store-settings.ts), so deleting
+ * one in admin removes its tile instead of resurrecting it from the
+ * static config. Keep in sync with the top-level rows of
+ * src/config/catalogue.ts (the rows with no parentId).
+ */
+export const PRIMARY_CATEGORY_SLUGS = [
+  "shirts",
+  "pants",
+  "sneakers",
+  "belts",
+  "wallets",
+  "watches",
+] as const;
+
 export const SHIRT_SUBCATEGORY_SLUGS = [
   "casual-shirt",
   "formal-shirt",
@@ -137,9 +156,60 @@ export function shirtSubcategories(
   return out;
 }
 
-/** Everything except the shirt sub-categories — the top-level browse list. */
+/** Everything except the shirt sub-categories — the top-level browse list.
+ * Client feedback 2026-11-24 item 3: a secondary category NEVER shows
+ * as a top-level tile. The old filter only excluded the three shirt
+ * types by slug/name, so a child category with a real parent (e.g. a
+ * "White Sneakers" row under Sneakers) leaked out as a tile. A
+ * top-level tile now needs parentId null AND must not be a shirt
+ * sub-category (belt-and-braces: merged shirt subs carry
+ * parentId cat-shirts already, but static-only rows must stay hidden
+ * even if their parentId is ever missing). */
 export function topLevelCategories(
   categories: readonly Category[],
 ): Category[] {
-  return categories.filter((c) => !isShirtSubcategory(c));
+  return categories.filter(
+    (c) => (c.parentId ?? null) === null && !isShirtSubcategory(c),
+  );
+}
+
+/** Direct children of one category, in list order. */
+export function childCategories(
+  categories: readonly Category[],
+  parentId: string,
+): Category[] {
+  return categories.filter((c) => c.parentId === parentId);
+}
+
+/**
+ * The sub-category chip group for a category page, or null when the
+ * page has no sub-options. Client feedback 2026-11-24 item 3: the
+ * rule is generic, not shirts-only — inside ANY primary's page its
+ * secondaries appear as sub-options (Shirts → All Shirts, Casual,
+ * Formal, Check; Sneakers → White Sneakers, Black Sneakers), and on
+ * a secondary's own page its parent ("All <Parent>") leads back
+ * alongside its siblings. Shirts keeps its canonical deduped list
+ * (messy staging rows collapse to one chip per type); every other
+ * category uses its real DB children by parentId.
+ */
+export function subcategoryChipGroup(
+  category: Category,
+  categories: readonly Category[],
+): { parent: Category; items: Category[] } | null {
+  if (category.slug === SHIRT_PARENT_SLUG || isShirtSubcategory(category)) {
+    const parent =
+      categories.find((c) => c.slug === SHIRT_PARENT_SLUG) ?? category;
+    const items = shirtSubcategories(categories);
+    return items.length > 0 ? { parent, items } : null;
+  }
+  const children = childCategories(categories, category.id);
+  if (children.length > 0) return { parent: category, items: children };
+  const parentId = category.parentId ?? null;
+  if (parentId !== null) {
+    const parent = categories.find((c) => c.id === parentId);
+    if (parent) {
+      return { parent, items: childCategories(categories, parent.id) };
+    }
+  }
+  return null;
 }

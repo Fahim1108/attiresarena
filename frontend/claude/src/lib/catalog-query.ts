@@ -170,7 +170,7 @@ export function queryProducts(
   const facetProducts = base.filter(p => matchesCategories(p, catIds, categories) && (!brandIds?.length || brandIds.includes(p.brandId)));
   const colorMap = new Map<string, Product["colors"][number]>();
   facetProducts.forEach((p) => p.colors.forEach((c) => colorMap.set(c.id, c)));
-  const sizeOrder = ["S", "M", "L", "XL", "XXL"];
+  const sizeOrder = ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL", "6XL", "7XL", "8XL", "9XL", "10XL"];
   const sizes = Array.from(new Set(facetProducts.filter(p=>p.apparelSizing || (catIds?.length && p.sizes.some(s=>s!=="One Size"))).flatMap((p) => p.variants.filter(v=>v.stock>0).map(v=>canonicalSize(v.size)??v.size)))).sort((a, b) => {
     const ia = sizeOrder.indexOf(a), ib = sizeOrder.indexOf(b);
     if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
