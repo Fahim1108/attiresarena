@@ -5,6 +5,7 @@ import {
   MapPin,
   Music2,
   MessageCircle,
+  Phone,
   Youtube,
 } from "lucide-react";
 import Link from "next/link";
@@ -79,12 +80,21 @@ export function Footer() {
               })}
             </ul>
             </nav>
+            {/* Client feedback item 8: the store phone shows below the
+                social icons once the owner saves a real number in admin
+                (contact_phone); on Preview/staging the layout substitutes
+                a sample number. The "+880 1XXX-XXXXXX" config placeholder
+                is never shown. */}
+            {footer.contact.phone && !footer.contact.phone.includes("X") && (
+              <p className={styles.address}>
+                <Phone className={styles.addressIcon} aria-hidden size={15} />
+                <a href={`tel:${footer.contact.phone.replace(/[^+\d]/g, "")}`}>{footer.contact.phone}</a>
+              </p>
+            )}
             {/* Store address (footer.contact.address, "Barishal, Bangladesh").
                 The Footer never rendered contact details before 2026-11-21,
                 so the ae73a87 config change (Dhaka -> Barishal) was invisible:
-                no address line showed at all. Only the address is shown here
-                — phone/email stay placeholder values in the config and must
-                not render until the owner supplies real ones. */}
+                no address line showed at all. */}
             {footer.contact.address && (
               <p className={styles.address}>
                 <MapPin className={styles.addressIcon} aria-hidden size={15} />
