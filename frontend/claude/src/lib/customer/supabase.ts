@@ -16,6 +16,33 @@ import { publicSupabaseConfiguration } from "@/lib/supabase-public";
  */
 export const CUSTOMER_AUTH_COOKIE = "aa-customer-auth";
 
+/**
+ * Expire the customer session cookies directly on the response.
+ * The SDK's signOut can leave the browser cookie standing: when the
+ * stored session can no longer be read (e.g. an expired refresh
+ * token makes its session load fail), signOut returns early without
+ * removing anything, and when the client itself is unavailable
+ * signOut is skipped entirely — in both cases the redirect home
+ * still runs and the customer looks signed in. Deleting the cookie
+ * — and any chunked `.0`, `.1`, … variants — here is synchronous
+ * with the action response, so the browser clears it either way.
+ * It is a no-op when the SDK already cleared them, and it touches
+ * only the customer cookie, never the staff session.
+ */
+export async function expireCustomerSessionCookies(): Promise<void> {
+  let store;
+  try {
+    store = await cookies();
+  } catch {
+    return;
+  }
+  for (const { name } of store.getAll()) {
+    if (name === CUSTOMER_AUTH_COOKIE || name.startsWith(`${CUSTOMER_AUTH_COOKIE}.`)) {
+      store.set(name, "", { maxAge: 0, path: "/" });
+    }
+  }
+}
+
 export async function customerClient(writeCookies = false) {
   const config = publicSupabaseConfiguration();
   if (!config) return null;
