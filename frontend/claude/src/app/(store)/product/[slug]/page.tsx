@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { ProductDetailClient } from "@/components/product/ProductDetailClient";
 import { ProductDeliveryInfo } from "@/components/product/ProductDeliveryInfo";
 import { ProductSizeProvider, SameSizeRecommendations } from "@/components/product/ProductSizeContext";
-import { SizeGuideTable } from "@/components/product/SizeGuideTable";
 import { ReviewList } from "@/components/product/ReviewList";
 import { ProductJsonLd } from "@/components/seo/JsonLd";
 import { Accordion, Breadcrumbs } from "@/components/ui";
@@ -89,7 +88,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pa
           <ProductDetailClient product={{...product,rating:reviewRating}} brandName={brand?.name} initialColorId={typeof sp.color === "string" ? sp.color : undefined} sizeGuide={effectiveSizeGuide} />
         </div>
 
-        {product.reviewOnly&&<section className="mt-8 rounded-card border border-line p-5" aria-labelledby="review-details"><h2 id="review-details" className="font-serif text-2xl">Product details</h2><p className="mt-3 whitespace-pre-line">{product.description}</p>{product.details.length>0&&<ul className="mt-3 list-disc space-y-1 pl-5">{product.details.map(detail=><li key={detail}>{detail}</li>)}</ul>}{effectiveSizeGuide&&<div className="mt-4"><SizeGuideTable guide={effectiveSizeGuide} /></div>}<p className="mt-3 text-xs text-ink-muted">Preview only. Saving details does not verify or publish this garment.</p></section>}
+        {product.reviewOnly&&<section className="mt-8 rounded-card border border-line p-5" aria-labelledby="review-details"><h2 id="review-details" className="font-serif text-2xl">Product details</h2><p className="mt-3 whitespace-pre-line">{product.description}</p>{product.details.length>0&&<ul className="mt-3 list-disc space-y-1 pl-5">{product.details.map(detail=><li key={detail}>{detail}</li>)}</ul>}<p className="mt-3 text-xs text-ink-muted">Preview only. Saving details does not verify or publish this garment.</p></section>}
         <div className="mt-14 grid gap-10 lg:grid-cols-[1.15fr_1fr] lg:gap-14">
           {!product.reviewOnly && (
           <Accordion
