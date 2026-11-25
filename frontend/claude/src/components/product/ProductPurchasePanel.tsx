@@ -11,7 +11,7 @@ import { displayedSizes, findVariant, isSizeAvailable, toCartLine } from "@/lib/
 import type { Product, SizeGuide } from "@/types";
 import { QuantitySelector } from "./QuantitySelector";
 import { SizeSelector } from "./VariantSelector";
-import { sizeGuideMeasurements } from "./SizeGuideTable";
+import { sizeGuideMeasurements, SizeGuideTable } from "./SizeGuideTable";
 import { WishlistButton } from "./WishlistButton";
 
 interface Props {
@@ -33,6 +33,9 @@ export function ProductPurchasePanel({ product, brandName, colorId, compact, onA
   const [size, setSize] = useState<string | undefined>(oneSize ? product.sizes[0] : undefined);
   const [qty, setQty] = useState(1);
   const [sizeError, setSizeError] = useState<string>();
+  // Size Guide opens from a button just below the size selector (Fahim,
+  // 2026-11-25) — the table is hidden until the shopper asks for it.
+  const [sizeGuideOpen, setSizeGuideOpen] = useState(false);
   // Share row is client-only: the page URL comes from the browser, with an
   // empty server snapshot so server rendering never sees a mismatched href.
   const pageUrl = useSyncExternalStore(
@@ -128,6 +131,25 @@ export function ProductPurchasePanel({ product, brandName, colorId, compact, onA
         measurements={sizeGuide ? sizeGuideMeasurements(sizeGuide) : undefined}
         error={sizeError}
       />
+
+      {sizeGuide && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setSizeGuideOpen((open) => !open)}
+            aria-expanded={sizeGuideOpen}
+            aria-controls="product-size-guide"
+            className={buttonClasses({ variant: "outline", size: "sm" })}
+          >
+            Size Guide
+          </button>
+          {sizeGuideOpen && (
+            <div id="product-size-guide" className="mt-3">
+              <SizeGuideTable guide={sizeGuide} />
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
