@@ -18,7 +18,7 @@ export const theme: ThemeSettings = {
   typography: {
     // The variables are provided by next/font in src/app/layout.tsx.
     serif: "var(--font-cormorant), 'Cormorant Garamond', Georgia, serif",
-    sans: "var(--font-inter), Inter, system-ui, -apple-system, 'Segoe UI', sans-serif",
+    sans: "var(--font-inter), Inter, var(--font-noto-bengali), 'Noto Sans Bengali Variable', system-ui, -apple-system, 'Segoe UI', sans-serif",
     headingWeight: 500,
     headingUppercaseHero: true,
   },
