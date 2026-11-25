@@ -264,13 +264,13 @@ describe("customer callback destinations (exact-match allowlist)", () => {
       "/account ",
     ]) {
       expect(allowlistedCustomerDestination(value)).toBeUndefined();
-      expect(customerCallbackDestination(value)).toBe("/account");
+      expect(customerCallbackDestination(value)).toBe("/");
     }
   });
 
-  it("defaults to /account for missing or non-string values", () => {
-    expect(customerCallbackDestination(undefined)).toBe("/account");
-    expect(customerCallbackDestination(null)).toBe("/account");
+  it("defaults to / for missing or non-string values", () => {
+    expect(customerCallbackDestination(undefined)).toBe("/");
+    expect(customerCallbackDestination(null)).toBe("/");
     expect(allowlistedCustomerDestination(undefined)).toBeUndefined();
     expect(allowlistedCustomerDestination(null)).toBeUndefined();
   });
@@ -1379,7 +1379,7 @@ describe("Google sign-in action", () => {
     });
   });
 
-  it("falls back to /account for a non-allowlisted next", async () => {
+  it("falls back to / for a non-allowlisted next", async () => {
     mocks.auth.signInWithOAuth.mockResolvedValue({
       data: { provider: "google", url: "https://auth.test.invalid/authorize" },
       error: null,
@@ -1392,7 +1392,7 @@ describe("Google sign-in action", () => {
     expect(mocks.auth.signInWithOAuth).toHaveBeenCalledWith(
       expect.objectContaining({
         options: expect.objectContaining({
-          redirectTo: "https://preview.test.invalid/auth/callback?next=%2Faccount",
+          redirectTo: "https://preview.test.invalid/auth/callback?next=%2F",
         }),
       }),
     );
@@ -1445,17 +1445,17 @@ describe("/auth/callback route", () => {
     expect(queryCalls.some((call) => call.table === "profiles" && call.method === "insert")).toBe(true);
   });
 
-  it("keeps the reset-password destination and defaults evil next values to /account", async () => {
+  it("keeps the reset-password destination and defaults evil next values to /", async () => {
     signedIn();
     const reset = await callbackGet(callbackRequest("?code=fake-code&next=/account/reset-password"));
     expect(reset.status).toBe(303);
     expect(reset.headers.get("Location")).toBe("/account/reset-password");
 
     const evil = await callbackGet(callbackRequest("?code=fake-code&next=https://evil.test/account"));
-    expect(evil.headers.get("Location")).toBe("/account");
+    expect(evil.headers.get("Location")).toBe("/");
 
     const missing = await callbackGet(callbackRequest("?code=fake-code"));
-    expect(missing.headers.get("Location")).toBe("/account");
+    expect(missing.headers.get("Location")).toBe("/");
   });
 
   it("400s on a missing, overlong, or unexchangeable code without leaking detail", async () => {
