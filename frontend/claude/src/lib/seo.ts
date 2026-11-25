@@ -784,23 +784,26 @@ export const SEO_OG_LOCALE = "en_US";
 export const DEFAULT_OG_IMAGE_SIZE = { width: 540, height: 540 } as const;
 
 /**
- * Measured dimensions of the homepage share image `/brand/og-home.jpg`
- * (1200×630 JPEG, center-cropped 2026-11-24 from the check-shirts
- * category photo Fahim chose on 2026-11-19 — white check + maroon check
- * folded shirts). Only the homepage uses it: Google picked the Belt
- * category tile as the search-result thumbnail because the global
- * default is the small logo badge, so the homepage carries a real shirt
- * photo as its share image instead. A stored `seo_og_image_url` still
- * wins over it (see `resolveHomeOgImage`).
+ * Measured dimensions of the homepage share image, the main logo badge
+ * `/brand/logo-badge.jpg` (540×540 JPEG, probed 2026-11-17 — same file
+ * and size as the global default, see `DEFAULT_OG_IMAGE_SIZE`).
+ * History: the homepage used to carry the 1200x630 check-shirts photo
+ * /brand/og-home.jpg (2026-11-24 fix — Google had picked the Belt
+ * category tile as the search thumbnail because the global default is
+ * the small logo badge). Fahim chose logo-only for link shares on
+ * 2026-11-25 ("Shudhu logo"), so the homepage share image is the logo
+ * badge again; the shirt photo file stays on disk, unused by code. A
+ * stored `seo_og_image_url` still wins over it (see
+ * `resolveHomeOgImage`).
  */
-export const HOME_OG_IMAGE_SIZE = { width: 1200, height: 630 } as const;
+export const HOME_OG_IMAGE_SIZE = { width: 540, height: 540 } as const;
 
-/** Homepage-only share image (see above). The alt describes the photo, nothing invented. */
+/** Homepage-only share image (see above): the main logo badge. */
 export const HOME_OG_IMAGE = {
-  url: "/brand/og-home.jpg",
+  url: "/brand/logo-badge.jpg",
   width: HOME_OG_IMAGE_SIZE.width,
   height: HOME_OG_IMAGE_SIZE.height,
-  alt: "Two folded check thrift shirts — white check and maroon check",
+  alt: "Attires Arena",
 } as const;
 
 export interface PageMetadataInput {
@@ -908,12 +911,12 @@ export function resolveDefaultOgImage(
 }
 
 /**
- * Resolve the homepage share image: the check-shirts photo
+ * Resolve the homepage share image: the main logo badge
  * (`HOME_OG_IMAGE`), unless a stored absolute `seo_og_image_url` is set
  * — the stored URL still wins (existing behaviour) and the caller then
  * falls back to the resolved default by passing no page image (null).
  * Relative/invalid stored values are ignored by `resolveDefaultOgImage`,
- * so the shirt photo still applies for them.
+ * so the logo badge still applies for them.
  */
 export function resolveHomeOgImage(
   settings: Record<string, unknown> | null | undefined,
