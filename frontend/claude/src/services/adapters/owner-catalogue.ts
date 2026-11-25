@@ -17,7 +17,8 @@ import {defaultStorefrontSettings} from '@/config';
 import {queryProducts} from '@/lib/catalog-query';
 import {isShirtSubcategory} from '@/lib/category-hierarchy';
 import {getPublishedCategories,mergeDbCategories} from '@/lib/store-settings';
-import {availableShirtTypes,publishedAvailable} from '@/lib/catalogue-dimensions';
+import {publishedAvailable} from '@/lib/catalogue-dimensions';
+import {shirtSubcategories} from '@/lib/category-hierarchy';
 import type {Category,Product} from '@/types';
 import type {StorefrontDataSource} from '../types';
 
@@ -156,7 +157,17 @@ export const ownerCatalogue:StorefrontDataSource={...unavailableServices,...cust
  async getHomepageConfiguration(){const s=await this.getStorefrontSettings();return {sections:s.homepage,hero:s.hero,promoBanners:s.promoBanners,valueProps:s.valueProps};},
  async getStorefrontSettings(){
   const verified=(await publishedShirts()).filter(p=>!p.reviewOnly&&publishedAvailable(p));
-  const classifications=availableShirtTypes(verified).map(([,slug,label])=>({label,href:`/shop?shirt=${slug}`}));
+  // Client feedback 2026-11-24 item 5: the Shirts menu shows its
+  // sub-categories (Casual/Formal/Check) from the merged category
+  // list — the same source as the /category/shirts chips — so a new
+  // secondary added in admin appears in the desktop dropdown and
+  // the mobile hamburger automatically. The old children came from
+  // product attributes (availableShirtTypes), which live products do
+  // not carry, so the menu showed only "All Shirts". The categories
+  // read is React cache()d per request (see store-settings.ts), so
+  // this adds no extra Supabase round-trip on pages that already
+  // read categories.
+  const shirtChildren=shirtSubcategories(await liveCategories()).map((s)=>({label:s.name,href:`/category/${s.slug}`}));
   const winter=verified.some(p=>p.collectionSlugs?.includes('winter'));
   return {...defaultStorefrontSettings,
    // Owner-approved home description (Fahim, 2026-11-19 — target search
@@ -168,7 +179,7 @@ export const ownerCatalogue:StorefrontDataSource={...unavailableServices,...cust
    footer:{...defaultStorefrontSettings.footer,columns:defaultStorefrontSettings.footer.columns.map(c=>({...c,links:c.links.filter(l=>l.href!=='/collections/winter'||winter)}))},
    demo:{...defaultStorefrontSettings.demo,seedCart:false,showNotices:false},hero:campaignHero,
    homepage:defaultStorefrontSettings.homepage.map(s=>({...s,productIds:undefined,subtitle:undefined})),
-   header:{...defaultStorefrontSettings.header,announcement:{...defaultStorefrontSettings.header.announcement,items:['Thrift Shirts','Carefully Selected','Individual Pieces']},navigation:defaultStorefrontSettings.header.navigation.map(n=>n.label==='Men'?{...n,label:'Shirts',href:'/category/shirts',children:[{label:'All Shirts',href:'/category/shirts'},...classifications,...(winter?[{label:'Winter',href:'/collections/winter'}]:[])]}:n)},
+   header:{...defaultStorefrontSettings.header,announcement:{...defaultStorefrontSettings.header.announcement,items:['Thrift Shirts','Carefully Selected','Individual Pieces']},navigation:defaultStorefrontSettings.header.navigation.map(n=>n.label==='Men'?{...n,label:'Shirts',href:'/category/shirts',children:[{label:'All Shirts',href:'/category/shirts'},...shirtChildren,...(winter?[{label:'Winter',href:'/collections/winter'}]:[])]}:n)},
   };
  },
 };

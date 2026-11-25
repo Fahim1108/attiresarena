@@ -155,6 +155,9 @@ export const mockDataSource: StorefrontDataSource = {
   async submitReview() {
     return notConnected("Review submission");
   },
+  async uploadReviewPhoto() {
+    return notConnected("Review photo upload");
+  },
   async subscribeNewsletter() {
     return notConnected("Newsletter signup");
   },

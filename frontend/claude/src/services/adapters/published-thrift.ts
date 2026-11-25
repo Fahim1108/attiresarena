@@ -1,6 +1,10 @@
 import "server-only";
 import { cache } from "react";
 import { publicSupabaseConfiguration } from "@/lib/supabase-public";
+import {
+  projectReviewPhotoRow,
+  reviewPhotoUrl,
+} from "@/lib/customer/review-photos";
 import { extractRowSeoFields } from "@/lib/seo";
 import { isProductionStorefront } from "@/lib/storefront-policy";
 import projects from "@/config/supabase-projects.json";
@@ -425,10 +429,54 @@ export async function approvedReviews(productId: string): Promise<Review[]> {
       REVIEWS_PATH,
     );
     if (!read.ok) continue;
-    return read.rows.flatMap((row) => {
+    const reviews = read.rows.flatMap((row) => {
       const projected = projectApprovedReview(row, productId);
       return projected ? [projected] : [];
     });
+    return await withReviewPhotos(configuration, reviews);
   }
   return [];
+}
+
+/**
+ * Client feedback item 19: attach approved-review photos to the
+ * projected reviews. Photos come from product_review_photos
+ * (migration 20261124000300); the table's approved-only SELECT
+ * policy means the anon read returns photos of approved reviews on
+ * published products and nothing else. A failed photo read (including
+ * the pre-migration missing table) leaves the reviews photo-less —
+ * the list still renders, exactly as before.
+ */
+const REVIEW_PHOTOS_PATH = "/rest/v1/product_review_photos";
+
+async function withReviewPhotos(
+  configuration: PublicConfig | null,
+  reviews: Review[],
+): Promise<Review[]> {
+  if (reviews.length === 0) return reviews;
+  const ids = reviews.map((r) => r.id).join(",");
+  const read = await readRows(
+    configuration,
+    REVIEW_PHOTOS_PATH +
+      `?select=id,review_id,storage_path,position&review_id=in.(${ids})&order=position.asc`,
+    "GET",
+    undefined,
+    REVIEW_PHOTOS_PATH,
+  );
+  if (!read.ok) return reviews;
+  const byReview = new Map<string, { src: string; alt: string }[]>();
+  for (const row of read.rows) {
+    const projected = projectReviewPhotoRow(row);
+    if (!projected) continue;
+    const src = reviewPhotoUrl(projected.storagePath);
+    if (!src) continue;
+    const list = byReview.get(projected.reviewId) ?? [];
+    list.push({ src, alt: "Customer review photo" });
+    byReview.set(projected.reviewId, list);
+  }
+  if (byReview.size === 0) return reviews;
+  return reviews.map((review) => {
+    const photos = byReview.get(review.id);
+    return photos ? { ...review, photos } : review;
+  });
 }

@@ -8,6 +8,7 @@ import {
   signInCustomer,
   submitCustomerReviewAction,
   updateCustomerProfile,
+  uploadCustomerReviewPhotoAction,
 } from "@/lib/customer/actions";
 import { readCustomerAddresses } from "@/lib/customer/addresses";
 import {
@@ -143,6 +144,9 @@ export const customerServices = {
   async submitReview(input) {
     return submitCustomerReviewAction(input);
   },
+  async uploadReviewPhoto(reviewId, file, position) {
+    return uploadCustomerReviewPhotoAction(reviewId, file, position);
+  },
 } satisfies Pick<
   StorefrontDataSource,
   | "getCurrentCustomer"
@@ -155,4 +159,5 @@ export const customerServices = {
   | "saveAddress"
   | "deleteAddress"
   | "submitReview"
+  | "uploadReviewPhoto"
 >;
