@@ -16,10 +16,13 @@ export async function generateMetadata(): Promise<Metadata> {
   // The homepage ALWAYS emits its full metadata set (it used to return
   // only the canonical when no override existed, inheriting the layout's
   // OG image — the small logo badge — and Google picked the Belt category
-  // tile as the search thumbnail instead of a shirt). The values below
+  // tile as the search thumbnail instead of a shirt, so the homepage
+  // briefly carried the check-shirts photo as its share image
+  // 2026-11-24). Fahim chose logo-only for link shares 2026-11-25, so
+  // the share image is the logo badge again. The values below
   // are the same resolvers the layout uses, so title/description/OG
   // title/description are unchanged; only the share image changes, to
-  // the check-shirts photo (a stored seo_og_image_url still wins via
+  // the logo badge (a stored seo_og_image_url still wins via
   // resolveHomeOgImage returning null). Robots, keywords, verification
   // and icons still come from the layout (not defined here).
   // A home title override replaces the WHOLE title (absolute): the layout
