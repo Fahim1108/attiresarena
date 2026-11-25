@@ -159,6 +159,8 @@ export interface Review {
   createdAt: string;
   verifiedPurchase: boolean;
   size?: string;
+  /** Optional customer photos (client feedback item 19): approved-review photos only, in position order. */
+  photos?: { src: string; alt: string }[];
 }
 
 export interface SizeGuide {
