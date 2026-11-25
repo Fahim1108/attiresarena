@@ -56,6 +56,16 @@ export function OrderDetail({ order }: { order: Order }) {
                 <span className="text-xs text-ink-muted">
                   {l.colorName} · {l.size} · Qty {l.quantity}
                 </span>
+                {/* Client feedback item 19: review an ordered product
+                    from the account. The product page's #reviews section
+                    holds the form. Lines without a slug (product left
+                    the feed) get no link — there is no page to send
+                    the customer to. */}
+                {l.productSlug && (
+                  <Link href={`/product/${l.productSlug}#reviews`} className="mt-1 block w-fit text-xs font-medium text-primary hover:underline">
+                    Write a review
+                  </Link>
+                )}
               </span>
               <span className="shrink-0 text-sm font-medium tabular-nums">{formatPrice(l.unitPrice * l.quantity)}</span>
             </li>
