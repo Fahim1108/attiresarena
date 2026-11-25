@@ -157,3 +157,16 @@ it("still honors prefers-reduced-motion in the touched stylesheets", () => {
   expect(globals).toContain("@media (prefers-reduced-motion: reduce)");
   expect(footerCss).toContain("@media (prefers-reduced-motion: reduce)");
 });
+
+const accountNav = read("../src/components/account/AccountNav.tsx");
+
+it("stacks the My Account menu vertically on phones (no sideways slide to Sign Out)", () => {
+  // Client feedback 2026-11-24 item 13: on mobile the menu was a
+  // horizontal scroll strip, so Sign Out sat off-screen and needed a
+  // left-right slide. The list is a vertical stack on every size now.
+  expect(accountNav).toContain("flex flex-col gap-1");
+  expect(accountNav).not.toContain("overflow-x-auto");
+  expect(accountNav).not.toContain("scrollbar-none");
+  // Sign Out stays separated at the bottom on every size.
+  expect(accountNav).toContain("mt-3 border-t border-line pt-3");
+});
