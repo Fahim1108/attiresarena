@@ -18,11 +18,11 @@ export function AccountNav() {
   const pathname = usePathname();
   return (
     <nav aria-label="Account">
-      <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none lg:mx-0 lg:flex-col lg:gap-1 lg:px-0">
+      <ul className="flex flex-col gap-1">
         {links.map(({ href, label, Icon }) => {
           const active = href === "/account" ? pathname === "/account" : pathname.startsWith(href);
           return (
-            <li key={href} className="shrink-0">
+            <li key={href}>
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
@@ -33,7 +33,7 @@ export function AccountNav() {
             </li>
           );
         })}
-        <li className="shrink-0 lg:mt-3 lg:border-t lg:border-line lg:pt-3">
+        <li className="mt-3 border-t border-line pt-3">
           <form action={signOutCustomer}>
             <button type="submit" className="flex w-full cursor-pointer items-center gap-2.5 whitespace-nowrap rounded-control border border-line px-3.5 py-3 text-sm text-ink-muted hover:text-primary lg:border-transparent">
               <LogOut className="h-4 w-4" aria-hidden /> Sign Out
