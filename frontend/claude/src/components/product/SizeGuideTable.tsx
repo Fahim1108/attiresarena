@@ -1,8 +1,10 @@
 import type { SizeGuide } from "@/types";
 
-/** Bracket text for the size-selector buttons ("XL (Chest 44, Length 28–29)"),
+/** Bracket text for the "Size:" line ("M (Chest 40, Length 28–29)"),
  *  built from the guide's Chest/Length columns. A size with no usable
- *  measurements is omitted so its button shows just the label. */
+ *  measurements is omitted so the line shows just the label. The
+ *  size-option buttons stay plain labels — measurements never go in
+ *  them (Fahim, 2026-11-25). */
 export function sizeGuideMeasurements(guide: SizeGuide): Record<string, string> {
   const chestIdx = guide.columns.findIndex((c) => c.toLowerCase() === "chest");
   const lengthIdx = guide.columns.findIndex((c) => c.toLowerCase() === "length");
