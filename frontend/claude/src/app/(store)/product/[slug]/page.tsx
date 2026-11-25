@@ -110,12 +110,6 @@ export default async function ProductPage({ params, searchParams }: { params: Pa
           )}
           <ProductDeliveryInfo className={product.reviewOnly ? "lg:col-start-2" : undefined} />
         </div>
-        {!product.reviewOnly && effectiveSizeGuide && (
-          <section className="mt-14" aria-labelledby="size-guide">
-            <h2 id="size-guide" className="font-serif text-2xl">Size Guide</h2>
-            <div className="mt-4"><SizeGuideTable guide={effectiveSizeGuide} /></div>
-          </section>
-        )}
         <div className="mt-16">
           <ReviewList reviews={reviews} signedIn={session !== null} ownReview={ownReview} productId={product.id} />
         </div>
