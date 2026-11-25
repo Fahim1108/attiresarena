@@ -124,7 +124,7 @@ describe("Barishal delivery fixes (Preview 2026-11-21)", () => {
     expect(card).toContain("1–2 working days");
     expect(card).toContain("Outside Barishal City");
     expect(card).toContain("BDT 140");
-    expect(card).toContain("3–5 working days");
+    expect(card).toContain("2–3 working days");
     expect(card).toContain("Order confirmation");
     expect(card).not.toMatch(/Dhaka|free delivery/i);
   });
