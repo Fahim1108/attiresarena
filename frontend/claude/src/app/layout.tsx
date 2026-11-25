@@ -8,6 +8,7 @@ import { StorefrontProvider } from "@/context/StorefrontContext";
 import { ToastProvider } from "@/context/ToastContext";
 import { WishlistProvider } from "@/context/WishlistContext";
 import { applyAnnouncementOverride, applyBrandOverride, applyCustomizeOverride, applyFooterLinksOverride, applyFooterOverride, applyNavigationOverride, applySiteNameOverride, getStorefrontContent, parseMarketingSettings, resolveStorefrontMetadata, settingText } from "@/lib/store-settings";
+import { SAMPLE_STORE_PHONE } from "@/config/footer";
 import { brandMediaUrl } from "@/lib/brand-media-delivery";
 import { getInitialCart, getStorefrontSettings, getProducts } from "@/services";
 import "@fontsource-variable/cormorant-garamond";
@@ -57,6 +58,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const theme = applyCustomizeOverride(settings.theme, content?.layout ?? null);
   const header = applyNavigationOverride(applyAnnouncementOverride(settings.header, content?.settings ?? null), content?.layout ?? null);
   const footer = applyFooterLinksOverride(applyFooterOverride(settings.footer, content?.settings ?? null), content?.layout ?? null);
+  // Client feedback item 8: until the owner saves a real store phone in
+  // admin (contact_phone), Preview/staging shows a clearly-marked sample
+  // number so the footer design can be reviewed. Production never shows
+  // a sample: without a saved number the footer shows no phone at all.
+  const footerPhone = footer.contact.phone;
+  const footerWithPhone = process.env.VERCEL_ENV === "preview" && (!footerPhone || footerPhone.includes("X"))
+    ? { ...footer, contact: { ...footer.contact, phone: SAMPLE_STORE_PHONE } }
+    : footer;
   return (
     <html lang="en" >
       <head>
@@ -66,7 +75,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <CustomCodeSlot code={marketing.headCode} label="header" />
         <MarketingScripts marketing={marketing} />
-        <StorefrontProvider settings={{ ...settings, siteName, logo, theme, header, footer }}>
+        <StorefrontProvider settings={{ ...settings, siteName, logo, theme, header, footer: footerWithPhone }}>
           <ToastProvider>
             <WishlistProvider approvedProductIds={catalogue.items.map(p=>p.id)}>
               <CartProvider approvedProducts={catalogue.items} initialItems={initialCart} approvedVariantIds={catalogue.items.flatMap(p=>p.variants.filter(v=>v.stock>0).map(v=>v.id))}>
