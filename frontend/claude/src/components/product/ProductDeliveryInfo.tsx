@@ -31,7 +31,7 @@ export function ProductDeliveryInfo({ className }: { className?: string }) {
           <Truck className="mt-0.5 h-5 w-5 shrink-0 text-primary" strokeWidth={1.6} aria-hidden />
           <div>
             <p className="font-medium text-ink">Outside Barishal City</p>
-            <p className="text-ink-muted">3–5 working days · {formatPrice(commerce.deliveryCharges.outsideBarishalCity)}</p>
+            <p className="text-ink-muted">2–3 working days · {formatPrice(commerce.deliveryCharges.outsideBarishalCity)}</p>
           </div>
         </li>
         <li className="flex gap-3">

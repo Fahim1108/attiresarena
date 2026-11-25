@@ -202,7 +202,7 @@ export function ProductPurchasePanel({ product, brandName, colorId, compact, onA
         <ul className="grid grid-cols-3 gap-2 border-y border-line py-4 text-center">
           {[
             { Icon: Banknote, title: "Cash on Delivery", sub: "Across Bangladesh" },
-            { Icon: RotateCcw, title: "Easy Returns", sub: "7 days" },
+            { Icon: RotateCcw, title: "Easy Returns", sub: "3 days" },
             { Icon: ShieldCheck, title: "Secure Shopping", sub: "Your data is safe" },
           ].map(({ Icon, title, sub }) => (
             <li key={title} className="flex flex-col items-center gap-1.5">
