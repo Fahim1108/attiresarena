@@ -68,7 +68,8 @@ export default async function ProductPage({ params, searchParams }: { params: Pa
   const reviewRating={average:reviews.length?reviews.reduce((sum,r)=>sum+r.rating,0)/reviews.length:0,count:reviews.length};
   const brand = brands.find((b) => b.id === product.brandId);
   const category = categories.find((c) => c.id === product.categoryId);
-  // Size guide shown inline in the Details section below — no button, no modal.
+  // Size guide lives in its own section below the accordion (item 12:
+  // the old details accordion is gone) — no button, no modal.
   // Stored guide wins; shirts fall back to the official shirt guide.
   const effectiveSizeGuide = sizeGuide ?? (product.categoryId === "cat-shirts" ? officialShirtSizeGuide : null);
   const breadcrumbItems = [
@@ -85,7 +86,7 @@ export default async function ProductPage({ params, searchParams }: { params: Pa
           items={breadcrumbItems}
         />
         <div className="mt-5">
-          <ProductDetailClient product={{...product,rating:reviewRating}} brandName={brand?.name} initialColorId={typeof sp.color === "string" ? sp.color : undefined} />
+          <ProductDetailClient product={{...product,rating:reviewRating}} brandName={brand?.name} initialColorId={typeof sp.color === "string" ? sp.color : undefined} sizeGuide={effectiveSizeGuide} />
         </div>
 
         {product.reviewOnly&&<section className="mt-8 rounded-card border border-line p-5" aria-labelledby="review-details"><h2 id="review-details" className="font-serif text-2xl">Product details</h2><p className="mt-3 whitespace-pre-line">{product.description}</p>{product.details.length>0&&<ul className="mt-3 list-disc space-y-1 pl-5">{product.details.map(detail=><li key={detail}>{detail}</li>)}</ul>}{effectiveSizeGuide&&<div className="mt-4"><SizeGuideTable guide={effectiveSizeGuide} /></div>}<p className="mt-3 text-xs text-ink-muted">Preview only. Saving details does not verify or publish this garment.</p></section>}
@@ -95,35 +96,6 @@ export default async function ProductPage({ params, searchParams }: { params: Pa
             defaultOpen={["description"]}
             items={[
               { id: "description", title: "Description", content: <p>{product.description}</p> },
-              {
-                id: "details",
-                title: "Details & Care",
-                content: (
-                  <div className="space-y-4">
-                    <ul className="list-disc space-y-1 pl-5">
-                      {product.details.map((d) => (
-                        <li key={d}>{d}</li>
-                      ))}
-                    </ul>
-                    {product.material && (
-                      <p>
-                        <span className="font-medium text-ink">Material:</span> {product.material}
-                      </p>
-                    )}
-                    {product.care && (
-                      <div>
-                        <p className="font-medium text-ink">Care</p>
-                        <ul className="mt-1 list-disc space-y-1 pl-5">
-                          {product.care.map((c) => (
-                            <li key={c}>{c}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {effectiveSizeGuide && <SizeGuideTable guide={effectiveSizeGuide} />}
-                  </div>
-                ),
-              },
               {
                 id: "delivery",
                 title: "Delivery & Returns",
@@ -138,6 +110,12 @@ export default async function ProductPage({ params, searchParams }: { params: Pa
           )}
           <ProductDeliveryInfo className={product.reviewOnly ? "lg:col-start-2" : undefined} />
         </div>
+        {!product.reviewOnly && effectiveSizeGuide && (
+          <section className="mt-14" aria-labelledby="size-guide">
+            <h2 id="size-guide" className="font-serif text-2xl">Size Guide</h2>
+            <div className="mt-4"><SizeGuideTable guide={effectiveSizeGuide} /></div>
+          </section>
+        )}
         <div className="mt-16">
           <ReviewList reviews={reviews} signedIn={session !== null} ownReview={ownReview} productId={product.id} />
         </div>
