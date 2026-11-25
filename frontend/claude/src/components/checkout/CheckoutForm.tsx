@@ -82,9 +82,9 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
     if (form.fullName.trim().length < 3) e.fullName = "আপনার পুরো নাম লিখুন";
     if (!isValidBdPhone(form.phone)) e.phone = "সঠিক বাংলাদেশি মোবাইল নম্বর দিন (01XXXXXXXXX)";
     if (form.email && !isValidEmail(form.email)) e.email = "সঠিক ইমেইল ঠিকানা দিন";
-    if (!form.division) e.division = "বিভাগ বেছে নিন";
-    if (!form.district) e.district = "জেলা বেছে নিন";
-    if (!form.area.trim()) e.area = "এলাকা / উপজেলা বেছে নিন";
+    if (!form.division) e.division = "বিভাগ নির্বাচন করুন";
+    if (!form.district) e.district = "জেলা নির্বাচন করুন";
+    if (!form.area.trim()) e.area = "এলাকা / উপজেলা নির্বাচন করুন";
     if (form.addressLine.trim().length < 8) e.addressLine = "বাসা, রোড ও এলাকার বিস্তারিত লিখুন";
     setErrors(e);
     const first = Object.keys(e)[0];
@@ -246,19 +246,19 @@ export function CheckoutForm({ manualPaymentConfiguration, orderingEnabled = fal
                 <Input id="checkout-fullName" label="Your name" required autoComplete="name" placeholder="আপনার নাম লিখুন" value={form.fullName} onChange={(e) => set("fullName", e.target.value)} error={errors.fullName} wrapperClassName="sm:col-span-2" />
                 <Input id="checkout-phone" label="Mobile number" required type="tel" inputMode="tel" autoComplete="tel" placeholder="01XXXXXXXXX" value={form.phone} onChange={(e) => set("phone", e.target.value)} onBlur={captureContact} error={errors.phone} hint="অর্ডার নিশ্চিত করতে আমরা কল করব।" />
                 <Input id="checkout-email" label="Email (optional)" type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(e) => set("email", e.target.value)} error={errors.email} />
-                <Select id="checkout-division" label="Division" required placeholder="বিভাগ বেছে নিন" options={divisionNames.map((d) => ({ value: d, label: divisionLabel(d) }))} value={form.division} onChange={(e) => set("division", e.target.value)} error={errors.division} />
+                <Select id="checkout-division" label="Division" required placeholder="বিভাগ নির্বাচন করুন" options={divisionNames.map((d) => ({ value: d, label: divisionLabel(d) }))} value={form.division} onChange={(e) => set("division", e.target.value)} error={errors.division} />
                 <Select
                   id="checkout-district"
                   label="District"
                   required
-                  placeholder={form.division ? "জেলা বেছে নিন" : "আগে বিভাগ বেছে নিন"}
+                  placeholder={form.division ? "জেলা নির্বাচন করুন" : "আগে বিভাগ নির্বাচন করুন"}
                   disabled={!form.division}
                   options={districts.map((d) => ({ value: d, label: districtLabel(d) }))}
                   value={form.district}
                   onChange={(e) => set("district", e.target.value)}
                   error={errors.district}
                 />
-                <Select id="checkout-area" label="Area / Upazila" required placeholder={form.district ? "এলাকা / উপজেলা বেছে নিন" : "আগে জেলা বেছে নিন"} disabled={!form.district} options={areas.map((a) => ({ value: a, label: areaLabel(form.district, a) }))} value={form.area} onChange={(e) => set("area", e.target.value)} error={errors.area} wrapperClassName="sm:col-span-2" />
+                <Select id="checkout-area" label="Area / Upazila" required placeholder={form.district ? "এলাকা / উপজেলা নির্বাচন করুন" : "আগে জেলা নির্বাচন করুন"} disabled={!form.district} options={areas.map((a) => ({ value: a, label: areaLabel(form.district, a) }))} value={form.area} onChange={(e) => set("area", e.target.value)} error={errors.area} wrapperClassName="sm:col-span-2" />
                 <Textarea id="checkout-addressLine" label="Detailed address" required autoComplete="street-address" placeholder="বাসা, রোড, এলাকার বিস্তারিত লিখুন" value={form.addressLine} onChange={(e) => set("addressLine", e.target.value)} error={errors.addressLine} wrapperClassName="sm:col-span-2" className="min-h-[88px]" />
               </div>
               <Checkbox label="Save this address for next time" checked={saveAddress} onChange={(e) => setSaveAddress(e.target.checked)} />
