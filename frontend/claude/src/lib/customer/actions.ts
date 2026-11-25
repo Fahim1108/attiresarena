@@ -17,7 +17,7 @@ import {
   resolveCustomerSession,
   type CustomerSession,
 } from "./session";
-import { customerClient } from "./supabase";
+import { customerClient, expireCustomerSessionCookies } from "./supabase";
 import {
   GOOGLE_IDENTITY_CONFLICT_MESSAGE,
   customerAddressSchema,
@@ -237,6 +237,10 @@ export async function setNewCustomerPassword(
 export async function signOutCustomer(): Promise<void> {
   const client = await customerClient(true);
   if (client) await client.auth.signOut({ scope: "local" });
+  // The SDK's signOut can leave the browser cookie standing (see
+  // expireCustomerSessionCookies): expire it directly so the
+  // redirect home always lands signed out.
+  await expireCustomerSessionCookies();
   redirect("/");
 }
 
