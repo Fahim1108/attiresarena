@@ -365,24 +365,24 @@ describe("resolveDefaultOgImage / resolveGlobalKeywords / mergeSeoKeywords (SEO-
   });
 });
 
-describe("homepage share image is the check-shirts photo (home OG fix)", () => {
-  it("HOME_OG_IMAGE is the 1200x630 shirt photo with a descriptive alt", () => {
-    expect(HOME_OG_IMAGE.url).toBe("/brand/og-home.jpg");
-    expect(HOME_OG_IMAGE.width).toBe(1200);
-    expect(HOME_OG_IMAGE.height).toBe(630);
-    expect(HOME_OG_IMAGE.alt.length).toBeGreaterThan(0);
+describe("homepage share image is the main logo (Fahim 2026-11-25: logo only for link shares)", () => {
+  it("HOME_OG_IMAGE is the 540x540 logo badge with the site name as alt", () => {
+    expect(HOME_OG_IMAGE.url).toBe("/brand/logo-badge.jpg");
+    expect(HOME_OG_IMAGE.width).toBe(540);
+    expect(HOME_OG_IMAGE.height).toBe(540);
+    expect(HOME_OG_IMAGE.alt).toBe("Attires Arena");
   });
 
-  it("resolveHomeOgImage returns the shirt photo unless a stored absolute OG URL wins", () => {
+  it("resolveHomeOgImage returns the logo badge unless a stored absolute OG URL wins", () => {
     expect(resolveHomeOgImage(null)).toEqual(HOME_OG_IMAGE);
     expect(resolveHomeOgImage({})).toEqual(HOME_OG_IMAGE);
-    // Relative/invalid stored values are ignored by the default resolver, so the shirt photo still applies.
+    // Relative/invalid stored values are ignored by the default resolver, so the logo badge still applies.
     expect(resolveHomeOgImage({ seo_og_image_url: "/relative/path.jpg" })).toEqual(HOME_OG_IMAGE);
     expect(resolveHomeOgImage({ seo_og_image_url: "  " })).toEqual(HOME_OG_IMAGE);
     expect(resolveHomeOgImage({ seo_og_image_url: "https://cdn.example.com/og.jpg" })).toBe(null);
   });
 
-  it("buildPageMetadata emits the shirt photo with 1200x630 for OG and Twitter", () => {
+  it("buildPageMetadata emits the logo badge with 540x540 for OG and Twitter", () => {
     const meta = buildPageMetadata({
       siteName: "Attires Arena",
       path: "/",
@@ -393,10 +393,10 @@ describe("homepage share image is the check-shirts photo (home OG fix)", () => {
     });
     const og = meta.openGraph as unknown as { images?: unknown };
     expect(og.images).toEqual([
-      { url: "/brand/og-home.jpg", width: 1200, height: 630, alt: "Two folded check thrift shirts — white check and maroon check" },
+      { url: "/brand/logo-badge.jpg", width: 540, height: 540, alt: "Attires Arena" },
     ]);
     const twitter = meta.twitter as unknown as { images?: unknown };
-    expect(twitter.images).toEqual(["/brand/og-home.jpg"]);
+    expect(twitter.images).toEqual(["/brand/logo-badge.jpg"]);
   });
 
   it("buildPageMetadata falls back to the badge when the stored OG URL wins (null home image)", () => {
@@ -412,8 +412,8 @@ describe("homepage share image is the check-shirts photo (home OG fix)", () => {
     expect(og.images).toEqual([{ url: "https://cdn.example.com/og.jpg" }]);
   });
 
-  it("og-home.jpg on disk is a real 1200x630 JPEG (not a placeholder path)", () => {
-    const buffer = readFileSync(new URL("../public/brand/og-home.jpg", import.meta.url));
+  it("logo-badge.jpg on disk is a real 540x540 JPEG (not a placeholder path)", () => {
+    const buffer = readFileSync(new URL("../public/brand/logo-badge.jpg", import.meta.url));
     expect(buffer.subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));
     // Minimal SOF scan: SOF0 (FFC0) / SOF2 (FFC2) carry height then width.
     let offset = 2;
@@ -432,7 +432,7 @@ describe("homepage share image is the check-shirts photo (home OG fix)", () => {
       }
       offset += 2 + buffer.readUInt16BE(offset + 2);
     }
-    expect(found).toEqual({ width: 1200, height: 630 });
+    expect(found).toEqual({ width: 540, height: 540 });
   });
 });
 
