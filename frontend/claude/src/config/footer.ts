@@ -52,3 +52,10 @@ export const footer: FooterSettings = {
     description: "Get exclusive offers, new arrivals and style inspiration.",
   },
 };
+
+/**
+ * Client feedback item 8: SAMPLE store phone, shown ONLY on
+ * Preview/staging (see layout.tsx) until the owner saves the real
+ * number in admin (contact_phone). Never shown on production.
+ */
+export const SAMPLE_STORE_PHONE = "+880 1700-000000";
