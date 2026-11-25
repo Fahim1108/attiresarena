@@ -13,6 +13,7 @@ import { brandMediaUrl } from "@/lib/brand-media-delivery";
 import { getInitialCart, getStorefrontSettings, getProducts } from "@/services";
 import "@fontsource-variable/cormorant-garamond";
 import "@fontsource-variable/inter";
+import "@fontsource-variable/noto-sans-bengali";
 import "@fontsource-variable/playfair-display";
 import "@fontsource/allura/latin-400.css";
 import "./globals.css";
