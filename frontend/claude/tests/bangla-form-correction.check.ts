@@ -142,7 +142,7 @@ describe("checkout form wiring", () => {
       'label="Area / Upazila"',
       'label="Detailed address"',
       'placeholder="আপনার নাম লিখুন"',
-      'placeholder="বিভাগ বেছে নিন"',
+      'placeholder="বিভাগ নির্বাচন করুন"',
       'hint="অর্ডার নিশ্চিত করতে আমরা কল করব।"',
       "আপনার পুরো নাম লিখুন",
       "Back to cart",
