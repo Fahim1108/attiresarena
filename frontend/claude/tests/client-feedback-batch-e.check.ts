@@ -145,9 +145,9 @@ describe("admin speed (item 17)", () => {
 });
 
 describe("Google belt image (item 1 — check only)", () => {
-  it("the homepage share image is the check-shirts photo, not a belt", async () => {
+  it("the homepage share image is the logo badge, not a belt (Fahim 2026-11-25: logo only)", async () => {
     const seo = await readSrc("lib/seo.ts");
-    expect(seo).toContain('url: "/brand/og-home.jpg"');
-    expect(seo).toContain("Two folded check thrift shirts");
+    expect(seo).toContain('url: "/brand/logo-badge.jpg"');
+    expect(seo).not.toContain('url: "/brand/og-home.jpg"');
   });
 });
