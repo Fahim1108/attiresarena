@@ -12,6 +12,7 @@ import {
   REVIEW_SIGN_IN_EXPIRED_MESSAGE,
   submitCustomerReview,
 } from "./reviews";
+import { uploadReviewPhoto } from "./review-photos";
 import {
   resolveCustomerSession,
   type CustomerSession,
@@ -335,6 +336,36 @@ export async function submitCustomerReviewAction(
     };
   }
   return submitCustomerReview(session.client, parsed.data);
+}
+
+/**
+ * Client feedback item 19: attach one optional photo to the
+ * caller's own review. The photo must already be auto-compressed by
+ * the browser (see ReviewForm); the server re-validates type and
+ * size. A photo failure never fails the review itself — the review
+ * was already submitted before this is called.
+ */
+export async function uploadCustomerReviewPhotoAction(
+  reviewId: unknown,
+  file: unknown,
+  position: unknown,
+): Promise<ActionResult<{ photoId: string }>> {
+  const session = await authenticatedCustomer();
+  if (!session) {
+    return {
+      ok: false,
+      reason: "error",
+      message: REVIEW_SIGN_IN_EXPIRED_MESSAGE,
+    };
+  }
+  if (typeof reviewId !== "string" || !(file instanceof File) || typeof position !== "number") {
+    return {
+      ok: false,
+      reason: "validation",
+      message: "Your photo could not be saved. Please try again.",
+    };
+  }
+  return uploadReviewPhoto(session.client, session.user.id, reviewId, file, position);
 }
 
 export type GoogleSignInState = { message: string } | null;

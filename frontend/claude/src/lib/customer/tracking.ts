@@ -2,10 +2,13 @@ import "server-only";
 import { z } from "zod";
 import type { CheckoutRpc } from "@/lib/checkout/service";
 import {
+  CUSTOMER_ORDER_MEDIA_RPC,
   customerOrderItemRowSchema,
   customerOrderRowSchema,
+  mergeOrderMedia,
   normalizeTrackingPhone,
   projectCustomerOrder,
+  projectOrderMediaRows,
   type CustomerOrderMedia,
 } from "./orders";
 
@@ -68,5 +71,30 @@ export async function trackGuestOrderByPhone(
     logTrackingFailure("invalid-payload");
     return null;
   }
-  return projectCustomerOrder(parsed.data.order, parsed.data.items, media);
+  // Client feedback item 14: resolve the ordered product's actual
+  // photo even when it left the published feed, through the same
+  // customer_order_media RPC (migration 20261124000200) the signed-in
+  // read uses — the server credential is the server role, and the phone
+  // was already verified above, so the RPC's ownership check passes.
+  // A failed media call (including the pre-migration missing RPC)
+  // keeps the feed map: the line falls back to the logo, as today.
+  const missing = [
+    ...new Set(parsed.data.items.map((item) => item.product_id)),
+  ].filter((id) => !media.has(id));
+  let mediaWithFallback = media;
+  if (missing.length > 0) {
+    const mediaResult = await rpc<unknown>(CUSTOMER_ORDER_MEDIA_RPC, {
+      p_order_ids: [parsed.data.order.id],
+    });
+    if (mediaResult.ok) {
+      const resolved = projectOrderMediaRows(mediaResult.data);
+      for (const id of [...resolved.keys()]) {
+        if (!missing.includes(id)) resolved.delete(id);
+      }
+      mediaWithFallback = mergeOrderMedia(media, resolved);
+    } else {
+      logTrackingFailure(`order-media:${mediaResult.code}`);
+    }
+  }
+  return projectCustomerOrder(parsed.data.order, parsed.data.items, mediaWithFallback);
 }

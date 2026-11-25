@@ -116,6 +116,96 @@ export function orderMediaMap(
   return map;
 }
 
+/**
+ * Client feedback item 14: cover photos for ordered products that
+ * left the published feed. The customer_order_media RPC (migration
+ * 20261124000200) resolves id + slug + cover photo for the products
+ * in the caller's own orders, regardless of published state — the
+ * customer client cannot read product_media directly (staff-only
+ * policy) and the feed RPCs return published rows only. The RPC
+ * returns no row for a product with no media: the logo fallback
+ * stays, so the logo appears only when truly no photo exists.
+ *
+ * Pre-migration the RPC does not exist and the call errors: that
+ * yields an empty map (logo fallback, today's behaviour), never a
+ * crash. The published-feed map always wins a merge: it is the
+ * authoritative source for products still on the storefront.
+ */
+export const CUSTOMER_ORDER_MEDIA_RPC = "customer_order_media";
+
+export const orderMediaRowSchema = z.object({
+  product_id: z.uuid(),
+  slug: z.string(),
+  image_src: z.string().min(1),
+  image_alt: z.string(),
+});
+
+export function projectOrderMediaRows(
+  rows: unknown,
+): Map<string, CustomerOrderMedia> {
+  const map = new Map<string, CustomerOrderMedia>();
+  if (!Array.isArray(rows)) return map;
+  for (const row of rows) {
+    const parsed = orderMediaRowSchema.safeParse(row);
+    if (!parsed.success) continue;
+    map.set(parsed.data.product_id, {
+      slug: parsed.data.slug,
+      image: { src: parsed.data.image_src, alt: parsed.data.image_alt },
+    });
+  }
+  return map;
+}
+
+/** Merge RPC-resolved media into the feed map; feed entries win. */
+export function mergeOrderMedia(
+  feed: Map<string, CustomerOrderMedia>,
+  resolved: Map<string, CustomerOrderMedia>,
+): Map<string, CustomerOrderMedia> {
+  const merged = new Map(feed);
+  for (const [id, media] of resolved) {
+    if (!merged.has(id)) merged.set(id, media);
+  }
+  return merged;
+}
+
+/**
+ * Resolve media for the products in these orders that the feed map
+ * does not already cover. Skips the RPC entirely when nothing is
+ * missing. Failures (including the pre-migration missing RPC) yield
+ * an empty map and a server-side log line.
+ */
+export async function readOrderMedia(
+  client: CustomerClient,
+  orderIds: string[],
+  feed: Map<string, CustomerOrderMedia>,
+  productIds: string[],
+): Promise<Map<string, CustomerOrderMedia>> {
+  const missing = [...new Set(productIds)].filter((id) => !feed.has(id));
+  if (missing.length === 0 || orderIds.length === 0) return new Map();
+  if (typeof client.rpc !== "function") return new Map();
+  let result: { data: unknown; error: { code?: string | null } | null };
+  try {
+    result = await client.rpc(CUSTOMER_ORDER_MEDIA_RPC, {
+      p_order_ids: orderIds,
+    });
+  } catch {
+    console.error("[attiresarena:customer-orders] order media read failed: threw");
+    return new Map();
+  }
+  if (result.error) {
+    console.error(
+      `[attiresarena:customer-orders] order media read failed: ${result.error.code ?? "unknown"}`,
+    );
+    return new Map();
+  }
+  const resolved = projectOrderMediaRows(result.data);
+  // Only the missing products may come back; anything else is ignored.
+  for (const id of [...resolved.keys()]) {
+    if (!missing.includes(id)) resolved.delete(id);
+  }
+  return resolved;
+}
+
 /** Neutral fallback for a line whose product photo is no longer published. */
 export const ORDER_LINE_FALLBACK_IMAGE: ProductImage = {
   src: "/brand/logo-maroon.png",
@@ -270,9 +360,21 @@ export async function readCustomerOrders(
     rows.map((row) => row.id),
   );
   if (items === null) return [];
+  const mediaWithFallback = mergeOrderMedia(
+    media,
+    await readOrderMedia(
+      client,
+      rows.map((row) => row.id),
+      media,
+      items.flatMap((raw) => {
+        const parsed = customerOrderItemRowSchema.safeParse(raw);
+        return parsed.success ? [parsed.data.product_id] : [];
+      }),
+    ),
+  );
   const orders: Order[] = [];
   for (const row of rows) {
-    const projected = projectCustomerOrder(row, items, media);
+    const projected = projectCustomerOrder(row, items, mediaWithFallback);
     if (projected) orders.push(projected);
   }
   return orders;
@@ -296,5 +398,17 @@ export async function readCustomerOrderByNumber(
   if (!parsed.success) return null;
   const items = await readOrderItems(client, [parsed.data.id]);
   if (items === null) return null;
-  return projectCustomerOrder(parsed.data, items, media);
+  const mediaWithFallback = mergeOrderMedia(
+    media,
+    await readOrderMedia(
+      client,
+      [parsed.data.id],
+      media,
+      items.flatMap((raw) => {
+        const item = customerOrderItemRowSchema.safeParse(raw);
+        return item.success ? [item.data.product_id] : [];
+      }),
+    ),
+  );
+  return projectCustomerOrder(parsed.data, items, mediaWithFallback);
 }
