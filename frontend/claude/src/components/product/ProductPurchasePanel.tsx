@@ -139,7 +139,7 @@ export function ProductPurchasePanel({ product, brandName, colorId, compact, onA
             onClick={() => setSizeGuideOpen((open) => !open)}
             aria-expanded={sizeGuideOpen}
             aria-controls="product-size-guide"
-            className={buttonClasses({ variant: "outline", size: "sm" })}
+            className={buttonClasses({ variant: "primary", size: "sm" })}
           >
             Size Guide
           </button>
