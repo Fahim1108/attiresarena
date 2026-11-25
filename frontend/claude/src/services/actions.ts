@@ -100,6 +100,10 @@ export async function submitReviewAction(input: {
   return dataSource.submitReview(input);
 }
 
+export async function uploadReviewPhotoAction(reviewId: string, file: File, position: number) {
+  return dataSource.uploadReviewPhoto(reviewId, file, position);
+}
+
 export async function subscribeNewsletterAction(email: string) {
   return dataSource.subscribeNewsletter(email);
 }

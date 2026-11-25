@@ -96,6 +96,8 @@ export interface StorefrontDataSource {
   deleteAddress(addressId: string): Promise<ActionResult>;
   /** Submit (or edit) the signed-in customer's review for one product. Reviews start pending; the RPC enforces one row per product+customer. */
   submitReview(input: CustomerReviewInput): Promise<ActionResult<{ reviewId: string }>>;
+  /** Attach one optional, auto-compressed photo to the caller's own review (max 3). A photo failure never fails the review itself. */
+  uploadReviewPhoto(reviewId: string, file: File, position: number): Promise<ActionResult<{ photoId: string }>>;
   subscribeNewsletter(email: string): Promise<ActionResult>;
   submitContactForm(input: { name: string; email: string; phone?: string; subject: string; message: string }): Promise<ActionResult>;
   saveStorefrontDraft(settings: StorefrontSettings): Promise<ActionResult>;
