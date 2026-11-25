@@ -32,9 +32,9 @@ vi.mock("next/navigation", () => ({
  * - (7) Product photo frame is taller (3/4) so tall portrait photos show the
  *   collar — on product cards and in the detail gallery.
  * - (10) CORRECTED 2026-11-25 (Fahim): the guide measurements go beside the
- *   "Size:" line, e.g. "Size: M (Chest 40, Length 28–29)" — or comma-separated
- *   for several sizes — and the option buttons stay plain labels (S, M, L).
- *   Sizes with no guide row show just the label.
+ *   "Size:" line for the selected size only, e.g. "Size: M (Chest 40,
+ *   Length 28–29)" — nothing written in the option buttons below, which
+ *   stay plain labels (S, M, L). Sizes with no guide row show just the label.
  * - (11) Product page has a Facebook share button + a copy-link button.
  * - (12) "Details & Care" is gone; only Description + Delivery & Returns
  *   remain. CORRECTED 2026-11-25 (Fahim): the size guide is a button just
@@ -86,12 +86,13 @@ describe("item 10 (corrected 2026-11-25): measurements beside the Size line", ()
 
   function renderSelector(
     isAvailable: (s: string) => boolean,
+    value: string | undefined,
     m: Record<string, string> = measurements,
   ): string {
     return renderToStaticMarkup(
       createElement(SizeSelector, {
         sizes: ["S", "M", "L", "XL"],
-        value: undefined,
+        value,
         onChange: () => {},
         isAvailable,
         measurements: m,
@@ -99,27 +100,32 @@ describe("item 10 (corrected 2026-11-25): measurements beside the Size line", ()
     );
   }
 
-  it("shows the single in-stock size with its measurements beside Size:", () => {
-    const html = renderSelector((s) => s === "M");
+  it("shows just the selected size with its measurements beside Size:", () => {
+    const html = renderSelector((s) => s === "M", "M");
     expect(html).toContain("M (Chest 40, Length 28–29)");
     // The buttons stay plain labels: no measurement inside any button.
     expect(html).not.toContain("(Chest 40, Length 28–29)</button>");
     expect(html).toContain(">M</button>");
-    // Sold-out sizes do not appear in the Size line.
+    // No other size appears in the Size line.
     expect(html).not.toContain("S (Chest 38");
   });
 
-  it("lists several in-stock sizes comma-separated beside Size:", () => {
-    const html = renderSelector((s) => s === "S" || s === "L");
-    expect(html).toContain(
-      "S (Chest 38, Length 27–28), L (Chest 42, Length 28–29)",
-    );
+  it("shows only the selected size when several are in stock", () => {
+    const html = renderSelector((s) => s === "S" || s === "L", "L");
+    expect(html).toContain("L (Chest 42, Length 28–29)");
+    expect(html).not.toContain("S (Chest 38");
     expect(html).not.toContain("(Chest 38, Length 27–28)</button>");
   });
 
-  it("shows just the label when a size has no guide row", () => {
-    const html = renderSelector((s) => s === "M", {});
+  it("shows just the label when the selected size has no guide row", () => {
+    const html = renderSelector((s) => s === "M", "M", {});
     expect(html).toContain(">M</button>");
+    expect(html).not.toContain("(");
+  });
+
+  it("shows 'Select a size' with no measurements before a size is picked", () => {
+    const html = renderSelector((s) => s === "S" || s === "M", undefined);
+    expect(html).toContain("Select a size");
     expect(html).not.toContain("(");
   });
 });
