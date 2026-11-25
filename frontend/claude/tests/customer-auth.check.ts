@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => {
     createServerClient: vi.fn(),
     from: vi.fn(),
     cookieSet: vi.fn(),
+    cookieJar: [] as Array<{ name: string; value: string }>,
     redirect: vi.fn(),
     cookiesThrow: false,
   };
@@ -45,7 +46,7 @@ vi.mock("@supabase/ssr", () => ({ createServerClient: mocks.createServerClient }
 vi.mock("next/headers", () => ({
   cookies: async () => {
     if (mocks.cookiesThrow) throw new Error("`cookies` was called outside a request scope.");
-    return { getAll: () => [], set: mocks.cookieSet, get: () => undefined };
+    return { getAll: () => mocks.cookieJar, set: mocks.cookieSet, get: () => undefined };
   },
   headers: async () => ({ get: () => null }),
 }));
@@ -199,6 +200,7 @@ function redirectDestination(thrown: unknown): string {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.cookiesThrow = false;
+  mocks.cookieJar.length = 0;
   queryCalls.length = 0;
   tableQueues.clear();
   mocks.redirect.mockImplementation((url: string): never => {
@@ -1260,6 +1262,11 @@ describe("customer server actions", () => {
 
   it("signs out the customer scope only and redirects home", async () => {
     signedIn();
+    mocks.cookieJar.push(
+      { name: CUSTOMER_AUTH_COOKIE, value: "session" },
+      { name: `${CUSTOMER_AUTH_COOKIE}.0`, value: "chunk" },
+      { name: "aa-admin-auth", value: "staff-session" },
+    );
     let thrown: unknown;
     try {
       await signOutCustomer();
@@ -1267,6 +1274,26 @@ describe("customer server actions", () => {
       thrown = error;
     }
     expect(mocks.auth.signOut).toHaveBeenCalledWith({ scope: "local" });
+    // The session cookie and its chunked variants are expired directly
+    // in the action, so sign-out holds even when the SDK's own cookie
+    // flush never runs; anything else (e.g. the staff session) is left alone.
+    expect(mocks.cookieSet).toHaveBeenCalledWith(CUSTOMER_AUTH_COOKIE, "", { maxAge: 0, path: "/" });
+    expect(mocks.cookieSet).toHaveBeenCalledWith(`${CUSTOMER_AUTH_COOKIE}.0`, "", { maxAge: 0, path: "/" });
+    expect(mocks.cookieSet).not.toHaveBeenCalledWith("aa-admin-auth", expect.anything(), expect.anything());
+    expect(redirectDestination(thrown)).toBe("/");
+  });
+
+  it("expires the customer cookie and redirects home even without configuration", async () => {
+    vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "");
+    mocks.cookieJar.push({ name: CUSTOMER_AUTH_COOKIE, value: "session" });
+    let thrown: unknown;
+    try {
+      await signOutCustomer();
+    } catch (error) {
+      thrown = error;
+    }
+    expect(mocks.auth.signOut).not.toHaveBeenCalled();
+    expect(mocks.cookieSet).toHaveBeenCalledWith(CUSTOMER_AUTH_COOKIE, "", { maxAge: 0, path: "/" });
     expect(redirectDestination(thrown)).toBe("/");
   });
 
