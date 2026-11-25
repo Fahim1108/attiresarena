@@ -124,7 +124,7 @@
   }
 }
 
-:root{--font-cormorant:"Cormorant Garamond Variable";--font-inter:"Inter Variable";--font-display:"Playfair Display Variable";--font-script:"Allura"}
+:root{--font-cormorant:"Cormorant Garamond Variable";--font-inter:"Inter Variable";--font-noto-bengali:"Noto Sans Bengali Variable";--font-display:"Playfair Display Variable";--font-script:"Allura"}
 .design-preview-notice{background:#fff;color:#6b0202;border-bottom:1px solid #eaeaea;padding:8px 16px;text-align:center;font:12px/1.5 Arial,sans-serif;position:relative;z-index:90}
 
 @media(prefers-reduced-motion:reduce){.aa-skeleton::before{animation:none!important}}
@@ -154,7 +154,7 @@
   --admin-info: 29 78 216;
   --admin-radius-card: 12px;
   --admin-radius-control: 8px;
-  --admin-font-sans: var(--font-inter), Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --admin-font-sans: var(--font-inter), Inter, var(--font-noto-bengali), "Noto Sans Bengali Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 /* Inside the admin scope, keyboard focus uses the admin primary. */
