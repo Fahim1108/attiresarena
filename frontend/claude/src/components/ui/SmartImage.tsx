@@ -17,9 +17,15 @@ import Image, { type ImageProps } from "next/image";
  * unoptimized via the extension check below.
  */
 const PUBLISHED_MEDIA_URL = /^\/api\/product-media\//;
+const REVIEW_PHOTO_URL = /^\/api\/review-photos\//;
 
 export function isPublishedMediaUrl(src: string): boolean {
   return PUBLISHED_MEDIA_URL.test(src);
+}
+
+/** Same bypass as product media: the delivery route serves original bytes with its own cache policy. */
+export function isReviewPhotoUrl(src: string): boolean {
+  return REVIEW_PHOTO_URL.test(src);
 }
 
 /**
@@ -31,7 +37,7 @@ export function SmartImage(props: ImageProps) {
   const src = typeof props.src === "string" ? props.src : "";
   const unoptimized =
     props.unoptimized ??
-    (src.endsWith(".svg") || isPublishedMediaUrl(src));
+    (src.endsWith(".svg") || isPublishedMediaUrl(src) || isReviewPhotoUrl(src));
   // eslint-disable-next-line jsx-a11y/alt-text -- alt is passed through props
   return <Image {...props} unoptimized={unoptimized} />;
 }
