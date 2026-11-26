@@ -3,14 +3,12 @@ import { motionVariables } from "@/config/motion";
 
 import { ThemeStyle } from "@/components/theme/ThemeStyle";
 import { CustomCodeSlot, MarketingScripts } from "@/components/MarketingScripts";
-import { CartProvider } from "@/context/CartContext";
 import { StorefrontProvider } from "@/context/StorefrontContext";
 import { ToastProvider } from "@/context/ToastContext";
-import { WishlistProvider } from "@/context/WishlistContext";
 import { applyAnnouncementOverride, applyBrandOverride, applyCustomizeOverride, applyFooterLinksOverride, applyFooterOverride, applyNavigationOverride, applySiteNameOverride, getStorefrontContent, parseMarketingSettings, resolveStorefrontMetadata, settingText } from "@/lib/store-settings";
 import { SAMPLE_STORE_PHONE } from "@/config/footer";
 import { brandMediaUrl } from "@/lib/brand-media-delivery";
-import { getInitialCart, getStorefrontSettings, getProducts } from "@/services";
+import { getStorefrontSettings } from "@/services";
 import "@fontsource-variable/cormorant-garamond";
 import "@fontsource-variable/inter";
 import "@fontsource-variable/noto-sans-bengali";
@@ -41,7 +39,11 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [settings, initialCart, catalogue, content] = await Promise.all([getStorefrontSettings(), getInitialCart(), getProducts({pageSize:500}), getStorefrontContent()]);
+  // The catalogue + cart read used to run here for EVERY route, including
+  // /admin/* — it now lives in the (store) layout, which is the only place
+  // the cart/wishlist providers render. Admin pages no longer pay for the
+  // 500-product catalogue fetch (or the cart cookie read) on any load.
+  const [settings, content] = await Promise.all([getStorefrontSettings(), getStorefrontContent()]);
   const marketing = parseMarketingSettings(content?.settings ?? null);
   // Stored settings replace the static values field by field; without
   // stored values each override returns the static config unchanged
@@ -78,14 +80,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <MarketingScripts marketing={marketing} />
         <StorefrontProvider settings={{ ...settings, siteName, logo, theme, header, footer: footerWithPhone }}>
           <ToastProvider>
-            <WishlistProvider approvedProductIds={catalogue.items.map(p=>p.id)}>
-              <CartProvider approvedProducts={catalogue.items} initialItems={initialCart} approvedVariantIds={catalogue.items.flatMap(p=>p.variants.filter(v=>v.stock>0).map(v=>v.id))}>
-                <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[80] focus:rounded focus:bg-primary focus:px-4 focus:py-2 focus:text-white">
-                  Skip to content
-                </a>
-                {children}
-              </CartProvider>
-            </WishlistProvider>
+            <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[80] focus:rounded focus:bg-primary focus:px-4 focus:py-2 focus:text-white">
+              Skip to content
+            </a>
+            {children}
           </ToastProvider>
         </StorefrontProvider>
         <CustomCodeSlot code={marketing.bodyCode} label="footer" />
