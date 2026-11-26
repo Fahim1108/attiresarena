@@ -21,10 +21,10 @@ export const policyPages: Record<string, PolicyPage> = {
     slug: "shipping-policy",
     title: "Shipping Policy",
     intro: "We deliver across all 64 districts of Bangladesh through trusted courier partners.",
-    updated: "2026-10-01",
+    updated: "2026-11-25",
     sections: [
       { heading: "Delivery charges", list: ["Inside Barishal City: ৳50", "Outside Barishal City: ৳140"] },
-      { heading: "Delivery time", list: ["Inside Barishal City: 1–2 working days", "Outside Barishal City: 3–5 working days", "Delivery may take longer during Eid, public holidays, hartals or severe weather."] },
+      { heading: "Delivery time", list: ["Inside Barishal City: 1–2 working days", "Outside Barishal City: 2–3 working days", "Delivery may take longer during Eid, public holidays, hartals or severe weather."] },
       { heading: "Order confirmation", body: ["For Cash on Delivery orders, our team calls the number you provide to confirm the order before dispatch. Orders that cannot be confirmed after two attempts may be cancelled."] },
       { heading: "Checking your parcel", body: ["You may check the product in front of the delivery rider before paying. If something is wrong, you can refuse the parcel and pay only the delivery charge."] },
     ],
@@ -32,10 +32,10 @@ export const policyPages: Record<string, PolicyPage> = {
   "return-policy": {
     slug: "return-policy",
     title: "Return & Exchange Policy",
-    intro: "Not the right fit? You can return or exchange eligible items within 7 days of delivery.",
-    updated: "2026-10-01",
+    intro: "Not the right fit? You can return or exchange eligible items within 3 days of delivery.",
+    updated: "2026-11-25",
     sections: [
-      { heading: "Eligibility", list: ["Items must be unused, unwashed and in original packaging with tags attached.", "Request a return within 7 days of delivery.", "Watches and wallets must be returned with all boxes and inserts."] },
+      { heading: "Eligibility", list: ["Items must be unused, unwashed and in original packaging with tags attached.", "Request a return within 3 days of delivery.", "Watches and wallets must be returned with all boxes and inserts."] },
       { heading: "Non-returnable items", list: ["Items damaged after delivery", "Items bought during clearance sales (unless faulty)", "Gift cards"] },
       { heading: "How to request a return", body: ["Contact us with your order number and photos of the item. We will arrange a pickup or share the drop-off address."] },
       { heading: "Refunds", body: ["Approved refunds are sent via bKash, Nagad or bank transfer within 7 working days after we receive the item. Delivery charges are non-refundable unless the item was faulty or incorrect."] },
@@ -92,7 +92,7 @@ export const faqs: { category: string; items: { q: string; a: string }[] }[] = [
   {
     category: "Delivery",
     items: [
-      { q: "How long does delivery take?", a: "1–2 working days inside Barishal City and 3–5 working days outside Barishal City." },
+      { q: "How long does delivery take?", a: "1–2 working days inside Barishal City and 2–3 working days outside Barishal City." },
       { q: "How much is delivery?", a: "৳50 inside Barishal City and ৳140 outside Barishal City." },
       { q: "Can I check the product before paying?", a: "Yes. You can inspect your parcel in front of the rider before paying." },
       // Owner target phrase (Fahim, 2026-11-19): "best thrift shirt in
@@ -101,13 +101,13 @@ export const faqs: { category: string; items: { q: string; a: string }[] }[] = [
       // data (src/data/bangladesh.ts DIVISIONS), so its districts can be
       // selected at checkout; time/cost are the Barishal City figures
       // from this same FAQ group.
-      { q: "Can I order a thrift shirt in Barishal?", a: "Yes. We deliver across Bangladesh, including Barishal division — Barguna, Barishal, Bhola, Jhalokati, Patuakhali and Pirojpur districts can be selected in the checkout address form. Delivery inside Barishal City (Barishal Sadar) takes 1–2 working days and costs ৳50; everywhere else takes 3–5 working days and costs ৳140, with Cash on Delivery available." },
+      { q: "Can I order a thrift shirt in Barishal?", a: "Yes. We deliver across Bangladesh, including Barishal division — Barguna, Barishal, Bhola, Jhalokati, Patuakhali and Pirojpur districts can be selected in the checkout address form. Delivery inside Barishal City (Barishal Sadar) takes 1–2 working days and costs ৳50; everywhere else takes 2–3 working days and costs ৳140, with Cash on Delivery available." },
     ],
   },
   {
     category: "Returns & Sizing",
     items: [
-      { q: "What is your return policy?", a: "Unused items with tags can be returned or exchanged within 7 days of delivery." },
+      { q: "What is your return policy?", a: "Unused items with tags can be returned or exchanged within 3 days of delivery." },
       { q: "How do I find my size?", a: "Every product page has a Size Guide with measurements. If you're between sizes, we recommend sizing up." },
     ],
   },
