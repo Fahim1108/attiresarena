@@ -191,7 +191,7 @@ type FetchImpl = typeof fetch;
 async function fetchAccessToken(
   config: GaVisitorsConfiguration,
   fetchImpl: FetchImpl,
-): Promise<string | null> {
+): Promise<{ token: string; expiresInSeconds: number } | null> {
   const assertion = buildServiceAccountJwt(
     config,
     Math.floor(Date.now() / 1000),
@@ -238,7 +238,69 @@ async function fetchAccessToken(
     console.error(`${DIAGNOSTIC_PREFIX} token exchange returned no access token`);
     return null;
   }
-  return token;
+  // Google's token lifetime (usually 3600s); the cache below reuses the
+  // token until shortly before this expires. A missing or unusable value
+  // falls back to the JWT lifetime — never to an unbounded cache.
+  const expiresIn =
+    typeof payload === "object" &&
+    payload !== null &&
+    "expires_in" in payload
+      ? (payload as { expires_in: unknown }).expires_in
+      : null;
+  const expiresInSeconds =
+    typeof expiresIn === "number" && Number.isFinite(expiresIn) && expiresIn > 0
+      ? Math.floor(expiresIn)
+      : JWT_LIFETIME_SECONDS;
+  return { token, expiresInSeconds };
+}
+
+/**
+ * In-process cache for the GA OAuth access token (production path
+ * only). Google issues 1-hour tokens; reusing one per warm server
+ * instance saves a token exchange (JWT sign + HTTPS round trip) on
+ * every Analytics load. Keyed by service account + property so a
+ * config change never reuses another account's token. Calls that pass
+ * overrides (tests) bypass this cache entirely. A token is never
+ * logged or persisted — it lives only in this process's memory and
+ * dies with the instance.
+ */
+interface CachedAccessToken {
+  token: string;
+  expiresAtMs: number;
+  clientEmail: string;
+  propertyId: string;
+}
+
+let cachedAccessToken: CachedAccessToken | null = null;
+
+/** Reuse margin: refresh a minute before expiry so a slow report call never races the token's death. */
+const TOKEN_REUSE_SAFETY_MS = 60_000;
+
+function cachedTokenFor(config: GaVisitorsConfiguration): string | null {
+  const cached = cachedAccessToken;
+  if (cached === null) return null;
+  if (cached.clientEmail !== config.clientEmail) return null;
+  if (cached.propertyId !== config.propertyId) return null;
+  if (Date.now() >= cached.expiresAtMs - TOKEN_REUSE_SAFETY_MS) return null;
+  return cached.token;
+}
+
+function storeAccessToken(
+  config: GaVisitorsConfiguration,
+  token: string,
+  expiresInSeconds: number,
+): void {
+  cachedAccessToken = {
+    token,
+    expiresAtMs: Date.now() + expiresInSeconds * 1000,
+    clientEmail: config.clientEmail,
+    propertyId: config.propertyId,
+  };
+}
+
+/** Tests only: clear the in-process token cache between cases. */
+export function resetGaAccessTokenCache(): void {
+  cachedAccessToken = null;
 }
 
 /** One parsed runReport row: a GA date key (YYYYMMDD) + active users. */
@@ -443,9 +505,19 @@ export async function readGaDailyVisitors(
   const config = gaVisitorsConfiguration(overrides?.env);
   if (config === null) return null;
   const fetchImpl = overrides?.fetchImpl ?? fetch;
+  // The production path (no overrides) reuses the cached access token;
+  // injected-fetch callers (tests) always exchange a fresh one.
+  const useCache = overrides === undefined;
   try {
-    const accessToken = await fetchAccessToken(config, fetchImpl);
-    if (accessToken === null) return null;
+    let accessToken: string | null = useCache ? cachedTokenFor(config) : null;
+    if (accessToken === null) {
+      const exchanged = await fetchAccessToken(config, fetchImpl);
+      if (exchanged === null) return null;
+      accessToken = exchanged.token;
+      if (useCache) {
+        storeAccessToken(config, exchanged.token, exchanged.expiresInSeconds);
+      }
+    }
     const rows = await fetchDailyActiveUsers(config, accessToken, period, fetchImpl);
     if (rows === null) return null;
     return rowsToPoints(rows);
