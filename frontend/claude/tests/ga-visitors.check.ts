@@ -12,6 +12,7 @@ import {
   isGaVisitorsConfigured,
   parseRunReportResponse,
   readGaDailyVisitors,
+  resetGaAccessTokenCache,
   rowsToPoints,
   type GaDailyRow,
   type GaVisitorsConfiguration,
@@ -546,5 +547,50 @@ describe("no credentials in client code", () => {
     };
     walk(srcRoot);
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("readGaDailyVisitors access-token cache", () => {
+  it("reuses one token exchange across reads on the production path", async () => {
+    resetGaAccessTokenCache();
+    const env = fixtureEnv();
+    const saved = {
+      GA_PROPERTY_ID: process.env.GA_PROPERTY_ID,
+      GA_SERVICE_ACCOUNT_EMAIL: process.env.GA_SERVICE_ACCOUNT_EMAIL,
+      GA_SERVICE_ACCOUNT_PRIVATE_KEY: process.env.GA_SERVICE_ACCOUNT_PRIVATE_KEY,
+    };
+    const restore = (key: keyof typeof saved, value: string | undefined) => {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    };
+    process.env.GA_PROPERTY_ID = env.GA_PROPERTY_ID;
+    process.env.GA_SERVICE_ACCOUNT_EMAIL = env.GA_SERVICE_ACCOUNT_EMAIL;
+    process.env.GA_SERVICE_ACCOUNT_PRIVATE_KEY = env.GA_SERVICE_ACCOUNT_PRIVATE_KEY;
+    const { fetchImpl, requests } = stubFetch(
+      reportFixture([{ date: "20261118", users: "12" }]),
+    );
+    vi.stubGlobal("fetch", fetchImpl);
+    try {
+      const first = await readGaDailyVisitors("7-days");
+      const second = await readGaDailyVisitors("7-days");
+      expect(first).not.toBeNull();
+      expect(second).toEqual(first);
+      expect(
+        requests.filter(
+          (request) => request.url === "https://oauth2.googleapis.com/token",
+        ),
+      ).toHaveLength(1);
+      expect(
+        requests.filter((request) =>
+          request.url.includes("analyticsdata.googleapis.com"),
+        ),
+      ).toHaveLength(2);
+    } finally {
+      vi.unstubAllGlobals();
+      restore("GA_PROPERTY_ID", saved.GA_PROPERTY_ID);
+      restore("GA_SERVICE_ACCOUNT_EMAIL", saved.GA_SERVICE_ACCOUNT_EMAIL);
+      restore("GA_SERVICE_ACCOUNT_PRIVATE_KEY", saved.GA_SERVICE_ACCOUNT_PRIVATE_KEY);
+      resetGaAccessTokenCache();
+    }
   });
 });
