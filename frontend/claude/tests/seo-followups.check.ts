@@ -485,7 +485,7 @@ describe("owner target search phrases (Fahim, 2026-11-19)", () => {
     expect(price).toContain("৳499");
     const barishal = find("Can I order a thrift shirt in Barishal?");
     expect(barishal).toContain("We deliver across Bangladesh");
-    expect(barishal).toContain("3–5 working days");
+    expect(barishal).toContain("2–3 working days");
     expect(barishal).toContain("৳140");
     expect(barishal).toContain("৳50");
     // No answer asserts "best" as a verified fact; the word appears
