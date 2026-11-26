@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Notice, EmptyState, hrefWithParams } from "@/components/admin/ui";
 import { CsvDownloadButton } from "@/components/admin/analytics/csv-download";
 import { DonutChart, DONUT_PALETTE } from "@/components/admin/charts/DonutChart";
@@ -14,13 +15,15 @@ import {
   exportDailySalesCsv,
   getAnalyticsReport,
 } from "@/lib/admin/analytics";
-import { formatCount, formatDate, formatMoney, toDhakaDateKey } from "@/lib/admin/format";
+import { formatCount, formatDate, formatMoney, parseDateRange, toDhakaDateKey } from "@/lib/admin/format";
 import {
   VISITOR_PERIODS,
   VISITOR_PERIOD_LABELS,
   VISITOR_PERIOD_PARAM,
   getVisitorReport,
   parseVisitorPeriod,
+  type VisitorPeriod,
+  type VisitorReport,
 } from "./visitors";
 
 /**
@@ -36,6 +39,11 @@ import {
  * same pattern as before: SeriesChart fed by the co-located
  * visitors.ts seam, which reads the GA Data API when configured
  * and returns an honest unavailable state otherwise.
+ *
+ * Streaming: the shell (header, presets, date form) renders
+ * immediately; the report and the visitor chart stream in behind
+ * their own Suspense boundaries. The report and visitor reads start
+ * at the same time instead of one after the other.
  */
 
 function shiftDays(dateKey: string, days: number): string {
@@ -63,26 +71,76 @@ function presets(): { label: string; from: string; to: string }[] {
   ];
 }
 
-export default async function AnalyticsPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const params = await searchParams;
-  const report = await getAnalyticsReport(params);
-  const { range } = report;
+// --- Section skeletons -------------------------------------------------
+//
+// Same aa-skeleton-row shimmer as the workspace loading state, sized to
+// the chart cards they stand in for. All aria-hidden.
 
-  // Total Visitors period: URL state only (visitorsPeriod param), so
-  // the selector is a set of deep links and switching periods keeps
-  // the report range above untouched. The accessor reads the GA Data
-  // API when configured and returns the honest unavailable state
-  // otherwise; only the period label, the selector's active option,
-  // and the empty-state guidance change between periods.
-  const visitorPeriod = parseVisitorPeriod(params[VISITOR_PERIOD_PARAM]);
-  const visitorReport = await getVisitorReport(visitorPeriod);
-  const visitorPeriodLabel = VISITOR_PERIOD_LABELS[visitorPeriod];
-  const visitorPeriodPhrase =
-    visitorPeriod === "today" ? "today" : visitorPeriodLabel;
+function ReportTopSkeleton() {
+  return (
+    <div aria-hidden="true">
+      <div className="aa-skeleton-row" style={{ height: "19rem" }} />
+    </div>
+  );
+}
+
+function ReportBottomSkeleton() {
+  return (
+    <div aria-hidden="true">
+      <div className="aa-skeleton-row" style={{ height: "19rem" }} />
+    </div>
+  );
+}
+
+function VisitorSkeleton() {
+  return (
+    <div aria-hidden="true">
+      <div className="aa-skeleton-row" style={{ height: "19rem" }} />
+    </div>
+  );
+}
+
+// --- Streamed sections -------------------------------------------------
+//
+// The report promise is shared: the top section (warning + daily sales)
+// and the bottom section (orders by status) await the same promise, so
+// the report is fetched once. The visitor section sits between them, in
+// the same order as before.
+
+async function ReportTopSection({
+  reportPromise,
+}: {
+  reportPromise: ReturnType<typeof getAnalyticsReport>;
+}) {
+  const report = await reportPromise;
+  return (
+    <>
+      {!report.ordersAvailable ? (
+        <Notice kind="warning">
+          Order data is unavailable. Reports will appear once order records
+          and the analytics permission are in place.
+        </Notice>
+      ) : null}
+
+      <ChartCard title="Daily gross sales (BDT)" headingLevel="h2">
+        <SeriesChart
+          points={report.dailySeries}
+          formatValue={formatMoney}
+          ariaLabel="Daily gross sales"
+          emptyMessage="No gross sales in this range."
+          emptyGuidance="Daily sales appear here once orders are placed in the selected range."
+        />
+      </ChartCard>
+    </>
+  );
+}
+
+async function ReportBottomSection({
+  reportPromise,
+}: {
+  reportPromise: ReturnType<typeof getAnalyticsReport>;
+}) {
+  const report = await reportPromise;
 
   // Presentation shaping only (the loader is untouched): order the
   // status distribution by the fixed ORDER_STATUSES order, label it
@@ -112,6 +170,98 @@ export default async function AnalyticsPage({
         color: index >= 0 ? (DONUT_PALETTE[index] ?? "#9A9494") : "#9A9494",
       };
     });
+
+  return (
+    <ChartCard title="Orders by status" headingLevel="h2">
+      {report.statusDistribution.length === 0 ? (
+        <EmptyState
+          title="No orders in this range"
+          description="Orders placed in the selected range will appear here."
+        />
+      ) : (
+        <DonutChart
+          segments={donutSegments}
+          centerLabel="Orders"
+          formatValue={formatCount}
+          ariaLabel="Orders by status"
+          emptyMessage="No orders in this range."
+          emptyGuidance="Orders placed in the selected range will appear here."
+        />
+      )}
+    </ChartCard>
+  );
+}
+
+async function VisitorSection({
+  visitorPromise,
+  params,
+  visitorPeriod,
+}: {
+  visitorPromise: Promise<VisitorReport>;
+  params: Record<string, string | string[] | undefined>;
+  visitorPeriod: VisitorPeriod;
+}) {
+  const visitorReport = await visitorPromise;
+  const visitorPeriodLabel = VISITOR_PERIOD_LABELS[visitorPeriod];
+  const visitorPeriodPhrase =
+    visitorPeriod === "today" ? "today" : visitorPeriodLabel;
+  return (
+    <ChartCard
+      title="Total Visitors"
+      description={`Daily visitor totals for ${visitorPeriodPhrase}.`}
+      headingLevel="h2"
+    >
+      <div className="mb-4">
+        <PeriodToggle
+          options={VISITOR_PERIODS.map((period) => ({
+            value: period,
+            label: VISITOR_PERIOD_LABELS[period],
+            href: hrefWithParams("/admin/analytics", params, {
+              [VISITOR_PERIOD_PARAM]: period,
+            }),
+          }))}
+          activeValue={visitorPeriod}
+          ariaLabel="Visitor period"
+        />
+      </div>
+      <SeriesChart
+        points={visitorReport.points}
+        formatValue={formatCount}
+        ariaLabel="Total visitors"
+        emptyMessage={`No visitor data for ${visitorPeriodPhrase}.`}
+        emptyGuidance={
+          visitorReport.status === "available"
+            ? "No visitors were recorded in this period."
+            : "Visitor data is not connected yet."
+        }
+      />
+    </ChartCard>
+  );
+}
+
+export default async function AnalyticsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  // The range is pure URL state (same parse the report loader uses),
+  // so the shell can describe it before any data arrives.
+  const range = parseDateRange(params, 30);
+
+  // Total Visitors period: URL state only (visitorsPeriod param), so
+  // the selector is a set of deep links and switching periods keeps
+  // the report range above untouched. The accessor reads the GA Data
+  // API when configured and returns the honest unavailable state
+  // otherwise; only the period label, the selector's active option,
+  // and the empty-state guidance change between periods.
+  const visitorPeriod = parseVisitorPeriod(params[VISITOR_PERIOD_PARAM]);
+
+  // Both reads start now, in parallel: the report no longer waits
+  // behind nothing, and the visitor read no longer waits behind the
+  // report. Each section streams in as its own read resolves.
+  const reportPromise = getAnalyticsReport(params);
+  const visitorPromise = getVisitorReport(visitorPeriod);
 
   return (
     <main id="main" tabIndex={-1} className="aa-main aa-main--ds">
@@ -183,71 +333,21 @@ export default async function AnalyticsPage({
           </button>
         </form>
 
-        {!report.ordersAvailable ? (
-          <Notice kind="warning">
-            Order data is unavailable. Reports will appear once order records
-            and the analytics permission are in place.
-          </Notice>
-        ) : null}
+        <Suspense fallback={<ReportTopSkeleton />}>
+          <ReportTopSection reportPromise={reportPromise} />
+        </Suspense>
 
-        <ChartCard title="Daily gross sales (BDT)" headingLevel="h2">
-          <SeriesChart
-            points={report.dailySeries}
-            formatValue={formatMoney}
-            ariaLabel="Daily gross sales"
-            emptyMessage="No gross sales in this range."
-            emptyGuidance="Daily sales appear here once orders are placed in the selected range."
+        <Suspense fallback={<VisitorSkeleton />}>
+          <VisitorSection
+            visitorPromise={visitorPromise}
+            params={params}
+            visitorPeriod={visitorPeriod}
           />
-        </ChartCard>
+        </Suspense>
 
-        <ChartCard
-          title="Total Visitors"
-          description={`Daily visitor totals for ${visitorPeriodPhrase}.`}
-          headingLevel="h2"
-        >
-          <div className="mb-4">
-            <PeriodToggle
-              options={VISITOR_PERIODS.map((period) => ({
-                value: period,
-                label: VISITOR_PERIOD_LABELS[period],
-                href: hrefWithParams("/admin/analytics", params, {
-                  [VISITOR_PERIOD_PARAM]: period,
-                }),
-              }))}
-              activeValue={visitorPeriod}
-              ariaLabel="Visitor period"
-            />
-          </div>
-          <SeriesChart
-            points={visitorReport.points}
-            formatValue={formatCount}
-            ariaLabel="Total visitors"
-            emptyMessage={`No visitor data for ${visitorPeriodPhrase}.`}
-            emptyGuidance={
-              visitorReport.status === "available"
-                ? "No visitors were recorded in this period."
-                : "Visitor data is not connected yet."
-            }
-          />
-        </ChartCard>
-
-        <ChartCard title="Orders by status" headingLevel="h2">
-          {report.statusDistribution.length === 0 ? (
-            <EmptyState
-              title="No orders in this range"
-              description="Orders placed in the selected range will appear here."
-            />
-          ) : (
-            <DonutChart
-              segments={donutSegments}
-              centerLabel="Orders"
-              formatValue={formatCount}
-              ariaLabel="Orders by status"
-              emptyMessage="No orders in this range."
-              emptyGuidance="Orders placed in the selected range will appear here."
-            />
-          )}
-        </ChartCard>
+        <Suspense fallback={<ReportBottomSkeleton />}>
+          <ReportBottomSection reportPromise={reportPromise} />
+        </Suspense>
       </div>
     </main>
   );
