@@ -258,7 +258,7 @@ export function ProductListTable({
             {items.map((item) => (
               <tr key={item.id}>
                 {allowSelection ? (
-                  <td>
+                  <td data-label="Select">
                     <input
                       type="checkbox"
                       checked={selected.has(item.id)}
