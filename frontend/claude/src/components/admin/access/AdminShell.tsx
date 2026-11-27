@@ -99,6 +99,32 @@ import { areaRoles } from "@/lib/admin/constants";
  * maroon logo would be invisible. The header carries a breadcrumb
  * derived from the pathname and nav labels. Nothing else about
  * gating, search, sign-out or navigation changes.
+ *
+ * Admin simplification Batch 1 (nav regroup): the groups above
+ * are regrouped into Main / Orders / Products / Customers / More /
+ * Staging tools. Every link keeps its original href and role gate;
+ * only "All Orders" is relabelled "Orders". "More" holds the
+ * remaining 18 links in their original relative order; Store
+ * Settings and General Settings stay separate links, as do Homepage
+ * Content and Banners. The breadcrumb derives its section label
+ * from the same nav list, so the "Orders" rename flows through.
+ *
+ * First-click fix (same batch): the nav groups used to be
+ * <details open> wrappers with a <summary> heading. The groups are
+ * always open and never need to collapse, so the <summary> toggle
+ * served no purpose — but it is the only click-intercepting element
+ * wrapping the links: a tap/click the browser attributes to the
+ * summary toggles (closes) the group instead of following the link,
+ * so the link only works on the second click, after the group is
+ * open again. The wrappers are now plain <div>s with an <h2>
+ * heading (styled by the `h2.aa-nav-group-title` rules in
+ * admin-ds.css and workspace.css, which mirror the old summary
+ * rules; the collapsed rail still hides the heading via the existing
+ * `.aa-nav-group-title` rule, with the divider moved to the group
+ * wrapper). No link handler changed: the only
+ * onClick on the links closes the mobile drawer, a no-op when it
+ * is not open. The separate "Service availability" <details> below
+ * the nav is untouched — it is a real disclosure, closed by default.
  */
 
 type NavIcon = typeof LayoutDashboard;
@@ -176,6 +202,11 @@ export function AdminShell({
   );
   const canManage = roles.some((r) => r === "owner" || r === "product_manager");
 
+  // Batch 1 regroup: Main / Orders / Products / Customers / More /
+  // Staging tools. Every link keeps its original href and role gate;
+  // only "All Orders" is relabelled "Orders". The "More" group holds
+  // the remaining links in their original relative order (Catalog
+  // leftovers, then Content, Appearance, Marketing, System).
   const groups: { title: string; links: NavLink[] }[] = [
     {
       title: "Main",
@@ -189,15 +220,41 @@ export function AdminShell({
       ],
     },
     {
-      title: "Catalog",
+      title: "Orders",
+      links: [
+        ...(hasArea("orders")
+          ? [{ href: "/admin/sales/orders", label: "Orders", Icon: ShoppingBag }]
+          : []),
+        ...(hasArea("recovery")
+          ? [{ href: "/admin/sales/incomplete", label: "Incomplete Orders", Icon: Hourglass }]
+          : []),
+      ],
+    },
+    {
+      title: "Products",
       links: [
         ...(hasArea("catalogue")
           ? [
               { href: "/admin/catalog/products", label: "All Products", Icon: Package },
               { href: "/admin/catalog/products/new", label: "Add Product", Icon: Plus },
               { href: "/admin/catalog/categories", label: "Categories", Icon: Tags },
-              { href: "/admin/catalog/reviews", label: "Reviews", Icon: Star },
             ]
+          : []),
+      ],
+    },
+    {
+      title: "Customers",
+      links: [
+        ...(hasArea("customers")
+          ? [{ href: "/admin/sales/customers", label: "Customers", Icon: Users }]
+          : []),
+      ],
+    },
+    {
+      title: "More",
+      links: [
+        ...(hasArea("catalogue")
+          ? [{ href: "/admin/catalog/reviews", label: "Reviews", Icon: Star }]
           : []),
         ...(hasArea("inventory")
           ? [{ href: "/admin/catalog/inventory", label: "Inventory", Icon: Boxes }]
@@ -205,38 +262,14 @@ export function AdminShell({
         ...(hasArea("coupons")
           ? [{ href: "/admin/sales/coupons", label: "Coupons", Icon: TicketPercent }]
           : []),
-      ],
-    },
-    {
-      title: "Sales",
-      links: [
-        ...(hasArea("orders")
-          ? [{ href: "/admin/sales/orders", label: "All Orders", Icon: ShoppingBag }]
-          : []),
-        ...(hasArea("recovery")
-          ? [{ href: "/admin/sales/incomplete", label: "Incomplete Orders", Icon: Hourglass }]
-          : []),
-        ...(hasArea("customers")
-          ? [{ href: "/admin/sales/customers", label: "Customers", Icon: Users }]
-          : []),
-      ],
-    },
-    {
-      title: "Content",
-      links: hasArea("content")
-        ? [
-            { href: "/admin/content/homepage", label: "Homepage Content", Icon: LayoutTemplate },
-            { href: "/admin/content/banners", label: "Banners", Icon: Megaphone },
-            { href: "/admin/content/pages", label: "Pages", Icon: FileText },
-            { href: "/admin/content/widgets", label: "Widgets", Icon: Blocks },
-          ]
-        : [],
-    },
-    {
-      title: "Appearance",
-      links: [
         ...(hasArea("content")
-          ? [{ href: "/admin/appearance", label: "Layout", Icon: PanelsTopLeft }]
+          ? [
+              { href: "/admin/content/homepage", label: "Homepage Content", Icon: LayoutTemplate },
+              { href: "/admin/content/banners", label: "Banners", Icon: Megaphone },
+              { href: "/admin/content/pages", label: "Pages", Icon: FileText },
+              { href: "/admin/content/widgets", label: "Widgets", Icon: Blocks },
+              { href: "/admin/appearance", label: "Layout", Icon: PanelsTopLeft },
+            ]
           : []),
         ...(hasArea("settings")
           ? [
@@ -244,22 +277,12 @@ export function AdminShell({
               { href: "/admin/settings/store", label: "Store Settings", Icon: Store },
             ]
           : []),
-      ],
-    },
-    {
-      title: "Marketing",
-      links: [
         ...(hasArea("coupons")
           ? [{ href: "/admin/marketing/promotions", label: "Promotions", Icon: Megaphone }]
           : []),
         ...(hasArea("content")
           ? [{ href: "/admin/marketing/seo", label: "SEO Settings", Icon: Search }]
           : []),
-      ],
-    },
-    {
-      title: "System",
-      links: [
         ...(hasArea("users")
           ? [{ href: "/admin/system/users", label: "User role", Icon: ShieldCheck }]
           : []),
@@ -267,13 +290,11 @@ export function AdminShell({
           ? [{ href: "/admin/system/notifications", label: "Notifications", Icon: Bell }]
           : []),
         ...(hasArea("settings")
-          ? [{ href: "/admin/settings/general", label: "General Settings", Icon: Settings }]
-          : []),
-        ...(hasArea("settings")
-          ? [{ href: "/admin/system/redirects", label: "Redirects", Icon: ArrowLeftRight }]
-          : []),
-        ...(hasArea("settings")
-          ? [{ href: "/admin/system/smtp", label: "Email (SMTP)", Icon: Mail }]
+          ? [
+              { href: "/admin/settings/general", label: "General Settings", Icon: Settings },
+              { href: "/admin/system/redirects", label: "Redirects", Icon: ArrowLeftRight },
+              { href: "/admin/system/smtp", label: "Email (SMTP)", Icon: Mail },
+            ]
           : []),
         ...(staffKnown
           ? [{ href: "/admin/settings/password", label: "Change Password", Icon: KeyRound }]
@@ -356,10 +377,8 @@ export function AdminShell({
     <>
       <nav aria-label="Admin navigation">
         {groups.map((group) => (
-          <details className="aa-nav-group" key={group.title} open>
-            <summary>
-              <span className="aa-nav-group-title">{group.title}</span>
-            </summary>
+          <div className="aa-nav-group" key={group.title}>
+            <h2 className="aa-nav-group-title">{group.title}</h2>
             {group.links.map(({ href, label, Icon }) => (
               <Link
                 key={href}
@@ -372,7 +391,7 @@ export function AdminShell({
                 <span className="aa-nav-label">{label}</span>
               </Link>
             ))}
-          </details>
+          </div>
         ))}
       </nav>
       <details className="aa-unavailable">
