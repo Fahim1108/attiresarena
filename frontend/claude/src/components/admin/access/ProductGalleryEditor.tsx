@@ -1,8 +1,9 @@
 'use client';
 /* Private signed image URLs are deliberately unoptimized and expire shortly. */
 /* eslint-disable @next/next/no-img-element */
-import {useActionState} from 'react';
+import {useActionState,useRef,useState} from 'react';
 import {editGallery,uploadProductImages} from '@/lib/admin/gallery-actions';
+import {compressImageFile,formatBytes} from '../catalog/image-compress';
 type Image={id:string;alt_text:string;position:number;url:string|null};
 type Target={id:string;updated_at:string};
 function TargetFields({target}:{target:Target}){return <><input type="hidden" name="id" value={target.id}/><input type="hidden" name="updated_at" value={target.updated_at}/></>;}
@@ -24,8 +25,31 @@ function GalleryOrder({image,images,target}:{image:Image;images:Image[];target:T
 }
 export function ProductGalleryEditor({target,images}:{target:Target;images:Image[]}){
  const [state,action,pending]=useActionState(uploadProductImages,{});
+ // Auto-compression is always on (owner decision 2026-11-27): no
+ // toggle. Files are compressed in the browser before submit and the
+ // input's files are replaced, so the server only ever sees the
+ // compressed bytes. Submits are blocked while compression runs.
+ const [compressing,setCompressing]=useState(false);
+ const [compressNote,setCompressNote]=useState<string|null>(null);
+ const inputRef=useRef<HTMLInputElement|null>(null);
+ async function onFilesChange(files: FileList | null) {
+  const input=inputRef.current;
+  if(!files || files.length===0 || !input) return;
+  setCompressing(true);
+  try {
+   const transfer=new DataTransfer();
+   let compressedCount=0;
+   for (const file of Array.from(files)) {
+    const result=await compressImageFile(file);
+    if(result.compressed) compressedCount+=1;
+    transfer.items.add(result.file);
+   }
+   input.files=transfer.files;
+   setCompressNote(compressedCount>0?`${compressedCount} image${compressedCount>1?'s':''} compressed before upload (${formatBytes(Array.from(files).reduce((n,f)=>n+f.size,0))} → ${formatBytes(Array.from(transfer.files).reduce((n,f)=>n+f.size,0))}).`:null);
+  } finally { setCompressing(false); }
+ }
  return <section className="aa-panel"><h2>Private product gallery</h2><p>{images.length}/20 images. Gallery changes remain unpublished.</p>
- <form action={action} className="aa-form"><TargetFields target={target}/><label>Product images<input type="file" name="images" accept="image/jpeg,image/png,image/webp" multiple required disabled={pending}/></label><p>Up to 8 JPEG, PNG or WebP images; 768 KiB combined per upload.</p><button disabled={pending}>{pending?'Uploading images…':'Upload product images'}</button>{state.error&&<p role="alert">{state.error}</p>}{state.success&&<p role="status">{state.success}</p>}</form>
+ <form action={action} className="aa-form" onSubmit={(e)=>{if(compressing)e.preventDefault();}}><TargetFields target={target}/><label>Product images<input ref={inputRef} type="file" name="images" accept="image/jpeg,image/png,image/webp" multiple required disabled={pending||compressing} onChange={(e)=>{void onFilesChange(e.target.files);}}/></label><p>Up to 8 JPEG, PNG or WebP images; 768 KiB combined per upload. Images are compressed automatically before upload.</p>{compressNote&&<p role="status">{compressNote}</p>}<button disabled={pending||compressing}>{pending?'Uploading images…':compressing?'Compressing images…':'Upload product images'}</button>{state.error&&<p role="alert">{state.error}</p>}{state.success&&<p role="status">{state.success}</p>}</form>
  <div className="aa-gallery">{images.map(image=><GalleryImage key={image.id} image={image} images={images} target={target}/>)}</div>
  </section>;
 }
