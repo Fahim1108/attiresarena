@@ -76,7 +76,10 @@ it("keeps chart axis text enlarged on phones", () => {
 it("labels every admin table cell (except the checkbox and empty-state rows)", () => {
   // [file, <td occurrences, data-label occurrences]
   const expected: Array<[string, number, number]> = [
-    ["../src/components/admin/catalog/product-list-table.tsx", 7, 6],
+    // Batch 1: the selection checkbox cell now carries data-label="Select"
+    // so it renders as a labelled row (not a bare checkbox) in phone card
+    // mode — 7 labelled cells, not 6.
+    ["../src/components/admin/catalog/product-list-table.tsx", 7, 7],
     ["../src/app/admin/(workspace)/sales/customers/page.tsx", 7, 7],
     ["../src/app/admin/(workspace)/sales/coupons/page.tsx", 6, 6],
     ["../src/app/admin/(workspace)/sales/incomplete/page.tsx", 7, 7],
