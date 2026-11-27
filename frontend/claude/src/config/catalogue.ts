@@ -3,18 +3,20 @@ import type { Category } from "@/types";
 
 export const storeCategories: Category[] = [
   { id: "cat-shirts", slug: "shirts", name: "Shirts", description: "Oxford, linen, check and overshirts cut for Bangladesh's climate.", image: { src: "/images/categories/shirts.svg", alt: "Navy shirt" }, thumbnail: { src: "/images/mockup/category-shirts-check.svg", alt: "Check shirts in white and maroon" }, sortOrder: 1 },
-  // Shirt sub-categories (owner decision 2026-11-20): Casual/Formal/Check
-  // live INSIDE Shirts, never as top-level tiles (topLevelCategories
-  // filters them out). They are static config on purpose: the chips on
-  // /category/shirts used to exist only when the anon categories read
-  // returned usable DB rows, so any silent read/parse failure dropped
-  // all three chips at once (Preview 2026-11-21: no chips, 20 products
-  // listed). With static rows the chips always render; when DB rows
-  // exist, mergeDbCategories overrides name/photo/SEO and keeps the DB
-  // uuid as id so admin products keep matching (see store-settings.ts).
+  // Shirt sub-categories (owner decision 2026-11-20, Denim added
+  // 2026-11-27): Casual/Formal/Denim/Check live INSIDE Shirts, never
+  // as top-level tiles (topLevelCategories filters them out). They are
+  // static config on purpose: the chips on /category/shirts used to
+  // exist only when the anon categories read returned usable DB rows,
+  // so any silent read/parse failure dropped all four chips at once
+  // (Preview 2026-11-21: no chips, 20 products listed). With static
+  // rows the chips always render; when DB rows exist,
+  // mergeDbCategories overrides name/photo/SEO and keeps the DB uuid
+  // as id so admin products keep matching (see store-settings.ts).
   { id: "cat-casual-shirt", slug: "casual-shirt", name: "Casual shirt", description: "Everyday casual shirts.", parentId: "cat-shirts", image: { src: "/images/categories/shirts.svg", alt: "Casual shirt" }, thumbnail: { src: "/images/mockup/category-shirts-check.svg", alt: "Check shirts in white and maroon" }, sortOrder: 7 },
   { id: "cat-formal-shirt", slug: "formal-shirt", name: "Formal shirt", description: "Formal shirts for work and occasions.", parentId: "cat-shirts", image: { src: "/images/categories/shirts.svg", alt: "Formal shirt" }, thumbnail: { src: "/images/mockup/category-shirts-check.svg", alt: "Check shirts in white and maroon" }, sortOrder: 8 },
-  { id: "cat-check-shirt", slug: "check-shirt", name: "Check shirt", description: "Check-pattern shirts.", parentId: "cat-shirts", image: { src: "/images/categories/shirts.svg", alt: "Check shirt" }, thumbnail: { src: "/images/mockup/category-shirts-check.svg", alt: "Check shirts in white and maroon" }, sortOrder: 9 },
+  { id: "cat-denim-shirt", slug: "denim-shirt", name: "Denim shirt", description: "Denim shirts for everyday wear.", parentId: "cat-shirts", image: { src: "/images/categories/shirts.svg", alt: "Denim shirt" }, thumbnail: { src: "/images/mockup/category-shirts-check.svg", alt: "Check shirts in white and maroon" }, sortOrder: 9 },
+  { id: "cat-check-shirt", slug: "check-shirt", name: "Check shirt", description: "Check-pattern shirts.", parentId: "cat-shirts", image: { src: "/images/categories/shirts.svg", alt: "Check shirt" }, thumbnail: { src: "/images/mockup/category-shirts-check.svg", alt: "Check shirts in white and maroon" }, sortOrder: 10 },
   { id: "cat-pants", slug: "pants", name: "Pants", description: "Chinos, relaxed trousers, denim and cargos for every day.", image: { src: "/images/categories/pants.svg", alt: "Khaki chinos" }, thumbnail: { src: "/images/mockup/category-pants.jpg", alt: "Folded chinos and trousers" }, sortOrder: 2 },
   { id: "cat-sneakers", slug: "sneakers", name: "Sneakers", description: "Clean, versatile sneakers that go with everything.", image: { src: "/images/categories/sneakers.svg", alt: "White sneaker" }, thumbnail: { src: "/images/mockup/category-sneakers.jpg", alt: "High-top sneakers" }, sortOrder: 3 },
   { id: "cat-belts", slug: "belts", name: "Belt", description: "Leather, reversible and woven belts to finish the look.", image: { src: "/images/categories/belts.svg", alt: "Brown leather belt" }, thumbnail: { src: "/images/mockup/category-belts.jpg", alt: "Brown leather belt" }, sortOrder: 4 },
