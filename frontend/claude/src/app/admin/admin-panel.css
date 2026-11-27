@@ -302,6 +302,33 @@
   cursor: not-allowed;
 }
 
+/* Solid primary row action (Incomplete Orders "Mark as Revived"): the
+   same 40px pill geometry as .aa-row-action, filled with the workspace
+   maroon instead of the white outline, so the one constructive action
+   reads as primary next to the danger-outline "Mark as Lost" and
+   matches the other solid buttons on the page. Placed after the
+   :disabled rule above so its own disabled treatment wins at equal
+   specificity. */
+.aa-admin button.aa-row-action--primary,
+.aa-admin a.aa-row-action--primary {
+  background: #6b0202;
+  border-color: #6b0202;
+  color: #fff;
+}
+.aa-admin button.aa-row-action--primary:hover,
+.aa-admin a.aa-row-action--primary:hover {
+  background: #4c0101;
+  border-color: #4c0101;
+  color: #fff;
+}
+.aa-admin button.aa-row-action--primary:disabled {
+  background: #efe3e3;
+  border-color: #b98f8f;
+  color: #6b0202;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
 /* Icon-only controls (e.g. list item move/remove): a visible bordered
    button shape with a dark icon, never bare muted glyphs. */
 .aa-admin .aa-icon-button {
