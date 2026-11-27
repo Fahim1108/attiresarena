@@ -2,10 +2,13 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { adminClient } from "./supabase";
+import { getStaffAuthOrigin } from "./origin";
 import {isProductionStorefront} from "../storefront-policy";
 import { staffSession } from "./access";
 import {
   signInSchema,
+  staffNewPasswordSchema,
+  staffPasswordResetRequestSchema,
   totpSchema,
   rolesSchema,
   draftSchema,
@@ -182,4 +185,111 @@ export async function createProductDraft(_:AdminActionState,form:FormData):Promi
  if(result.data!==d.request_id)return {error:'Saved product reference could not be confirmed. Reload the product list before retrying.'};
  revalidatePath('/admin');revalidatePath('/admin/products');
  return {success:'Product draft saved. It remains unpublished.',productId:d.request_id};
+}
+
+const staffResetSent: AdminActionState = {
+  success:
+    "If this email belongs to a staff account, a reset link is on its way. Check your inbox (and spam folder).",
+};
+
+/**
+ * Staff password-reset request. Always the same outcome: never reveals
+ * whether an email exists, or whether it belongs to a staff account.
+ * The staff gate lives in /admin/auth/callback (roles check after the
+ * code exchange): a non-staff account can never complete a reset
+ * through the admin path, so the link it receives is inert. (No
+ * request-time staff lookup: the installed auth-js has no
+ * getUserByEmail, and paging listUsers to find one email is the wrong
+ * tool.) A misconfigured redirect URL surfaces honestly instead of
+ * failing silently with a "check your inbox" message and no mail. MFA
+ * is untouched by a reset — sign-in still requires the authenticator
+ * code afterwards.
+ */
+export async function requestStaffPasswordReset(
+  _: AdminActionState,
+  form: FormData,
+): Promise<AdminActionState> {
+  const parsed = staffPasswordResetRequestSchema.safeParse(
+    Object.fromEntries(form),
+  );
+  if (!parsed.success) return { error: "Enter a valid email address." };
+  const origin = getStaffAuthOrigin();
+  if (!origin)
+    return {
+      error: "Password reset is not available right now. Try again later.",
+    };
+  let client;
+  try {
+    client = await adminClient(true);
+  } catch {
+    return {
+      error: "Password reset is not available right now. Try again later.",
+    };
+  }
+  const result = await client.auth.resetPasswordForEmail(parsed.data.email, {
+    redirectTo: `${origin}/admin/auth/callback?next=/admin/reset-password`,
+  });
+  if (result.error && /redirect/i.test(result.error.message)) {
+    return {
+      error:
+        "Password reset is not configured for this site. Contact the store Owner.",
+    };
+  }
+  return staffResetSent;
+}
+
+/**
+ * Set a new staff password from the reset page. Trusts the live
+ * recovery session (standard Supabase pattern, as in the customer
+ * reset flow) — but requires a staff role, never MFA: the user is
+ * resetting because they cannot sign in, and the authenticator factor
+ * survives the password change, so sign-in still requires the code.
+ * Ends the recovery session afterwards, so the next sign-in must use
+ * the new password.
+ */
+export async function setNewStaffPassword(
+  _: AdminActionState,
+  form: FormData,
+): Promise<AdminActionState> {
+  const parsed = staffNewPasswordSchema.safeParse(Object.fromEntries(form));
+  if (!parsed.success)
+    return { error: "Use a password of 8–128 characters." };
+  let client;
+  try {
+    client = await adminClient(true);
+  } catch {
+    return {
+      error: "Password reset is not available right now. Try again later.",
+    };
+  }
+  const {
+    data: { user },
+    error,
+  } = await client.auth.getUser();
+  if (error || !user || user.is_anonymous)
+    return {
+      error: "Your reset link has expired. Request a new link and try again.",
+    };
+  const roles = await client
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", user.id);
+  const membership = rolesSchema.safeParse(roles.data);
+  if (roles.error || !membership.success || !membership.data.length) {
+    await client.auth.signOut({ scope: "local" }).catch(() => {});
+    return { error: "This account does not have staff access." };
+  }
+  const updated = await client.auth.updateUser({
+    password: parsed.data.password,
+  });
+  if (updated.error)
+    return {
+      error:
+        "Could not update your password. Request a new reset link and try again.",
+    };
+  await client.auth.signOut({ scope: "local" }).catch(() => {});
+  return {
+    success:
+      "Your password was updated. Sign in with your new password and authenticator code.",
+  };
 }

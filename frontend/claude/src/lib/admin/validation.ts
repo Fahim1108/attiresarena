@@ -97,3 +97,29 @@ export type AdminActionState = {
   qr?: string;
   factorId?: string;
 };
+/** Staff password-reset request: email only. The action never reveals whether the account exists. */
+export const staffPasswordResetRequestSchema = z.object({
+  email: z.email().trim().max(254),
+});
+/** Staff new password: same 8–128 policy as the customer reset flow. */
+export const staffNewPasswordSchema = z.object({
+  password: z.string().min(8).max(128),
+});
+/**
+ * Exact-match allowlist for the staff auth callback `next` parameter.
+ * Only the reset page may ever come out of it — absolute URLs,
+ * protocol-relative URLs, backslashes, and query/fragment smuggling
+ * are all rejected by strict string equality. Default: the reset page.
+ */
+export const STAFF_CALLBACK_DESTINATIONS = [
+  "/admin/reset-password",
+] as const;
+/** The allowlisted staff callback destination, defaulting to the reset page. */
+export function staffCallbackDestination(
+  value: string | null | undefined,
+): string {
+  if (typeof value !== "string") return "/admin/reset-password";
+  return (STAFF_CALLBACK_DESTINATIONS as readonly string[]).includes(value)
+    ? value
+    : "/admin/reset-password";
+}
