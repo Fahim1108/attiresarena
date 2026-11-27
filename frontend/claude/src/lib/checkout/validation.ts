@@ -56,7 +56,12 @@ const order = z.object({
         .string()
         .trim()
         .max(40)
-        .transform(normalizePhone)
+        // Same 01-format normalization as validatePaymentDetails:
+        // the checkout RPC CHECK requires ^01[3-9][0-9]{8}$, so a
+        // +880 sender must be normalized here, not passed through.
+        .transform((value) =>
+          normalizePhone(value).replace(/^\+?88(?=01[3-9])/, ""),
+        )
         .pipe(z.string().regex(BD_PHONE_REGEX)),
       idempotencyKey: z
         .string()
