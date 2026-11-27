@@ -268,6 +268,8 @@ export default async function OrdersPage({
                   ? {
                       provider: payment.provider,
                       transaction_id: payment.transaction_id,
+                      sender_number: payment.sender_number,
+                      advance_minor: payment.advance_minor,
                       status: payment.status,
                     }
                   : null,
