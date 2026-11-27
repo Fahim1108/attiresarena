@@ -55,7 +55,7 @@ export function RecoveryActions({
             <input type="hidden" name="id" value={sessionId} />
             <input type="hidden" name="expected_updated_at" value={expectedUpdatedAt} />
             <input type="hidden" name="new_status" value="lost" />
-            <SubmitButton pendingLabel="Saving…">Mark as Lost</SubmitButton>
+            <SubmitButton pendingLabel="Saving…" className="aa-row-action aa-row-action--danger">Mark as Lost</SubmitButton>
           </form>
         )}
         {showRevived && (
@@ -63,7 +63,7 @@ export function RecoveryActions({
             <input type="hidden" name="id" value={sessionId} />
             <input type="hidden" name="expected_updated_at" value={expectedUpdatedAt} />
             <input type="hidden" name="new_status" value="pending" />
-            <SubmitButton pendingLabel="Saving…">Mark as Revived</SubmitButton>
+            <SubmitButton pendingLabel="Saving…" className="aa-row-action aa-row-action--primary">Mark as Revived</SubmitButton>
           </form>
         )}
       </div>
