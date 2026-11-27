@@ -225,7 +225,7 @@ export default async function IncompleteDetailPage({
           <Card>
             <CardHeader>
               <CardTitle headingLevel="h2">Follow up</CardTitle>
-              <CardDescription>Recovered is display-only: it is recorded automatically when a linked purchase is placed, and cannot be set by hand.</CardDescription>
+              <CardDescription>Marking as Lost ends recovery for this checkout. Recovered is recorded automatically when a linked purchase is placed.</CardDescription>
             </CardHeader>
             <CardContent>
               <RecoveryActions
