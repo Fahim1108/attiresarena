@@ -2,14 +2,18 @@
  * Client-side image auto-compressor (Admin Panel v2, owner item 12).
  *
  * DECISIONS (documented, owner-visible in the uploader UI):
- * - DEFAULT: ON. The toggle is per-uploader, on by default.
+ * - ALWAYS ON, no toggle (owner decision 2026-11-27): every upload
+ *   path compresses — product, category, banner, review, gallery,
+ *   draft media and brand images alike. The old per-uploader toggle
+ *   was removed; compress-toggle.tsx is kept only as dead code.
  * - Max long edge 1600px; aspect ratio preserved; NEVER upscaled.
  * - Output is WebP at quality 0.82.
  * - Images that already fit (≤ 5 MB AND long edge ≤ 1600px) pass
  *   through byte-identical — compression only touches oversized files.
  * - If the compressed output is >= the original, the ORIGINAL is kept.
  * - The ORIGINAL IS NOT PRESERVED: only the file returned here is
- *   uploaded. Turning the toggle off uploads originals untouched.
+ *   uploaded. Compression is always on — there is no way to upload
+ *   originals untouched.
  * - EXIF orientation is honored (createImageBitmap imageOrientation).
  * - Animated images lose animation (first frame only) — accepted:
  *   only JPEG/PNG/WebP stills are supported catalogue formats.

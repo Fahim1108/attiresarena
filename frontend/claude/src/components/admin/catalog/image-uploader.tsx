@@ -19,11 +19,9 @@ import {
   validateImageFileMeta,
 } from "@/lib/admin/catalog-variants";
 import {
-  COMPRESSOR_DEFAULT_ON,
   compressImageFile,
   formatBytes,
 } from "./image-compress";
-import { CompressToggle } from "./compress-toggle";
 import { Panel } from "../ui";
 import styles from "./catalogue-v2.module.css";
 
@@ -60,7 +58,6 @@ export function ImageUploader({
   const router = useRouter();
   const [queued, setQueued] = useState<QueuedFile[]>([]);
   const [dragOver, setDragOver] = useState(false);
-  const [compress, setCompress] = useState(COMPRESSOR_DEFAULT_ON);
   const [message, setMessage] = useState<{ text: string; kind: "info" | "error" } | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -68,10 +65,7 @@ export function ImageUploader({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const keyCounter = useRef(0);
   const previewsRef = useRef<Set<string>>(new Set());
-  const compressRef = useRef(compress);
-  useEffect(() => {
-    compressRef.current = compress;
-  }, [compress]);
+  const compressRef = useRef(true);
 
   useEffect(() => {
     const previews = previewsRef.current;
@@ -160,7 +154,7 @@ export function ImageUploader({
                   ...q,
                   status: "failed",
                   error:
-                    "Even after compression, this image is over 5 MB. Choose a smaller file or turn compression off and retry with a file under 5 MB.",
+                    "Even after compression, this image is over 5 MB. Choose a smaller file under 5 MB.",
                   note,
                 }
               : q,
@@ -275,7 +269,7 @@ export function ImageUploader({
       if (sizeError) {
         setBusy(false);
         setMessage({
-          text: "Even after compression, this image is over 5 MB. Choose a smaller file or turn compression off and retry with a file under 5 MB.",
+          text: "Even after compression, this image is over 5 MB. Choose a smaller file under 5 MB.",
           kind: "error",
         });
         return;
@@ -463,7 +457,6 @@ export function ImageUploader({
 
         {canManage ? (
           <>
-            <CompressToggle checked={compress} onChange={setCompress} />
             <div
               className={`${styles.dropzone} ${dragOver ? styles.dropzoneActive : ""}`}
               onClick={() => fileInputRef.current?.click()}

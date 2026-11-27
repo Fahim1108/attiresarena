@@ -16,11 +16,9 @@ import {
   type CategoryLevelChoice,
 } from "@/lib/admin/catalog-variants";
 import {
-  COMPRESSOR_DEFAULT_ON,
   compressImageFile,
   formatBytes,
 } from "./image-compress";
-import { CompressToggle } from "./compress-toggle";
 import { RadioOptionGroup } from "./radio-option-cards";
 import { focusFirstInvalid, SubmitButton } from "../ui-client";
 import type { CategoryParentOption } from "@/lib/admin/catalog-variants";
@@ -38,7 +36,7 @@ function CategoryImageField({
   label: string;
   currentPath: string | null;
   currentUrl: string | null;
-  /** Auto-compressor toggle state, shared across the form's image fields. */
+  /** Auto-compression is always on (owner decision 2026-11-27) — no toggle. */
   compress: boolean;
 }) {
   const [path, setPath] = useState(currentPath ?? "");
@@ -72,7 +70,7 @@ function CategoryImageField({
       if (sizeError) {
         setUploading(false);
         setStatus(
-          "Even after compression, this image is over 5 MB. Choose a smaller file or turn compression off and retry with a file under 5 MB.",
+          "Even after compression, this image is over 5 MB. Choose a smaller file under 5 MB.",
         );
         return;
       }
@@ -180,7 +178,6 @@ export function CategoryForm({
   const [name, setName] = useState(category?.name ?? "");
   const [slug, setSlug] = useState(category?.slug ?? "");
   const [slugEdited, setSlugEdited] = useState(Boolean(category));
-  const [compress, setCompress] = useState(COMPRESSOR_DEFAULT_ON);
   const [seoTitleLength, setSeoTitleLength] = useState(
     category?.seo_title?.length ?? 0,
   );
@@ -418,21 +415,20 @@ export function CategoryForm({
           {errorText("description", "description")}
         </div>
         <div className="aa-field aa-field--full">
-          <CompressToggle checked={compress} onChange={setCompress} />
         </div>
         <CategoryImageField
           fieldName="image_storage_path"
           label="Category image"
           currentPath={category?.image_storage_path ?? null}
           currentUrl={category?.imageUrl ?? null}
-          compress={compress}
+          compress={true}
         />
         <CategoryImageField
           fieldName="banner_storage_path"
           label="Banner image"
           currentPath={category?.banner_storage_path ?? null}
           currentUrl={category?.bannerUrl ?? null}
-          compress={compress}
+          compress={true}
         />
         <div className="aa-field">
           <label htmlFor={inputId("seo-title")}>
