@@ -82,8 +82,13 @@ describe("footer credit (item 9)", () => {
 describe("footer phone (item 8)", () => {
   it("renders a real phone as a tel: link below the social icons", () => {
     const html = footerHtml("01886456664");
-    expect(html).toContain('href="tel:01886456664"');
+    expect(html).toContain('href="tel:+8801886456664"');
     expect(html).toContain(">01886456664<");
+  });
+
+  it("renders the saved footer about text (footer.tagline)", () => {
+    const html = footerHtml("01886456664");
+    expect(html).toContain("Timeless menswear and accessories");
   });
 
   it("never renders the config placeholder phone", () => {

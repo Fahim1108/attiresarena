@@ -85,10 +85,12 @@ const FORMAL_ID = "40000000-0000-4000-8000-000000000002";
 const CHECK_ID = "40000000-0000-4000-8000-000000000003";
 
 describe("shirt sub-category mapping", () => {
-  it("matches the three shirt types by slug, and by name as a fallback", () => {
+  it("matches the four shirt types by slug, and by name as a fallback", () => {
     expect(isShirtSubcategory({ slug: "casual-shirt", name: "Casual shirt" })).toBe(true);
     expect(isShirtSubcategory({ slug: "formal-shirt", name: "Formal shirt" })).toBe(true);
+    expect(isShirtSubcategory({ slug: "denim-shirt", name: "Denim shirt" })).toBe(true);
     expect(isShirtSubcategory({ slug: "check-shirt", name: "Check shirt" })).toBe(true);
+    expect(shirtSubKey({ slug: "denim-shirt", name: "Denim shirt" })).toBe("denim");
     expect(isShirtSubcategory({ slug: "something-else", name: "Formal shirt" })).toBe(true);
     expect(isShirtSubcategory({ slug: "hoodies", name: "Hoodies" })).toBe(false);
     expect(isShirtSubcategory({ slug: "shirts", name: "Shirts" })).toBe(false);
@@ -124,6 +126,7 @@ describe("shirt sub-category mapping", () => {
     expect(shirtSubcategories(merged).map((c) => c.slug)).toEqual([
       "casual-shirt",
       "formal-shirt",
+      "denim-shirt",
       "check-shirt",
     ]);
   });
@@ -185,14 +188,15 @@ describe("shirts listing with sub-category products", () => {
 });
 
 describe("chips without DB rows (Preview 2026-11-21 regression)", () => {
-  it("shows Casual/Formal/Check as sub-categories even when the anon categories read returns nothing", () => {
-    // Before the fix the three types existed only as DB rows, so a
-    // silent read/parse failure dropped all three chips at once while
+  it("shows Casual/Formal/Denim/Check as sub-categories even when the anon categories read returns nothing", () => {
+    // Before the fix the four types existed only as DB rows, so a
+    // silent read/parse failure dropped all four chips at once while
     // /category/shirts still listed 20 products.
     const merged = mergeDbCategories(storeCategories, []);
     expect(shirtSubcategories(merged).map((c) => c.slug)).toEqual([
       "casual-shirt",
       "formal-shirt",
+      "denim-shirt",
       "check-shirt",
     ]);
     expect(topLevelCategories(merged).map((c) => c.slug)).toEqual([
@@ -476,8 +480,8 @@ describe("duplicate shirt chips dedupe (Preview 2026-11-21, deployment BE9vxDT4)
 
   it("shows exactly one chip per shirt type, canonical slug + name, no garbage slug", () => {
     const subs = shirtSubcategories(merged);
-    expect(subs.map((c) => c.slug)).toEqual(["casual-shirt", "formal-shirt", "check-shirt"]);
-    expect(subs.map((c) => c.name)).toEqual(["Casual shirt", "Formal shirt", "Check shirt"]);
+    expect(subs.map((c) => c.slug)).toEqual(["casual-shirt", "formal-shirt", "denim-shirt", "check-shirt"]);
+    expect(subs.map((c) => c.name)).toEqual(["Casual shirt", "Formal shirt", "Denim shirt", "Check shirt"]);
     expect(subs.map((c) => c.slug)).not.toContain("staging-category-f7a3f419-40c8-42aa-a39c-cad87677c4c7");
     expect(subs.map((c) => c.slug)).not.toContain("formal-shirts");
   });

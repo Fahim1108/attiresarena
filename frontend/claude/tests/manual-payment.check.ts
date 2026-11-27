@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { advanceBreakdown, buildOrderNote, canDisplayConfirmedOrder, classifyAdvanceLocation, formatPaymentAmount, formatPaymentNoteLine, stripPaymentNoteLine, validatePaymentDetails } from "../src/lib/manual-payment";
+import { advanceBreakdown, buildOrderNote, canDisplayConfirmedOrder, classifyAdvanceLocation, formatPaymentAmount, formatPaymentNoteLine, parsePaymentNoteLine, stripPaymentNoteLine, validatePaymentDetails } from "../src/lib/manual-payment";
 import { submitManualPaymentAction } from "../src/services/manual-payment-actions";
 import { mockDataSource } from "../src/services/adapters/mock";
 
@@ -33,7 +33,20 @@ describe("location and precision-safe advance breakdown", () => {
 
 describe("manual payment validation and fail-closed action", () => {
   it("trims IDs and notes, normalizes Bangladesh phone numbers, and preserves provider case", () => {
-    expect(validatePaymentDetails(input)).toEqual({ ok: true, data: { ...input, transactionId: "AbC-123", senderNumber: "+8801700000000", note: "Test note" } });
+    expect(validatePaymentDetails(input)).toEqual({ ok: true, data: { ...input, transactionId: "AbC-123", senderNumber: "01700000000", note: "Test note" } });
+  });
+  it("normalizes a +880 sender to 01-format so the TxID row is recorded, and parses old +880 note lines", () => {
+    expect(validatePaymentDetails({ ...input, senderNumber: "+8801700000000" }).ok).toBe(true);
+    expect(parsePaymentNoteLine("[Advance payment] bKash TxID ABC123, sender +8801700000000.")).toEqual({
+      provider: "bkash",
+      transactionId: "ABC123",
+      senderNumber: "01700000000",
+    });
+    expect(parsePaymentNoteLine("[Advance payment] Nagad TxID T1, sender 01700000000.")).toEqual({
+      provider: "nagad",
+      transactionId: "T1",
+      senderNumber: "01700000000",
+    });
   });
   it("does not impose a provider-specific transaction length", () => {
     for (const transactionId of ["A", "ABC123456789012345678901234567890", "Ref_1.2-3"]) expect(validatePaymentDetails({ ...input, transactionId }).ok).toBe(true);

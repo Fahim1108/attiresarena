@@ -33,5 +33,5 @@ it('curates only original inventory and preserves photos, prices and lack of fab
 });
 it('preserves required homepage order and 3s hero auto-rotation',async()=>{
  preview();const settings=await ownerCatalogue.getStorefrontSettings();expect(settings.homepage.filter(s=>s.enabled).map(s=>s.type)).toEqual(['hero','categories','sizes','new-arrivals','featured']);expect(campaignHero.autoplayMs).toBe(3000);expect(campaignHero.slides.map(s=>s.id)).toEqual(['banner-01','banner-02','banner-03']);
- expect(settings.header.navigation.find(n=>n.label==='Shirts')?.children).toEqual([{label:'All Shirts',href:'/category/shirts'},{label:'Casual shirt',href:'/category/casual-shirt'},{label:'Formal shirt',href:'/category/formal-shirt'},{label:'Check shirt',href:'/category/check-shirt'}]);
+ expect(settings.header.navigation.find(n=>n.label==='Shirts')?.children).toEqual([{label:'All Shirts',href:'/category/shirts'},{label:'Casual shirt',href:'/category/casual-shirt'},{label:'Formal shirt',href:'/category/formal-shirt'},{label:'Denim shirt',href:'/category/denim-shirt'},{label:'Check shirt',href:'/category/check-shirt'}]);
 });
