@@ -20,6 +20,7 @@ import {
 } from "@/lib/admin/format";
 import type { ShipmentSummary } from "@/lib/admin/courier";
 import { ProductThumbnail } from "@/components/admin/access/ProductThumbnail";
+import { CopyButton } from "@/components/admin/CopyButton";
 import { StatusBadge } from "@/components/design-system/StatusBadge";
 import { Badge } from "@/components/ui/Badge";
 import { FormMessage, SubmitButton } from "@/components/admin/ui-client";
@@ -44,10 +45,14 @@ export interface OrderListRow {
   total_minor: number;
   placed_at: string;
   updated_at: string;
-  /** Latest advance-payment submission, when one was recorded. */
+  /** Latest advance-payment submission, when one was recorded. Null for
+   * orders with no payment record (e.g. old COD orders): callers render
+   * blank payment cells, never a placeholder. */
   payment?: {
     provider: string;
     transaction_id: string;
+    sender_number: string;
+    advance_minor: number;
     status: string;
   } | null;
   /** First ordered item's cover photo (desktop only; mobile cards stay text-only). */
@@ -71,6 +76,38 @@ function stockNote(status: OrderStatus): string | null {
     return "This restores the ordered quantities to stock for each selected order.";
   }
   return null;
+}
+
+/** One payment column in the desktop card header (hidden on phones via
+ * .paymentCell). The copy button always copies the full value, even when
+ * the cell shows the shortened TxID. */
+function HeaderPaymentCell({
+  area,
+  label,
+  value,
+  copyValue,
+  mono,
+}: {
+  area: "txid" | "sender" | "method" | "advance";
+  label: string;
+  value: string;
+  copyValue: string;
+  mono?: boolean;
+}) {
+  return (
+    <span className={styles.paymentCell} style={{ gridArea: area }}>
+      <span className={styles.paymentCellLabel}>{label}</span>
+      <span className={styles.paymentCellValue}>
+        <span
+          className={mono ? styles.paymentCellMono : undefined}
+          title={copyValue !== value ? copyValue : undefined}
+        >
+          {value}
+        </span>
+        <CopyButton value={copyValue} label={`Copy ${label.toLowerCase()}`} variant="icon" />
+      </span>
+    </span>
+  );
 }
 
 export function OrdersTable({
@@ -274,6 +311,36 @@ export function OrdersTable({
                     <span className={styles.cardCustomer}>{row.customer_name}</span>
                     <span className={styles.cardSub}>{row.phone}</span>
                   </span>
+                  {row.payment ? (
+                    <>
+                      <HeaderPaymentCell
+                        area="txid"
+                        label="TxID"
+                        value={shortTransactionId(row.payment.transaction_id)}
+                        copyValue={row.payment.transaction_id}
+                        mono
+                      />
+                      <HeaderPaymentCell
+                        area="sender"
+                        label="Sender"
+                        value={row.payment.sender_number}
+                        copyValue={row.payment.sender_number}
+                        mono
+                      />
+                      <HeaderPaymentCell
+                        area="method"
+                        label="Method"
+                        value={paymentProviderLabel(row.payment.provider)}
+                        copyValue={paymentProviderLabel(row.payment.provider)}
+                      />
+                      <HeaderPaymentCell
+                        area="advance"
+                        label="Advance"
+                        value={formatMoney(row.payment.advance_minor)}
+                        copyValue={formatMoney(row.payment.advance_minor)}
+                      />
+                    </>
+                  ) : null}
                   <StatusBadge status={row.status} className={styles.cardBadge} />
                   <span className={styles.cardTotal}>{formatMoney(row.total_minor)}</span>
                   <button
@@ -308,29 +375,77 @@ export function OrdersTable({
                         <dd>
                           {PAYMENT_STATUS_LABELS[row.payment_status] ?? row.payment_status}
                           {row.payment ? (
-                            <span className={styles.paymentSubmission}>
-                              <span
-                                className={styles.paymentTxid}
-                                title={`${paymentProviderLabel(row.payment.provider)} TxID ${row.payment.transaction_id}`}
-                              >
-                                {paymentProviderLabel(row.payment.provider)} ·{" "}
-                                {shortTransactionId(row.payment.transaction_id)}
-                              </span>
-                              {row.payment_status === "unpaid" &&
-                              row.payment.status === "submitted" ? (
-                                <Badge tone="warning">Needs verification</Badge>
-                              ) : (
-                                <Badge
-                                  tone={
-                                    row.payment.status === "verified"
-                                      ? "success"
-                                      : "neutral"
-                                  }
+                            <>
+                              <span className={styles.paymentSubmission}>
+                                <span
+                                  className={styles.paymentTxid}
+                                  title={`${paymentProviderLabel(row.payment.provider)} TxID ${row.payment.transaction_id}`}
                                 >
-                                  {paymentSubmissionStatusLabel(row.payment.status)}
-                                </Badge>
-                              )}
-                            </span>
+                                  {paymentProviderLabel(row.payment.provider)} ·{" "}
+                                  {shortTransactionId(row.payment.transaction_id)}
+                                </span>
+                                {row.payment_status === "unpaid" &&
+                                row.payment.status === "submitted" ? (
+                                  <Badge tone="warning">Needs verification</Badge>
+                                ) : (
+                                  <Badge
+                                    tone={
+                                      row.payment.status === "verified"
+                                        ? "success"
+                                        : "neutral"
+                                    }
+                                  >
+                                    {paymentSubmissionStatusLabel(row.payment.status)}
+                                  </Badge>
+                                )}
+                              </span>
+                              <dl className={styles.paymentDetails}>
+                                <div>
+                                  <dt>Method</dt>
+                                  <dd>
+                                    <span>{paymentProviderLabel(row.payment.provider)}</span>
+                                    <CopyButton
+                                      value={paymentProviderLabel(row.payment.provider)}
+                                      label="Copy payment method"
+                                    />
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt>Transaction ID</dt>
+                                  <dd>
+                                    <code className={styles.paymentDetailMono}>
+                                      {row.payment.transaction_id}
+                                    </code>
+                                    <CopyButton
+                                      value={row.payment.transaction_id}
+                                      label={`Copy Transaction ID ${row.payment.transaction_id}`}
+                                    />
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt>Sender number</dt>
+                                  <dd>
+                                    <span className={styles.paymentDetailMono}>
+                                      {row.payment.sender_number}
+                                    </span>
+                                    <CopyButton
+                                      value={row.payment.sender_number}
+                                      label="Copy sender number"
+                                    />
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt>Advance paid</dt>
+                                  <dd>
+                                    <span>{formatMoney(row.payment.advance_minor)}</span>
+                                    <CopyButton
+                                      value={formatMoney(row.payment.advance_minor)}
+                                      label="Copy advance amount"
+                                    />
+                                  </dd>
+                                </div>
+                              </dl>
+                            </>
                           ) : null}
                         </dd>
                       </div>

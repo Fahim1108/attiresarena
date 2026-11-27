@@ -2,13 +2,17 @@
    restyled redesign v2 step 2). Admin design-system tokens only, via the
    scoped --admin-* variables (resolving under the .aa-admin-ds shell
    scope): primary, secondary, card, text, secondary text, border, soft
-   background; card/control radii. This module is imported only by
-   OrdersTable (the All Orders list), so these rules reach no other page.
+   background; card/control radii. This module is imported by OrdersTable
+   (the All Orders list) and by the CopyButton it uses, so these rules
+   reach no other page.
 
    Mobile-first: the header is a stacked grid on phones (order + badge,
    customer + total, full-width expand button), and becomes a single row
-   at 64rem and above. 44px targets and the expand/collapse behaviour
-   are unchanged. No hover-reveal: every action is visible and labeled
+   at 64rem and above, with the four payment columns (TxID, Sender,
+   Method, Advance) visible only there — on phones the same payment
+   fields live in the expanded card body, with copy buttons in both
+   places. 44px targets and the expand/collapse behaviour are
+   unchanged. No hover-reveal: every action is visible and labeled
    at rest. */
 
 .cards {
@@ -57,8 +61,8 @@
 
 @media (min-width: 64rem) {
   .cardHeader {
-    grid-template-columns: 44px minmax(8rem, 1.1fr) minmax(8rem, 1.5fr) auto auto auto;
-    grid-template-areas: "select order customer badge total expand";
+    grid-template-columns: 44px minmax(7rem, 0.9fr) minmax(8rem, 1.1fr) minmax(6.5rem, auto) minmax(7rem, auto) auto auto auto auto auto;
+    grid-template-areas: "select order customer txid sender method advance badge total expand";
     gap: 0.5rem 1rem;
     padding: 0.875rem 1.25rem;
   }
@@ -168,6 +172,83 @@
   font-size: 1rem;
   font-weight: 700;
   color: rgb(var(--admin-text));
+  white-space: nowrap;
+}
+
+/* Desktop-only payment columns in the card header: hidden on phones
+   (same show/hide pattern as .cardThumb), one stacked label + value
+   per column at 64rem and above. Orders with no payment record render
+   no cell at all, so the column stays blank. */
+.paymentCell {
+  display: none;
+  min-width: 0;
+}
+
+@media (min-width: 64rem) {
+  .paymentCell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+  }
+}
+
+.paymentCellLabel {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgb(var(--admin-text-secondary));
+}
+
+.paymentCellValue {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: rgb(var(--admin-text));
+  white-space: nowrap;
+}
+
+.paymentCellMono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* Copy buttons (CopyButton): icon-only in the dense header columns,
+   labelled in the expanded card body. The #8f8985 edge is the same
+   contrast-pinned neutral as the expand button. */
+.copyButtonIcon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0.2rem;
+  border: 1px solid #8f8985;
+  border-radius: var(--admin-radius-control);
+  background: rgb(var(--admin-card));
+  color: rgb(var(--admin-text));
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.copyButtonIcon:hover {
+  border-color: rgb(var(--admin-primary));
+  background: rgb(var(--admin-soft-bg));
+}
+
+.copyButtonIcon:focus-visible {
+  outline: 2px solid rgb(var(--admin-primary));
+  outline-offset: 2px;
+}
+
+.copyButtonText {
+  flex: none;
   white-space: nowrap;
 }
 
@@ -282,6 +363,42 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.78rem;
   color: rgb(var(--admin-text-secondary));
+  overflow-wrap: anywhere;
+}
+
+/* Full payment fields in the expanded card body (all widths, so phones
+   get the same values + copy buttons as the desktop columns). Each row
+   is a small label over a value + copy button pair. */
+.paymentDetails {
+  display: grid;
+  gap: 0.5rem 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  margin: 0.6rem 0 0;
+}
+
+.paymentDetails dt {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgb(var(--admin-text-secondary));
+}
+
+.paymentDetails dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  margin: 0.1rem 0 0;
+  color: rgb(var(--admin-text));
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.paymentDetailMono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
 
