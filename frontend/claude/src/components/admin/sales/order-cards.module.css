@@ -7,13 +7,25 @@
    reach no other page.
 
    Mobile-first: the header is a stacked grid on phones (order + badge,
-   customer + total, full-width expand button), and becomes a single row
-   at 64rem and above, with the four payment columns (TxID, Sender,
-   Method, Advance) visible only there — on phones the same payment
-   fields live in the expanded card body, with copy buttons in both
-   places. 44px targets and the expand/collapse behaviour are
-   unchanged. No hover-reveal: every action is visible and labeled
-   at rest. */
+   customer + total, full-width expand button), and becomes two rows
+   at 64rem and above — an identity/status row, then a payment row
+   with the four payment columns (TxID, Sender, Method, Advance).
+   The payment fields live in the expanded card body on phones, with
+   copy buttons in both places. 44px targets and the expand/collapse
+   behaviour are unchanged. No hover-reveal: every action is visible
+   and labeled at rest.
+
+   Why two rows, not one: the old single row put ten columns
+   (select, order, customer, txid, sender, method, advance, badge,
+   total, expand) in one line. Its minimum content is ~1215px, but
+   the card can never be wider than 1176px (.aa-main caps at
+   1240px incl. padding), so at every desktop width the tracks
+   collapsed to their minimums and the nowrap payment values
+   overflowed into the next cell — TxID, sender, method and advance
+   piled on top of each other and of the status pill and total.
+   The payment row gives each value a column sized by the row
+   above it (TxID/Sender share the wide order/customer columns),
+   so nothing can collide at any desktop width. */
 
 .cards {
   display: grid;
@@ -61,9 +73,22 @@
 
 @media (min-width: 64rem) {
   .cardHeader {
-    grid-template-columns: 44px minmax(7rem, 0.9fr) minmax(8rem, 1.1fr) minmax(6.5rem, auto) minmax(7rem, auto) auto auto auto auto auto;
-    grid-template-areas: "select order customer txid sender method advance badge total expand";
-    gap: 0.5rem 1rem;
+    /* Two rows: identity/status on top, payment on its own row
+       below. The select checkbox and the expand button span both
+       rows. Payment cells sit in the wide 1fr columns (TxID under
+       the order block, Sender under the customer block), so each
+       value + copy button has far more room than its content needs
+       at any desktop width — nothing can collide with its neighbour,
+       the status pill or the total. */
+    grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      "select order customer badge total expand"
+      "select txid sender method advance expand";
+    /* Tight column gap: at the narrowest desktop width (1024px
+       viewport, ~776px card) each 1fr column is ~147px, and the
+       widest payment value + copy button needs ~134px — the gap
+       saving is the margin that keeps it fitting. */
+    gap: 0.5rem 0.75rem;
     padding: 0.875rem 1.25rem;
   }
 }
@@ -177,8 +202,9 @@
 
 /* Desktop-only payment columns in the card header: hidden on phones
    (same show/hide pattern as .cardThumb), one stacked label + value
-   per column at 64rem and above. Orders with no payment record render
-   no cell at all, so the column stays blank. */
+   per cell in the header's second row at 64rem and above. Orders
+   with no payment record render no cell at all, so the row stays
+   blank for them — the identity row above is unaffected. */
 .paymentCell {
   display: none;
   min-width: 0;
