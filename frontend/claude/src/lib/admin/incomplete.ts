@@ -6,7 +6,6 @@ import { z } from "zod";
 import { requireStaff, actionOk, actionError, toActionError, type AdminActionResult, type StaffSession } from "./authorization";
 import {
   RECOVERY_STATUSES,
-  RECOVERY_STATUS_LABELS,
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
   areaRoles,
@@ -41,11 +40,13 @@ export function sessionValue(
 
 /**
  * Recovery statuses staff may set manually. "Recovered" is deliberately
- * absent: the database records it only from a linked purchase.
+ * absent: the database records it only from a linked purchase. "Lost"
+ * may return to "pending" (Revived — back in the follow-up queue).
  */
 export function manualRecoveryOptions(status: RecoveryStatus): RecoveryStatus[] {
   if (status === "pending") return ["contacted", "lost"];
   if (status === "contacted") return ["lost"];
+  if (status === "lost") return ["pending"];
   return [];
 }
 
@@ -377,13 +378,19 @@ export async function readIncompleteDetail(id: string) {
  * (guard trigger allows pending/contacted -> lost) and revalidatePath
  * refreshes the list and detail pages. Nothing else in the write path
  * was broken.
+ *
+ * Revived writes 'pending' (back in the follow-up queue), allowed by
+ * migration 20261127000100 (guard trigger lost -> pending + RPC
+ * allowlist). Each status records its own fixed note so the audit log
+ * stays truthful: a Revived entry must not read as "Marked as Lost".
  */
-const RECOVERY_STAFF_NOTE = "Marked as Lost from the admin panel.";
+const RECOVERY_STAFF_NOTE_LOST = "Marked as Lost from the admin panel.";
+const RECOVERY_STAFF_NOTE_REVIVED = "Marked as Revived from the admin panel — back in the follow-up queue.";
 
 const recoverySchema = z.object({
   id: z.uuid(),
   expected_updated_at: z.iso.datetime({ offset: true }),
-  new_status: z.enum(["lost", "recovered"]),
+  new_status: z.enum(["lost", "pending"]),
 });
 
 export async function setRecoveryStatus(
@@ -399,24 +406,21 @@ export async function setRecoveryStatus(
   if (!parsed.success) {
     return actionError("Choose Lost or Revived and try again.");
   }
-  // Recovered is recorded only from a linked purchase. The RPC refuses
-  // manual 'recovered' (22023), and the checkout_sessions CHECKs forbid
-  // recovered on an abandoned session with no order (recovered_at plus
-  // a completed lifecycle and order_id are required). Refuse here with
-  // the specific reason instead of letting the RPC fail generically.
-  // Lifting that rule needs a migration — a coordinator decision, not
-  // part of this slice — so Revived cannot write recovered yet.
-  if (parsed.data.new_status === "recovered") {
-    return actionError(
-      "Recovered cannot be set manually. It is recorded automatically when a linked purchase is placed.",
-    );
-  }
+  // Revived writes 'pending' (back in the follow-up queue), allowed by
+  // migration 20261127000100 (guard trigger lost -> pending + RPC
+  // allowlist). Manual 'recovered' is not an accepted value here: the
+  // RPC refuses it (22023) and the checkout_sessions CHECKs forbid
+  // recovered on an abandoned session with no order. 'Recovered' is
+  // recorded only from a linked purchase.
   const session = await requireStaff(areaRoles("recovery"));
   const result = await session.client.rpc("admin_set_checkout_recovery_status", {
     target_session: parsed.data.id,
     expected_updated_at: parsed.data.expected_updated_at,
     new_status: parsed.data.new_status,
-    note: RECOVERY_STAFF_NOTE,
+    note:
+      parsed.data.new_status === "pending"
+        ? RECOVERY_STAFF_NOTE_REVIVED
+        : RECOVERY_STAFF_NOTE_LOST,
   });
   if (result.error) {
     if (result.error.code === "PT409") {
@@ -428,5 +432,9 @@ export async function setRecoveryStatus(
   }
   revalidatePath("/admin/sales/incomplete");
   revalidatePath(`/admin/sales/incomplete/${parsed.data.id}`);
-  return actionOk(`Marked as ${RECOVERY_STATUS_LABELS[parsed.data.new_status]}.`);
+  return actionOk(
+    parsed.data.new_status === "pending"
+      ? "Marked as Revived — back in the follow-up queue."
+      : "Marked as Lost.",
+  );
 }
