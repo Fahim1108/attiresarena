@@ -358,7 +358,8 @@ describe("incomplete checkout helpers", () => {
   it("never offers Recovered as a manual action", () => {
     expect(manualRecoveryOptions("pending")).toEqual(["contacted", "lost"]);
     expect(manualRecoveryOptions("contacted")).toEqual(["lost"]);
-    expect(manualRecoveryOptions("lost")).toEqual([]);
+    // Lost may return to pending (Revived — back in the follow-up queue).
+    expect(manualRecoveryOptions("lost")).toEqual(["pending"]);
     expect(manualRecoveryOptions("recovered")).toEqual([]);
   });
 });
