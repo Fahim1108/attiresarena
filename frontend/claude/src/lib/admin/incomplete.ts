@@ -362,11 +362,28 @@ export async function readIncompleteDetail(id: string) {
 /* Server Action: manual recovery status via the EXISTING RPC          */
 /* ------------------------------------------------------------------ */
 
+/**
+ * The follow-up note field is gone (Batch 1): staff just press Lost or
+ * Revived. The RPC and the append-only log still require a note for a
+ * manual entry (the RPC refuses notes shorter than 3 chars; the
+ * abandoned_recovery_log CHECK requires a note on manual rows), so the
+ * action records a fixed staff note instead of asking for one.
+ *
+ * That fixed note IS the persistence fix. A note-less submit used to
+ * fail validation here — before any RPC call — so Lost never reached
+ * the database and the badge still read Pending after reload. The id,
+ * table and column were already right: session.id is passed as
+ * target_session, and the RPC updates checkout_sessions.recovery_status
+ * (guard trigger allows pending/contacted -> lost) and revalidatePath
+ * refreshes the list and detail pages. Nothing else in the write path
+ * was broken.
+ */
+const RECOVERY_STAFF_NOTE = "Marked as Lost from the admin panel.";
+
 const recoverySchema = z.object({
   id: z.uuid(),
   expected_updated_at: z.iso.datetime({ offset: true }),
-  new_status: z.enum(["contacted", "lost"]),
-  note: z.string().trim().min(3).max(500),
+  new_status: z.enum(["lost", "recovered"]),
 });
 
 export async function setRecoveryStatus(
@@ -374,27 +391,32 @@ export async function setRecoveryStatus(
   formData: FormData,
 ): Promise<AdminActionResult> {
   "use server";
-  const rawStatus = formData.get("new_status");
-  if (rawStatus === "recovered") {
-    return actionError(
-      "Recovered cannot be set manually. It is recorded automatically when a linked purchase is placed.",
-    );
-  }
   const parsed = recoverySchema.safeParse({
     id: formData.get("id"),
     expected_updated_at: formData.get("expected_updated_at"),
-    new_status: rawStatus,
-    note: formData.get("note"),
+    new_status: formData.get("new_status"),
   });
   if (!parsed.success) {
-    return actionError("Enter a follow-up note of 3 to 500 characters and choose Contacted or Lost.");
+    return actionError("Choose Lost or Revived and try again.");
+  }
+  // Recovered is recorded only from a linked purchase. The RPC refuses
+  // manual 'recovered' (22023), and the checkout_sessions CHECKs forbid
+  // recovered on an abandoned session with no order (recovered_at plus
+  // a completed lifecycle and order_id are required). Refuse here with
+  // the specific reason instead of letting the RPC fail generically.
+  // Lifting that rule needs a migration — a coordinator decision, not
+  // part of this slice — so Revived cannot write recovered yet.
+  if (parsed.data.new_status === "recovered") {
+    return actionError(
+      "Recovered cannot be set manually. It is recorded automatically when a linked purchase is placed.",
+    );
   }
   const session = await requireStaff(areaRoles("recovery"));
   const result = await session.client.rpc("admin_set_checkout_recovery_status", {
     target_session: parsed.data.id,
     expected_updated_at: parsed.data.expected_updated_at,
     new_status: parsed.data.new_status,
-    note: parsed.data.note,
+    note: RECOVERY_STAFF_NOTE,
   });
   if (result.error) {
     if (result.error.code === "PT409") {
