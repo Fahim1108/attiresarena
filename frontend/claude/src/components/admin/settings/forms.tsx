@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef, useState } from "react";
 import {
   ConfirmSubmit,
   FormMessage,
   SubmitButton,
   type RowAction,
 } from "@/components/admin/ui-client";
+import { compressImageFile, formatBytes } from "@/components/admin/catalog/image-compress";
 import type { AdminActionResult } from "@/lib/admin/authorization";
 import {
   parseLowStockThreshold,
@@ -315,22 +316,63 @@ export function BrandImageForm({
   hasCurrent: boolean;
 }) {
   const [state, formAction] = useActionState(action, null);
+  // Auto-compression is always on (owner decision 2026-11-27): no
+  // toggle. The file is compressed in the browser before submit and
+  // the input's file is replaced. Small logos pass through unchanged
+  // (compressImageFile never upscales); submits are blocked while it
+  // runs.
+  const [compressing, setCompressing] = useState(false);
+  const [compressNote, setCompressNote] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  async function onFileChange(files: FileList | null) {
+    const file = files?.[0];
+    const input = inputRef.current;
+    if (!file || !input) return;
+    setCompressing(true);
+    try {
+      const result = await compressImageFile(file);
+      if (result.compressed) {
+        const transfer = new DataTransfer();
+        transfer.items.add(result.file);
+        input.files = transfer.files;
+        setCompressNote(
+          `Compressed ${formatBytes(file.size)} → ${formatBytes(result.file.size)} before upload.`,
+        );
+      } else {
+        setCompressNote(result.note);
+      }
+    } finally {
+      setCompressing(false);
+    }
+  }
   return (
     <div>
-      <form action={formAction} encType="multipart/form-data">
+      <form
+        action={formAction}
+        encType="multipart/form-data"
+        onSubmit={(e) => {
+          if (compressing) e.preventDefault();
+        }}
+      >
         <FormMessage state={state} />
         <input type="hidden" name="kind" value={kind} />
         <div className="aa-form-grid">
           <div className="aa-field">
             <label htmlFor={`brand-image-${kind}`}>{label}</label>
             <input
+              ref={inputRef}
               id={`brand-image-${kind}`}
               name="image"
               type="file"
               accept="image/jpeg,image/png,image/webp"
               required
+              disabled={compressing}
+              onChange={(e) => {
+                void onFileChange(e.target.files);
+              }}
             />
-            <p className="aa-hint">JPEG, PNG or WebP, up to 768 KiB. Stored privately; shown here via a signed URL.</p>
+            <p className="aa-hint">JPEG, PNG or WebP, up to 768 KiB. Stored privately; shown here via a signed URL. Images are compressed automatically before upload.</p>
+            {compressNote ? <p role="status">{compressNote}</p> : null}
           </div>
         </div>
         {currentUrl ? (
