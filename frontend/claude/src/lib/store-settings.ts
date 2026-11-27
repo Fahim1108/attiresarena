@@ -513,8 +513,8 @@ export function mergeDbCategories(
   if (rows.length === 0) return staticCategories;
   /**
    * Client feedback 2026-11-24 item 4: the DB owns the taxonomy
-   * once the primary-seed migration (20261124000100) has been
-   * applied — it inserts the six primary rows and gives the three
+   * once the primary-seed migration (20261124000400) has been
+   * applied — it inserts the six primary rows and gives the four
    * shirt sub-categories a real parent. The gate is therefore: any
    * primary slug among the published rows, OR any canonical shirt
    * sub-category row with a real parent_id. The second arm matters

@@ -40,7 +40,14 @@ export function validatePaymentDetails(input: unknown):
   if (!input || typeof input !== "object") return { ok: false, errors: { form: "Invalid payment details." } };
   const value = input as Record<string, unknown>;
   const transactionId = typeof value.transactionId === "string" ? value.transactionId.trim() : "";
-  const senderNumber = typeof value.senderNumber === "string" ? normalizePhone(value.senderNumber.trim()) : "";
+  // Sender is stored in 01-format only: the payment_submissions
+  // CHECK and the place_checkout_order guard both require
+  // ^01[3-9][0-9]{8}$. Checkout accepts +880/880/01, so strip the
+  // country prefix here — otherwise a +880 order is placed but its
+  // TxID row is silently skipped and admin shows no Verify button.
+  const senderNumber = typeof value.senderNumber === "string"
+    ? normalizePhone(value.senderNumber.trim()).replace(/^\+?88(?=01[3-9])/, "")
+    : "";
   const note = typeof value.note === "string" ? value.note.trim() : "";
   const errors: Partial<Record<"transactionId" | "senderNumber" | "note" | "form", string>> = {};
   if (!transactionId || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(transactionId) || transactionId.length > 128) errors.transactionId = "Enter the Transaction ID using letters, numbers, dots, hyphens or underscores.";
@@ -123,7 +130,9 @@ export function buildOrderNote(payment: { provider: AdvanceProvider; transaction
  * Parses the payment line back out of an order note. Mirrors the SQL
  * backfill in migration 20261121000100 exactly (same format, same
  * phone shape): "[Advance payment] bKash TxID <txid>, sender <phone>."
- * Returns null when the note carries no payment line.
+ * The sender may be written in +880/880/01 form (old notes carry
+ * +880); the returned number is always 01-format. Returns null when
+ * the note carries no payment line.
  */
 export function parsePaymentNoteLine(note: string | null | undefined): {
   provider: AdvanceProvider;
@@ -132,14 +141,14 @@ export function parsePaymentNoteLine(note: string | null | undefined): {
 } | null {
   if (!note) return null;
   const match =
-    /^\[Advance payment\] (bKash|Nagad) TxID ([A-Za-z0-9][A-Za-z0-9._-]*), sender (01[3-9][0-9]{8})/.exec(
+    /^\[Advance payment\] (bKash|Nagad) TxID ([A-Za-z0-9][A-Za-z0-9._-]*), sender ((?:\+880|880|0)?1[3-9][0-9]{8})/.exec(
       note.trim(),
     );
   if (!match) return null;
   return {
     provider: match[1] === "Nagad" ? "nagad" : "bkash",
     transactionId: match[2] ?? "",
-    senderNumber: match[3] ?? "",
+    senderNumber: (match[3] ?? "").replace(/^\+?88(?=01[3-9])/, ""),
   };
 }
 

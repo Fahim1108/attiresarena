@@ -4,13 +4,13 @@ import type { Category } from "@/types";
  * Category hierarchy — owner decision 2026-11-20 (voice, supersedes the
  * old delete/reassign plan). No product and no category is deleted.
  *
- * Shirts is the MAIN (parent) category. Casual shirt, Formal shirt and
- * Check shirt are its sub-categories. The database rows for the three
- * sub-categories still carry parent_id NULL today (and there is no
- * Shirts row in the admin categories table at all — Shirts is static
- * config), so the storefront maps them to Shirts by slug/name here
- * until the rows are given a real parent in the admin UI. A real
- * parent_id in the DB always wins over this mapping (see
+ * Shirts is the MAIN (parent) category. Casual shirt, Formal shirt,
+ * Denim shirt and Check shirt are its sub-categories. The database
+ * rows for the four sub-categories still carry parent_id NULL today
+ * (and there is no Shirts row in the admin categories table at all —
+ * Shirts is static config), so the storefront maps them to Shirts by
+ * slug/name here until the rows are given a real parent in the admin
+ * UI. A real parent_id in the DB always wins over this mapping (see
  * mergeDbCategories in lib/store-settings.ts).
  *
  * Matching is by slug first, with the display name as a fallback, so a
@@ -41,12 +41,14 @@ export const PRIMARY_CATEGORY_SLUGS = [
 export const SHIRT_SUBCATEGORY_SLUGS = [
   "casual-shirt",
   "formal-shirt",
+  "denim-shirt",
   "check-shirt",
 ] as const;
 
 const SHIRT_SUBCATEGORY_NAMES = new Set([
   "casual shirt",
   "formal shirt",
+  "denim shirt",
   "check shirt",
 ]);
 
@@ -66,7 +68,7 @@ const SHIRT_SUBCATEGORY_NAMES = new Set([
  * normalization only collapses a plural "shirts" to "shirt" and
  * hyphens/spacing — it never touches non-shirt categories.
  */
-export type ShirtSubKey = "casual" | "formal" | "check";
+export type ShirtSubKey = "casual" | "formal" | "denim" | "check";
 
 /**
  * The canonical shirt types, in chip order. One entry per type — the
@@ -88,6 +90,7 @@ export const SHIRT_SUBCATEGORY_INFO: readonly {
 }[] = [
   { key: "casual", slug: "casual-shirt", name: "Casual shirt", description: "Everyday casual shirts." },
   { key: "formal", slug: "formal-shirt", name: "Formal shirt", description: "Formal shirts for work and occasions." },
+  { key: "denim", slug: "denim-shirt", name: "Denim shirt", description: "Denim shirts for everyday wear." },
   { key: "check", slug: "check-shirt", name: "Check shirt", description: "Check-pattern shirts." },
 ];
 
@@ -109,6 +112,7 @@ export function shirtSubKey(category: {
       .trim();
     if (normalized === "casual shirt") return "casual";
     if (normalized === "formal shirt") return "formal";
+    if (normalized === "denim shirt") return "denim";
     if (normalized === "check shirt") return "check";
   }
   return null;
@@ -127,7 +131,7 @@ export function isShirtSubcategory(category: {
 }
 
 /**
- * The three shirt types, in list order — shown inside Shirts.
+ * The four shirt types, in list order — shown inside Shirts.
  * Deduplicated by canonical shirt key: the merged category list
  * carries both the static rows and the messy DB rows (a "Formal
  * shirts" plural duplicate, a "Casual shirt" row with a garbage
@@ -158,7 +162,7 @@ export function shirtSubcategories(
 
 /** Everything except the shirt sub-categories — the top-level browse list.
  * Client feedback 2026-11-24 item 3: a secondary category NEVER shows
- * as a top-level tile. The old filter only excluded the three shirt
+ * as a top-level tile. The old filter only excluded the four shirt
  * types by slug/name, so a child category with a real parent (e.g. a
  * "White Sneakers" row under Sneakers) leaked out as a tile. A
  * top-level tile now needs parentId null AND must not be a shirt
