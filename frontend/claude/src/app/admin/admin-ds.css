@@ -283,6 +283,19 @@
   padding: 14px 12px 6px;
 }
 
+/* Same heading style for the plain <h2> group title that replaced the
+   <summary> toggle (Batch 1 nav regroup): groups are always open, so
+   there is no toggle and no pointer cursor. */
+.aa-admin .aa-admin-ds .aa-nav-group h2.aa-nav-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(var(--admin-text-secondary));
+  padding: 14px 12px 6px;
+  margin: 0;
+}
+
 .aa-admin .aa-admin-ds .aa-visit-store {
   display: flex;
   align-items: center;
@@ -544,6 +557,15 @@
   min-height: 0;
   border-top: 1px solid rgb(var(--admin-border));
   list-style: none;
+}
+
+/* Collapsed rail: the <h2> title is visually hidden by the
+   .aa-nav-group-title rule above, so the divider line moves to the
+   group wrapper itself to keep the between-group separators. */
+.aa-admin .aa-admin-ds.aa-shell[data-sidebar="collapsed"] .aa-sidebar .aa-nav-group {
+  border-top: 1px solid rgb(var(--admin-border));
+  margin: 8px 10px 2px;
+  padding-top: 4px;
 }
 
 .aa-admin .aa-admin-ds.aa-shell[data-sidebar="collapsed"] .aa-sidebar .aa-nav-group summary::-webkit-details-marker {
