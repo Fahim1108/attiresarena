@@ -32,6 +32,17 @@ function configuredUrl(value: string) {
     return null;
   }
 }
+/**
+ * tel: link for the saved store phone. The owner saves the number as
+ * dialled locally (01886456664); the link uses the international form
+ * (+8801886456664) so it dials from any phone. Display keeps the saved
+ * value unchanged.
+ */
+function telHref(phone: string): string {
+  const digits = phone.replace(/[^+\d]/g, "");
+  if (/^01[3-9]\d{8}$/.test(digits)) return `tel:+880${digits.slice(1)}`;
+  return `tel:${digits}`;
+}
 export function Footer() {
   const { footer } = useStorefront();
   return (
@@ -80,6 +91,14 @@ export function Footer() {
               })}
             </ul>
             </nav>
+            {/* Footer about text (admin footer_about, wired to
+                footer.tagline by applyFooterOverride). It was saved but
+                never rendered — the footer only showed a hardcoded
+                "Style Elevated. Always." line — so the owner's text
+                looked broken. */}
+            {footer.tagline ? (
+              <p className={styles.about}>{footer.tagline}</p>
+            ) : null}
             {/* Client feedback item 8: the store phone shows below the
                 social icons once the owner saves a real number in admin
                 (contact_phone); on Preview/staging the layout substitutes
@@ -88,7 +107,7 @@ export function Footer() {
             {footer.contact.phone && !footer.contact.phone.includes("X") && (
               <p className={styles.address}>
                 <Phone className={styles.addressIcon} aria-hidden size={15} />
-                <a href={`tel:${footer.contact.phone.replace(/[^+\d]/g, "")}`}>{footer.contact.phone}</a>
+                <a href={telHref(footer.contact.phone)}>{footer.contact.phone}</a>
               </p>
             )}
             {/* Store address (footer.contact.address, "Barishal, Bangladesh").

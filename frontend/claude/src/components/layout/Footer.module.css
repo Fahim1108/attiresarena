@@ -87,6 +87,15 @@
 .address a:hover {
   text-decoration: underline;
 }
+/* Footer about text (admin footer_about). Same tone as the address
+   lines; shown under the social icons. */
+.about {
+  margin: 0;
+  max-width: 240px;
+  color: #d6c8c8;
+  font-size: 13px;
+  line-height: 1.6;
+}
 .unconfigured {
   opacity: 1;
 }
