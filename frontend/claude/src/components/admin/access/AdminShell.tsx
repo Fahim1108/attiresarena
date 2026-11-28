@@ -164,11 +164,18 @@ function sidebarServerSnapshot(): boolean {
 export function AdminShell({
   children,
   roles,
+  pendingOrderCount = 0,
   stagingTools = false,
   taxonomyTools = false,
 }: {
   children: React.ReactNode;
   roles: string[];
+  /**
+   * New/unconfirmed orders (status "pending"), counted server-side by
+   * the workspace layout. The header bell badges this number; 0 shows
+   * a plain bell with no badge.
+   */
+  pendingOrderCount?: number;
   stagingTools?: boolean;
   taxonomyTools?: boolean;
 }) {
@@ -504,10 +511,31 @@ export function AdminShell({
           ) : (
             <span className="aa-admin-title">Administration</span>
           )}
-          <span className="aa-environment">
-            <ShieldCheck size={14} aria-hidden="true" />
-            {stagingTools ? "Staging workspace" : "Store management"}
-          </span>
+          <div className="aa-top-actions">
+            {hasArea("orders") ? (
+              <Link
+                href="/admin/sales/orders"
+                className="aa-notification-bell"
+                aria-label={
+                  pendingOrderCount > 0
+                    ? `Notifications: ${pendingOrderCount} new ${pendingOrderCount === 1 ? "order" : "orders"}`
+                    : "Notifications: no new orders"
+                }
+                title="Notifications: new orders"
+              >
+                <Bell size={18} strokeWidth={1.6} aria-hidden="true" />
+                {pendingOrderCount > 0 ? (
+                  <span className="aa-notification-badge" aria-hidden="true">
+                    {pendingOrderCount > 99 ? "99+" : pendingOrderCount}
+                  </span>
+                ) : null}
+              </Link>
+            ) : null}
+            <span className="aa-environment">
+              <ShieldCheck size={14} aria-hidden="true" />
+              {stagingTools ? "Staging workspace" : "Store management"}
+            </span>
+          </div>
         </header>
         <dialog ref={drawer} className="aa-drawer" aria-label="Administration menu">
           <button type="button" className="aa-secondary" onClick={() => drawer.current?.close()}>
