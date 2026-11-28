@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireStaff, actionOk, actionError, toActionError, type AdminActionResult, type StaffSession } from "./authorization";
+import { adminConfiguration } from "./supabase";
 import {
   ORDER_STATUSES,
   ORDER_STATUS_LABELS,
@@ -777,6 +778,28 @@ export async function readOrderNotices(limit = 20): Promise<OrderNotice[] | null
   if (result.error) return null;
   const parsed = orderNoticeSchema.array().safeParse(result.data);
   return parsed.success ? parsed.data : null;
+}
+
+/**
+ * Header notification-bell count: orders still in "pending" — the
+ * new/unconfirmed state (ORDER_STATUSES is fixed by the orders CHECK
+ * constraint; pending → confirmed/cancelled). There is no seen/unread
+ * flag on orders, so the pending count is the honest "new order"
+ * number. Returns 0 when Supabase is unconfigured or the count cannot
+ * be read, so the header never breaks; the bell still renders, without
+ * a badge. Auth redirects from requireStaff are left to propagate:
+ * the workspace layout already guarantees a staff session whenever
+ * Supabase is configured.
+ */
+export async function readPendingOrderCount(): Promise<number> {
+  if (!adminConfiguration()) return 0;
+  const session = await requireStaff();
+  const result = await session.client
+    .from("orders")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "pending");
+  if (result.error) return 0;
+  return result.count ?? 0;
 }
 
 /* ------------------------------------------------------------------ */
