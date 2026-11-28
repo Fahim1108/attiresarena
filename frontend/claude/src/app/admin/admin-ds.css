@@ -413,6 +413,65 @@
   white-space: nowrap;
 }
 
+/* Header notification bell (new orders): the bell and the environment
+   pill share one right-side group, so on phones — where the header is
+   a three-column grid in staging and a wrapping flex row in
+   production — the bell stays in the top-right corner next to the
+   pill instead of wrapping onto its own row. The badge is a red
+   round count with a white number; it only renders when the count is
+   above zero, and it caps at "99+". */
+.aa-admin .aa-admin-ds .aa-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.aa-admin .aa-admin-ds .aa-notification-bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 1px solid rgb(var(--admin-border));
+  border-radius: 999px;
+  background: rgb(var(--admin-card));
+  color: rgb(var(--admin-text-secondary));
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.aa-admin .aa-admin-ds .aa-notification-bell:hover {
+  background: rgb(var(--admin-soft-bg));
+  color: rgb(var(--admin-text));
+}
+
+.aa-admin .aa-admin-ds .aa-notification-bell:focus-visible {
+  outline: 2px solid rgb(var(--admin-primary));
+  outline-offset: 2px;
+}
+
+.aa-admin .aa-admin-ds .aa-notification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgb(var(--admin-danger));
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  pointer-events: none;
+}
+
 /* The legacy "Administration" header label is superseded by the
    breadcrumb, which names the same root plus the current section. */
 .aa-admin .aa-admin-ds .aa-admin-title {
@@ -629,6 +688,18 @@
 
   .aa-admin .aa-admin-ds .aa-top .aa-collapse-toggle {
     display: none;
+  }
+
+  /* Phones: the bell keeps a 44px touch target, and its group stays
+     in the top-right grid column next to the environment pill. */
+  .aa-admin .aa-admin-ds .aa-top-actions {
+    justify-self: end;
+  }
+
+  .aa-admin .aa-admin-ds .aa-notification-bell {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
   }
 
   .aa-admin .aa-admin-ds .aa-breadcrumb {
