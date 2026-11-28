@@ -784,26 +784,27 @@ export const SEO_OG_LOCALE = "en_US";
 export const DEFAULT_OG_IMAGE_SIZE = { width: 540, height: 540 } as const;
 
 /**
- * Measured dimensions of the homepage share image, the main logo badge
- * `/brand/logo-badge.jpg` (540×540 JPEG, probed 2026-11-17 — same file
- * and size as the global default, see `DEFAULT_OG_IMAGE_SIZE`).
- * History: the homepage used to carry the 1200x630 check-shirts photo
- * /brand/og-home.jpg (2026-11-24 fix — Google had picked the Belt
- * category tile as the search thumbnail because the global default is
+ * Measured dimensions of the homepage share image, the 1200x630
+ * check-shirts photo `/brand/og-home.jpg` (1200×630 JPEG, cropped
+ * 2026-11-24 from the check-shirts photo Fahim chose for the Shirts
+ * category).
+ * History: the 2026-11-24 fix set this photo because Google had picked
+ * the Belt category tile as the search thumbnail (the global default is
  * the small logo badge). Fahim chose logo-only for link shares on
- * 2026-11-25 ("Shudhu logo"), so the homepage share image is the logo
- * badge again; the shirt photo file stays on disk, unused by code. A
+ * 2026-11-25 ("Shudhu logo"), so the homepage share image went back to
+ * the logo badge; on 2026-11-28 he chose the shirt photo again for
+ * Google and for link shares, superseding the logo-only decision. A
  * stored `seo_og_image_url` still wins over it (see
  * `resolveHomeOgImage`).
  */
-export const HOME_OG_IMAGE_SIZE = { width: 540, height: 540 } as const;
+export const HOME_OG_IMAGE_SIZE = { width: 1200, height: 630 } as const;
 
-/** Homepage-only share image (see above): the main logo badge. */
+/** Homepage-only share image (see above): the check-shirts photo. */
 export const HOME_OG_IMAGE = {
-  url: "/brand/logo-badge.jpg",
+  url: "/brand/og-home.jpg",
   width: HOME_OG_IMAGE_SIZE.width,
   height: HOME_OG_IMAGE_SIZE.height,
-  alt: "Attires Arena",
+  alt: "Two folded check thrift shirts — white check and maroon check",
 } as const;
 
 export interface PageMetadataInput {
